@@ -36,12 +36,11 @@
 #define Z_IS_SET 0x4
 #define A_IS_SET 0x8
 #define B_IS_SET 0x10
-#define E_IS_SET 0x20
 
 #define XYZ_BIT_MASK 0x7
 #define AXES_BIT_MASK 0x1F
-#define PARAMETER_BIT_MASK 0x3F
 
+#define E_IS_SET 0x20
 #define F_IS_SET 0x40
 #define L_IS_SET 0x80
 #define P_IS_SET 0x100
@@ -141,7 +140,7 @@ typedef struct tMachine {
     Axis z;
     Extruder a;
     Extruder b;
-    unsigned tool_count;
+    unsigned extruder_count;
     unsigned timeout;
 } Machine;
 

@@ -47,7 +47,17 @@ static Machine replicator_1 = {
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
-    2,  // tool count
+    1,  // extruder count
+    20, // timeout
+};
+
+static Machine replicator_1D = {
+    {18000, 2500, 94.139704, ENDSTOP_IS_MAX}, // x axis
+    {18000, 2500, 94.139704, ENDSTOP_IS_MAX}, // y axis
+    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
+    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
+    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    2,  // extruder count
     20, // timeout
 };
 
@@ -57,7 +67,7 @@ static Machine replicator_2 = {
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
-    1,  // tool count
+    1,  // extruder count
     20, // timeout
 };
 
@@ -67,7 +77,7 @@ static Machine replicator_2X = {
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
-    2,  // tool count
+    2,  // extruder count
     20, // timeout
 };
 
@@ -79,7 +89,7 @@ Machine machine = {
     {1170, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
-    1,  // tool count
+    1,  // extruder count
     20, // timeout
 };
 
@@ -96,7 +106,7 @@ Point5d workTarget;         // work target point
 Point2d excess;
 int currentOffset;          // current G10 offset
 Point3d offset[7];          // G10 offsets
-int currentTool;
+int currentExtruder;
 unsigned temperature[4];
 int isRelative;
 int positionKnown;
@@ -164,7 +174,7 @@ static void initialize_globals(void)
         offset[i].z = 0.0;
     }
     
-    currentTool = 0;
+    currentExtruder = 0;
     
     for(i = 0; i < 4; i++) {
         temperature[i] = 0;
@@ -430,108 +440,108 @@ static void delay(unsigned milliseconds)
     if(write_32(milliseconds) == EOF) exit(1);
 }
 
-// 134 - Change Tool
-static void change_tool(unsigned tool_id)
+// 134 - Change extruder
+static void change_extruder(unsigned extruder_id)
 {
-    assert(tool_id < machine.tool_count);
+    assert(extruder_id < machine.extruder_count);
     if(write_8(134) == EOF) exit(1);
     
-    // uint8: Tool ID of the tool to switch to
-    if(write_8(tool_id) == EOF) exit(1);
+    // uint8: ID of the extruder to switch to
+    if(write_8(extruder_id) == EOF) exit(1);
 }
 
-// 135 - Wait for tool ready
+// 135 - Wait for extruder ready
 
-static void wait_for_tool(unsigned tool_id, unsigned timeout)
+static void wait_for_extruder(unsigned extruder_id, unsigned timeout)
 {
-    assert(tool_id < machine.tool_count);
+    assert(extruder_id < machine.extruder_count);
     if(write_8(135) == EOF) exit(1);
     
-    // uint8: Tool ID of the tool to wait for
-    if(write_8(tool_id) == EOF) exit(1);
+    // uint8: ID of the extruder to wait for
+    if(write_8(extruder_id) == EOF) exit(1);
     
-    // uint16: delay between query packets sent to the tool, in ms (nominally 100 ms)
+    // uint16: delay between query packets sent to the extruder, in ms (nominally 100 ms)
     if(write_16(100) == EOF) exit(1);
     
-    // uint16: Timeout before continuing without tool ready, in seconds (nominally 1 minute)
+    // uint16: Timeout before continuing without extruder ready, in seconds (nominally 1 minute)
     if(write_16(timeout) == EOF) exit(1);
 }
  
-// 136 - Tool action command
+// 136 - extruder action command
 
-static void set_extruder_temperature(unsigned tool_id, unsigned temperature)
+static void set_extruder_temperature(unsigned extruder_id, unsigned temperature)
 {
-    assert(tool_id < machine.tool_count);
+    assert(extruder_id < machine.extruder_count);
     if(write_8(136) == EOF) exit(1);
     
-    // uint8: Tool ID of the tool to query
-    if(write_8(tool_id) == EOF) exit(1);
+    // uint8: ID of the extruder to query
+    if(write_8(extruder_id) == EOF) exit(1);
     
-    // uint8: Action command to send to the tool
+    // uint8: Action command to send to the extruder
     if(write_8(3) == EOF) exit(1);
     
-    // uint8: Length of the tool command payload (N)
+    // uint8: Length of the extruder command payload (N)
     if(write_8(2) == EOF) exit(1);
     
     // int16: Desired target temperature, in Celsius
     if(write_16(temperature) == EOF) exit(1);
 }
 
-static void set_fan(unsigned tool_id, unsigned state)
+static void set_fan(unsigned extruder_id, unsigned state)
 {
-    assert(tool_id < machine.tool_count);
+    assert(extruder_id < machine.extruder_count);
     if(write_8(136) == EOF) exit(1);
     
-    // uint8: Tool ID of the tool to query
-    if(write_8(tool_id) == EOF) exit(1);
+    // uint8: ID of the extruder to query
+    if(write_8(extruder_id) == EOF) exit(1);
     
-    // uint8: Action command to send to the tool
+    // uint8: Action command to send to the extruder
     if(write_8(12) == EOF) exit(1);
     
-    // uint8: Length of the tool command payload (N)
+    // uint8: Length of the extruder command payload (N)
     if(write_8(1) == EOF) exit(1);
     
     // uint8: 1 to enable, 0 to disable
     if(write_8(state) == EOF) exit(1);
 }
 
-static void set_valve(unsigned tool_id, unsigned state)
+static void set_valve(unsigned extruder_id, unsigned state)
 {
-    assert(tool_id < machine.tool_count);
+    assert(extruder_id < machine.extruder_count);
     if(write_8(136) == EOF) exit(1);
     
-    // uint8: Tool ID of the tool to query
-    if(write_8(tool_id) == EOF) exit(1);
+    // uint8: ID of the extruder to query
+    if(write_8(extruder_id) == EOF) exit(1);
     
-    // uint8: Action command to send to the tool
+    // uint8: Action command to send to the extruder
     if(write_8(13) == EOF) exit(1);
     
-    // uint8: Length of the tool command payload (N)
+    // uint8: Length of the extruder command payload (N)
     if(write_8(1) == EOF) exit(1);
     
     // uint8: 1 to enable, 0 to disable
     if(write_8(state) == EOF) exit(1);
 }
 
-static void set_build_platform_temperature(unsigned tool_id, unsigned temperature)
+static void set_build_platform_temperature(unsigned extruder_id, unsigned temperature)
 {
-    assert(tool_id < machine.tool_count);
+    assert(extruder_id < machine.extruder_count);
     if(write_8(136) == EOF) exit(1);
     
-    // uint8: Tool ID of the tool to query
-    if(write_8(tool_id) == EOF) exit(1);
+    // uint8: ID of the extruder to query
+    if(write_8(extruder_id) == EOF) exit(1);
     
-    // uint8: Action command to send to the tool
+    // uint8: Action command to send to the extruder
     if(write_8(31) == EOF) exit(1);
     
-    // uint8: Length of the tool command payload (N)
+    // uint8: Length of the extruder command payload (N)
     if(write_8(2) == EOF) exit(1);
     
     // int16: Desired target temperature, in Celsius
     if(write_16(temperature) == EOF) exit(1);
 }
 
-// 137 - Enable/disable axes
+// 137 - Enable/disable axes steppers
 
 static void set_steppers(unsigned axes, unsigned state)
 {
@@ -570,20 +580,20 @@ static void set_position()
     if(write_32((int)steps.b) == EOF) exit(1);
 }
 
-// 141 - Wait for platform ready
+// 141 - Wait for build platform ready
 
-static void wait_for_platform(unsigned tool_id, int timeout)
+static void wait_for_build_platform(unsigned extruder_id, int timeout)
 {
-    assert(tool_id < machine.tool_count);
+    assert(extruder_id < machine.extruder_count);
     if(write_8(141) == EOF) exit(1);
     
-    // uint8: Tool ID of the tool to wait for
-    if(write_8(tool_id) == EOF) exit(1);
+    // uint8: ID of the extruder platform to wait for
+    if(write_8(extruder_id) == EOF) exit(1);
     
-    // uint16: delay between query packets sent to the tool, in ms (nominally 100 ms)
+    // uint16: delay between query packets sent to the extruder, in ms (nominally 100 ms)
     if(write_16(100) == EOF) exit(1);
     
-    // uint16: Timeout before continuing without tool ready, in seconds (nominally 1 minute)
+    // uint16: Timeout before continuing without extruder ready, in seconds (nominally 1 minute)
     if(write_16(timeout) == EOF) exit(1);
 }
 
@@ -639,21 +649,33 @@ void display_message(char *message, unsigned timeout, int wait_for_button)
     long bytesSent = 0;
     unsigned bitfield = 0;
     unsigned seconds = 0;
-    unsigned hPos = command.flag & Q_IS_SET ? (unsigned)command.q : 0;
+
     unsigned vPos = command.flag & L_IS_SET ? (unsigned)command.l : 0;
-    long length = strlen(message);
-    if(hPos > 19) hPos = 19;
     if(vPos > 3) vPos = 3;
+
+    unsigned hPos = command.flag & Q_IS_SET ? (unsigned)command.q : 0;
+    if(hPos > 19) hPos = 19;
+    
+    unsigned maxLength = hPos ? 20 - hPos : 20;
+    
+    // clip string so it fits in 4 x 20 lcd display buffer
+    long length = strlen(message);
+    if(vPos || hPos) {
+        if(length > maxLength) length = maxLength;
+    }
+    else {
+        if(length > 80) length = 80;
+    }
     
     while(bytesSent < length) {
-        if(bytesSent + 20 > length) {
+        if(bytesSent + maxLength >= length) {
             seconds = timeout;
             bitfield |= 0x02; // last message in group
             if(wait_for_button) {
                 bitfield |= 0x04;
             }
         }
-        if(bytesSent > 0) {
+        if(bytesSent > 0 || vPos || hPos) {
             bitfield |= 0x01; //do not clear flag
         }
         
@@ -666,9 +688,9 @@ void display_message(char *message, unsigned timeout, int wait_for_button)
         // uint8: Vertical position to display the message at (commonly 0-3)
         if(write_8(vPos) == EOF) exit(1);
         // uint8: Timeout, in seconds. If 0, this message will left on the screen
-        if(write_8(timeout) == EOF) exit(1);
+        if(write_8(seconds) == EOF) exit(1);
         // 1+N bytes: Message to write to the screen, in ASCII, terminated with a null character.
-        bytesSent += fwrite(message + bytesSent, 1, length > 20 ? 20 : length, out);
+        bytesSent += fwrite(message + bytesSent, 1, length > maxLength ? maxLength : length, out);
         if(write_8('\0') == EOF) exit(1);
     }
 }
@@ -825,8 +847,9 @@ static void usage()
 {
     puts("Usage: gpx [-m <MACHINE> | -c <CONFIG>] INPUT [OUTPUT]");
     puts("\nMACHINE is the predefined machine type");
-    puts("\n\t r|r1  = Replicator 1");
-    puts("\tr2 = Replicator 2 (default)");
+    puts("\n\tr1  = Replicator 1 - single extruder");
+    puts("\tr1d  = Replicator 1 - dual extruder");
+    puts("\tr2 = Replicator 2 (default config)");
     puts("\tr2x = Replicator 2X");
     puts("\nCONFIG is the filename of a custom machine definition (ini)");
     puts("\nINPUT is the name of the sliced gcode input filename");
@@ -850,9 +873,11 @@ int main(int argc, char * argv[])
     while ((c = getopt(argc, argv, "om:c:")) != -1) {
         switch (c) {
             case 'm':
-                if(strcasecmp(optarg, "r") == 0
-                   || strcasecmp(optarg, "r1") == 0) {
+                if(strcasecmp(optarg, "r1") == 0) {
                     machine = replicator_1;
+                }
+                else if(strcasecmp(optarg, "r1d") == 0) {
+                    machine = replicator_1D;
                 }
                 else if(strcasecmp(optarg, "r2") == 0) {
                     machine = replicator_2;                    
@@ -988,6 +1013,9 @@ int main(int argc, char * argv[])
                     case 'B':
                         command.b = strtod(digits, NULL);
                         command.flag |= B_IS_SET;
+                        if(machine.extruder_count < 2) {
+                            fprintf(stderr, "(line %u) Semantic Warning: Bnnn cannot access non-existant extruder", line_number);
+                        }
                         break;
                                                 
                         // Ennn	 Length of extrudate in mm.
@@ -1053,7 +1081,7 @@ int main(int argc, char * argv[])
                         command.m = atoi(digits);
                         command.flag |= M_IS_SET;
                         break;
-                        // Tnnn	 Select tool nnn. In RepRap, tools are extruders
+                        // Tnnn	 Select extruder nnn.
                     case 't':
                     case 'T':
                         command.t = atoi(digits);
@@ -1118,10 +1146,14 @@ int main(int argc, char * argv[])
             machineTarget.z = currentPosition.z;
         }
         
+        // we treat e as short hand for a or b being set
+        // depending on the state of the currentExtruder
         if(command.flag & E_IS_SET) {
-            if(currentTool == 0) {
+            if(currentExtruder == 0) {
                 // a = e
                 workTarget.a = isRelative ? (currentPosition.a + command.e) : command.e;
+                command.flag |= A_IS_SET;
+                command.a = command.e;
                 
                 // b
                 if(command.flag & B_IS_SET) {
@@ -1142,6 +1174,8 @@ int main(int argc, char * argv[])
                 
                 // b = e
                 workTarget.b = isRelative ? (currentPosition.b + command.e) : command.e;
+                command.flag |= B_IS_SET;
+                command.b = command.e;
             }
         }
         else {        
@@ -1227,7 +1261,7 @@ int main(int argc, char * argv[])
                     // G10 - Create Coordinate System Offset from the Absolute one
                 case 10:
                     if(command.flag & P_IS_SET && command.p >= 1.0 && command.p <= 6.0) {
-                        i = (int)command.p - 1;
+                        i = (int)command.p;
                         if(command.flag & X_IS_SET) offset[i].x = machineTarget.x;
                         if(command.flag & Y_IS_SET) offset[i].y = machineTarget.y;
                         if(command.flag & Z_IS_SET) offset[i].z = machineTarget.z;
@@ -1296,15 +1330,6 @@ int main(int argc, char * argv[])
                     if(command.flag & Z_IS_SET) currentPosition.z = machineTarget.z;
                     if(command.flag & A_IS_SET) currentPosition.a = workTarget.a;
                     if(command.flag & B_IS_SET) currentPosition.b = workTarget.b;
-
-                    if(command.flag & E_IS_SET) {
-                        if(currentTool == 0) {
-                            currentPosition.a = workTarget.a;
-                        }
-                        else {
-                            currentPosition.b = workTarget.b;
-                        }
-                    }
                     break;
                     
                     // G130 - Set given axes potentiometer Value
@@ -1344,32 +1369,39 @@ int main(int argc, char * argv[])
                     }
                     exit(0);
             
-                    // M6 - Wait for toolhead to come up to reach (or exceed) temperature
+                    // M6 - Wait for extruder to reach (or exceed) temperature
                 case 6:
                     if(command.flag & T_IS_SET) {
                         int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                        unsigned tool_id = (unsigned)command.t;
-                        if(tool_id < machine.tool_count) {
-                            if(currentTool != tool_id) {
-                                currentTool = tool_id;
-                                change_tool(tool_id);
+                        unsigned extruder_id = (unsigned)command.t;
+                        if(extruder_id < machine.extruder_count) {
+                            if(currentExtruder != extruder_id) {
+                                currentExtruder = extruder_id;
+                                change_extruder(extruder_id);
                             }
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M6 cannot select non-existant tool T%u", line_number, tool_id);
-                            tool_id = currentTool;
+                            fprintf(stderr, "(line %u) Semantic Warning: M6 cannot select non-existant extruder T%u", line_number, extruder_id);
+                            extruder_id = currentExtruder;
                         }
-                        if(temperature[currentTool] > 0.0) {
-                            wait_for_tool(tool_id, timeout);
+                        if(temperature[currentExtruder] > 1.0) {
+                            wait_for_extruder(extruder_id, timeout);
+                        }
+                        // if we have a HBP wait for that too
+                        if(machine.a.has_heated_build_platform && temperature[2] > 1.0) {
+                            wait_for_build_platform(0, timeout);
+                        }
+                        if(machine.b.has_heated_build_platform && temperature[3] > 1.0) {
+                            wait_for_build_platform(1, timeout);
                         }
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax Error: M6 is missing tool number, use Tn where n is 0-1", line_number);
+                        fprintf(stderr, "(line %u) Syntax Error: M6 is missing extruder number, use Tn where n is 0-1", line_number);
                         exit(1);
                     }
                     break;
                     
-                    // M70 - Display Message On Machine
+                    // M70 - Display message on LCD
                 case 70:
                     if(command.flag & COMMENT_IS_SET) {
                         if(command.flag & P_IS_SET) {
@@ -1384,7 +1416,7 @@ int main(int argc, char * argv[])
                     }
                     break;
 
-                    // M71 - Display Message, Wait For User Button Press
+                    // M71 - Display message and wait for button press
                 case 71:
                     if(command.flag & COMMENT_IS_SET) {
                         if(command.flag & P_IS_SET) {
@@ -1404,7 +1436,7 @@ int main(int argc, char * argv[])
                     }
                     break;
                     
-                    // M72 - Play a Tone or Song
+                    // M72 - Queue a song or play a tone
                 case 72:
                     if(command.flag & P_IS_SET) {
                         unsigned song_id = (unsigned)command.p;
@@ -1416,7 +1448,7 @@ int main(int argc, char * argv[])
                     }
                     break;
                     
-                    // M73 - Manual Set Build %
+                    // M73 - Manual set build percentage
                 case 73:
                     if(command.flag & P_IS_SET) {
                         unsigned percent = (unsigned) command.p;
@@ -1442,60 +1474,60 @@ int main(int argc, char * argv[])
                     }
                     break;
                     
-                    // M101 - Turn Extruder On, Forward
-                    // M102 - Turn Extruder On, Reverse
+                    // M101 - Turn extruder on, forward
+                    // M102 - Turn extruder on, reverse
                 case 101:
                 case 102:
                     if(command.flag & T_IS_SET) {
-                        unsigned tool_id = (unsigned)command.t;
-                        if(tool_id < machine.tool_count) {
-                            set_steppers(tool_id == 0 ? A_IS_SET : B_IS_SET, 1);
+                        unsigned extruder_id = (unsigned)command.t;
+                        if(extruder_id < machine.extruder_count) {
+                            set_steppers(extruder_id == 0 ? A_IS_SET : B_IS_SET, 1);
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant tool T%u", line_number, command.m, tool_id);
+                            fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant extruder T%u", line_number, command.m, extruder_id);
                         }
 
                     }
                     else {
-                        set_steppers(currentTool == 0 ? A_IS_SET : B_IS_SET, 1);
+                        set_steppers(currentExtruder == 0 ? A_IS_SET : B_IS_SET, 1);
                     }
                     break;
                     
-                    // M103 - Turn Extruder Off
+                    // M103 - Turn extruder off
                 case 103:
                     if(command.flag & T_IS_SET) {
-                        unsigned tool_id = (unsigned)command.t;
-                        if(tool_id < machine.tool_count) {
-                            set_steppers(tool_id == 0 ? A_IS_SET : B_IS_SET, 0);
+                        unsigned extruder_id = (unsigned)command.t;
+                        if(extruder_id < machine.extruder_count) {
+                            set_steppers(extruder_id == 0 ? A_IS_SET : B_IS_SET, 0);
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M103 cannot select non-existant tool T%u", line_number, tool_id);
+                            fprintf(stderr, "(line %u) Semantic Warning: M103 cannot select non-existant extruder T%u", line_number, extruder_id);
                         }
                         
                     }
                     else {
-                        set_steppers(currentTool == 0 ? A_IS_SET : B_IS_SET, 0);
+                        set_steppers(currentExtruder == 0 ? A_IS_SET : B_IS_SET, 0);
                     }
                     break;
                     
                     // M104 - Set extruder temperature
                 case 104:
                     if(command.flag & S_IS_SET) {
-                        unsigned temp = (unsigned)command.t;
+                        unsigned temp = (unsigned)command.s;
                         if(temp > 260) temp = 260;
                         if(command.flag & T_IS_SET) {
-                            unsigned tool_id = (unsigned)command.t;
-                            if(tool_id < machine.tool_count) {
-                                set_extruder_temperature(tool_id, temp);
-                                temperature[tool_id] = temp;
+                            unsigned extruder_id = (unsigned)command.t;
+                            if(extruder_id < machine.extruder_count) {
+                                set_extruder_temperature(extruder_id, temp);
+                                temperature[extruder_id] = temp;
                             }
                             else {
-                                fprintf(stderr, "(line %u) Semantic Warning: M104 cannot select non-existant tool T%u", line_number, tool_id);
+                                fprintf(stderr, "(line %u) Semantic Warning: M104 cannot select non-existant extruder T%u", line_number, extruder_id);
                             }
                         }
                         else {
-                            set_extruder_temperature(currentTool, temp);
-                            temperature[currentTool] = temp;
+                            set_extruder_temperature(currentExtruder, temp);
+                            temperature[currentExtruder] = temp;
                         }
                     }
                     else {
@@ -1507,32 +1539,32 @@ int main(int argc, char * argv[])
                     // M106 - Turn cooling fan on
                 case 106:
                     if(command.flag & T_IS_SET) {
-                        unsigned tool_id = (unsigned)command.t;
-                        if(tool_id < machine.tool_count) {
-                            set_fan(tool_id, 1);
+                        unsigned extruder_id = (unsigned)command.t;
+                        if(extruder_id < machine.extruder_count) {
+                            set_fan(extruder_id, 1);
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M106 cannot select non-existant tool T%u", line_number, tool_id);
+                            fprintf(stderr, "(line %u) Semantic Warning: M106 cannot select non-existant extruder T%u", line_number, extruder_id);
                         }
                     }
                     else {
-                        set_fan(currentTool, 1);
+                        set_fan(currentExtruder, 1);
                     }
                     break;
                     
                     // M107 - Turn cooling fan off
                 case 107:
                     if(command.flag & T_IS_SET) {
-                        unsigned tool_id = (unsigned)command.t;
-                        if(tool_id < machine.tool_count) {
-                            set_fan(tool_id, 0);
+                        unsigned extruder_id = (unsigned)command.t;
+                        if(extruder_id < machine.extruder_count) {
+                            set_fan(extruder_id, 0);
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M107 cannot select non-existant tool T%u", line_number, tool_id);
+                            fprintf(stderr, "(line %u) Semantic Warning: M107 cannot select non-existant extruder T%u", line_number, extruder_id);
                         }
                     }
                     else {
-                        set_fan(currentTool, 0);
+                        set_fan(currentExtruder, 0);
                     }
                     break;
                     
@@ -1542,18 +1574,18 @@ int main(int argc, char * argv[])
                 case 140:
                     if(machine.a.has_heated_build_platform || machine.b.has_heated_build_platform) {
                         if(command.flag & S_IS_SET) {
-                            unsigned tool_id = machine.a.has_heated_build_platform ? 0 : 1;
-                            unsigned temp = (unsigned)command.t;
+                            unsigned extruder_id = machine.a.has_heated_build_platform ? 0 : 1;
+                            unsigned temp = (unsigned)command.s;
                             if(temp > 160) temp = 160;
                             if(command.flag & T_IS_SET) {
-                                tool_id = (unsigned)command.t;
+                                extruder_id = (unsigned)command.t;
                             }
-                            if(tool_id < machine.tool_count && (tool_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform)) {
-                                set_build_platform_temperature(tool_id, temp);
-                                temperature[tool_id + 2] = temp;
+                            if(extruder_id < machine.extruder_count && (extruder_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform)) {
+                                set_build_platform_temperature(extruder_id, temp);
+                                temperature[extruder_id + 2] = temp;
                             }
                             else {
-                                fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant hbp tool T%u", line_number, command.m, tool_id);
+                                fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant hbp extruder T%u", line_number, command.m, extruder_id);
                             }
                         }
                         else {
@@ -1569,35 +1601,43 @@ int main(int argc, char * argv[])
                     // M126 - Turn blower fan on (valve open)
                 case 126:
                     if(command.flag & T_IS_SET) {
-                        unsigned tool_id = (unsigned)command.t;
-                        if(tool_id < machine.tool_count) {
-                            set_valve(tool_id, 1);
+                        unsigned extruder_id = (unsigned)command.t;
+                        if(extruder_id < machine.extruder_count) {
+                            set_valve(extruder_id, 1);
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M126 cannot select non-existant tool T%u", line_number, tool_id);
+                            fprintf(stderr, "(line %u) Semantic Warning: M126 cannot select non-existant extruder T%u", line_number, extruder_id);
                         }
                     }
                     else {
-                        set_valve(currentTool, 1);
+                        set_valve(currentExtruder, 1);
                     }
                     break;
 
                     // M127 - Turn blower fan on (valve close)
                 case 127:
                     if(command.flag & T_IS_SET) {
-                        unsigned tool_id = (unsigned)command.t;
-                        if(tool_id < machine.tool_count) {
-                            set_valve(tool_id, 0);
+                        unsigned extruder_id = (unsigned)command.t;
+                        if(extruder_id < machine.extruder_count) {
+                            set_valve(extruder_id, 0);
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M127 cannot select non-existant tool T%u", line_number, tool_id);
+                            fprintf(stderr, "(line %u) Semantic Warning: M127 cannot select non-existant extruder T%u", line_number, extruder_id);
                         }
                     }
                     else {
-                        set_valve(currentTool, 0);
+                        set_valve(currentExtruder, 0);
                     }
                     break;
+
+                    // M137 - Enable axes steppers
+                case 137:
+                    break;
                     
+                    // M138 - Disable axes steppers
+                case 138:
+                    break;
+
                     // M146 - Set RGB LED value
                 case 146:
                     break;
@@ -1643,18 +1683,18 @@ int main(int argc, char * argv[])
             }
         }
         else if(command.flag & T_IS_SET) {
-            unsigned tool_id = (unsigned)command.t;
-            if(tool_id < machine.tool_count) {
-                if(currentTool != tool_id) {
-                    currentTool = tool_id;
-                    change_tool(tool_id);
+            unsigned extruder_id = (unsigned)command.t;
+            if(extruder_id < machine.extruder_count) {
+                if(currentExtruder != extruder_id) {
+                    currentExtruder = extruder_id;
+                    change_extruder(extruder_id);
                 }
             }
             else {
-                fprintf(stderr, "(line %u) Semantic Warning: T%u cannot select non-existant tool", line_number, tool_id);
+                fprintf(stderr, "(line %u) Semantic Warning: T%u cannot select non-existant extruder", line_number, extruder_id);
             }
         }
-        else if(command.flag & PARAMETER_BIT_MASK) {
+        else if(command.flag & AXES_BIT_MASK) {
             queue_point(command.f);
         }
         // update progress
