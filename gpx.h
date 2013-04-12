@@ -5,7 +5,7 @@
 //
 //  Copyright (c) 2013 WHPThomas.
 //
-//  Referencing ReplicatorG sources from /src/replicatorg/drivers
+//  gpx references ReplicatorG sources from /src/replicatorg/drivers
 //  which are part of the ReplicatorG project - http://www.replicat.org
 //  Copyright (c) 2008 Zach Smith
 //  and Makerbot4GSailfish.java Copyright (C) 2012 Jetty / Dan Newman
@@ -36,22 +36,18 @@
 #define Z_IS_SET 0x4
 #define A_IS_SET 0x8
 #define B_IS_SET 0x10
-
-#define XYZ_BIT_MASK 0x7
-#define AXIS_BIT_MASK 0x1F
-
 #define E_IS_SET 0x20
 
-#define COMMAND_BIT_MASK 0x3F
+#define XYZ_BIT_MASK 0x7
+#define AXES_BIT_MASK 0x1F
+#define PARAMETER_BIT_MASK 0x3F
 
 #define F_IS_SET 0x40
-
 #define L_IS_SET 0x80
 #define P_IS_SET 0x100
-#define R_IS_SET 0x200
-#define S_IS_SET 0x400
-
-#define COMMENT_IS_SET 0x800
+#define Q_IS_SET 0x200
+#define R_IS_SET 0x400
+#define S_IS_SET 0x800
 
 // commands
 
@@ -59,13 +55,12 @@
 #define M_IS_SET 0x2000
 #define T_IS_SET 0x4000
 
-typedef unsigned short u16;
+#define COMMENT_IS_SET 0x8000
 
-#if ULONG_MAX == 0xFFFF
-typedef unsigned long u32;
-#else
-typedef unsigned int u32;
-#endif
+typedef struct tPoint2d {
+    double a;
+    double b;
+} Point2d, *Ptr2d;
 
 typedef struct tPoint3d {
     double x;
@@ -81,20 +76,6 @@ typedef struct tPoint5d {
     double b;   
 } Point5d, *Ptr5d;
 
-typedef struct tParemeter {
-    double x;
-    double y;
-    double z;
-    double a;
-    double b;
-    
-    double f;
-    double l;
-    double p;
-    double r;
-    double s;
-} Paremeter, *PtrParameter;
-
 typedef struct tCommand {
     // parameters
     double x;
@@ -105,27 +86,40 @@ typedef struct tCommand {
     
     double e;
     double f;
+
     double l;
     double p;
+    double q;
     double r;
     double s;
     
     // commands
-    u32 g;
-    u32 m;
-    u32 t;
+    unsigned g;
+    unsigned m;
+    unsigned t;
     
     // comments
     char *comment;
     
     // state
-    u32 flag;
+    int flag;
 } Command, *PtrCommand;
 
 // endstop flags
 
 #define ENDSTOP_IS_MIN 0
 #define ENDSTOP_IS_MAX 1
+
+// tool id
+
+#define MAX_TOOL_ID 1
+#define BUILD_PLATE_ID 2
+
+// state
+
+#define READY_STATE 0
+#define RUNNING_STATE 1
+#define ENDED_STATE 2
 
 typedef struct tAxis {
     double max_feedrate;
@@ -138,7 +132,7 @@ typedef struct tExtruder {
     double max_feedrate;
     double steps_per_mm;
     double motor_steps;
-    unsigned hbp_present;
+    unsigned has_heated_build_platform;
 } Extruder;
 
 typedef struct tMachine {
@@ -147,10 +141,8 @@ typedef struct tMachine {
     Axis z;
     Extruder a;
     Extruder b;
+    unsigned tool_count;
     unsigned timeout;
 } Machine;
-
-#define SUCCESS 0
-#define FAILURE 1
 
 #endif

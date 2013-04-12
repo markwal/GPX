@@ -5,7 +5,7 @@
 //
 //  Copyright (c) 2013 WHPThomas.
 //
-//  Referencing ReplicatorG sources from /src/replicatorg/drivers
+//  gpx references ReplicatorG sources from /src/replicatorg/drivers
 //  which are part of the ReplicatorG project - http://www.replicat.org
 //  Copyright (c) 2008 Zach Smith
 //  and Makerbot4GSailfish.java Copyright (C) 2012 Jetty / Dan Newman
@@ -47,6 +47,7 @@ static Machine replicator_1 = {
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    2,  // tool count
     20, // timeout
 };
 
@@ -56,6 +57,7 @@ static Machine replicator_2 = {
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1,  // tool count
     20, // timeout
 };
 
@@ -65,6 +67,7 @@ static Machine replicator_2X = {
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    2,  // tool count
     20, // timeout
 };
 
@@ -76,40 +79,161 @@ Machine machine = {
     {1170, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1,  // tool count
     20, // timeout
 };
 
+// PRIVATE FUNCTION PROTOTYPES
+
+static double get_home_feedrate(int flag);
+
 // GLOBAL VARIABLES
 
-Command command;        // command line
-Paremeter current;      // current point
-Point3d machineTarget;  // machine target point
-Paremeter workTarget;   // work target point
-Point3d currentOffset;  // current offset
-Point3d offset[6];      // G10 offsets
+Command command;            // command line
+Point5d currentPosition;    // current point
+Point3d machineTarget;      // machine target point
+Point5d workTarget;         // work target point
+Point2d excess;
+int currentOffset;          // current G10 offset
+Point3d offset[7];          // G10 offsets
 int currentTool;
-int isRelative = 0;
-int isMetric = 1;
-u32 line_number = 1;
+unsigned temperature[4];
+int isRelative;
+int positionKnown;
+int programState;
+unsigned line_number;
 static char buffer[256];
 
-static int fputu32(u32 value, FILE *out)
+FILE *in;
+FILE *out;
+
+static void on_exit(void)
 {
-    if(fputc(value, out) == EOF) return EOF;
-    if(fputc(value >> 8, out) == EOF) return EOF;
-    if(fputc(value >> 16, out) == EOF) return EOF;
-    if(fputc(value >> 24, out) == EOF) return EOF;
+    // close open files
+    if(in != stdin) {
+        fclose(in);
+        if(out != stdout) {
+            if(ferror(out)) {
+                perror("while writing to output file");
+            }
+            fclose(out);
+        }
+    }
+}
+
+static void initialize_globals(void)
+{
+    int i;
+    
+    // we default to using pipes
+    in = stdin;
+    out = stdout;
+    
+    // register cleanup function
+    atexit(on_exit);
+    
+    command.flag = 0;
+    
+    // initialize current position to zero
+    
+    currentPosition.x = 0.0;
+    currentPosition.y = 0.0;
+    currentPosition.z = 0.0;
+    
+    currentPosition.a = 0.0;
+    currentPosition.b = 0.0;
+    
+    command.e = 0.0;
+    command.f = get_home_feedrate(XYZ_BIT_MASK);
+    command.l = 0.0;
+    command.p = 0.0;
+    command.q = 0.0;
+    command.r = 0.0;
+    command.s = 0.0;
+    
+    command.comment = "";
+    
+    excess.a = 0.0;
+    excess.b = 0.0;
+    
+    currentOffset = 0;
+    
+    for(i = 0; i < 7; i++) {
+        offset[i].x = 0.0;
+        offset[i].y = 0.0;
+        offset[i].z = 0.0;
+    }
+    
+    currentTool = 0;
+    
+    for(i = 0; i < 4; i++) {
+        temperature[i] = 0;
+    }
+    
+    isRelative = 0;
+    positionKnown = 0;
+    programState = 0;
+    
+    line_number = 1;
+}
+
+// STATE
+
+#define start_program() programState = RUNNING_STATE
+#define end_program() programState = ENDED_STATE
+
+#define program_is_ready() programState < RUNNING_STATE
+#define program_is_running() programState < ENDED_STATE
+
+// PRIVATE FUNCTIONS
+
+#define write_8(VALUE) fputc(VALUE, out)
+
+static int write_16(unsigned short value)
+{
+    union {
+        unsigned short s;
+        unsigned char b[2];
+    } u;
+    u.s = value;
+    
+    if(fputc(u.b[0], out) == EOF) return EOF;
+    if(fputc(u.b[1], out) == EOF) return EOF;
     return 0;
 }
 
-static int fputu16(u16 value, FILE *out)
+static int write_32(unsigned int value)
 {
-    if(fputc(value, out) == EOF) return EOF;
-    if(fputc(value >> 8, out) == EOF) return EOF;
+    union {
+        unsigned int i;
+        unsigned char b[4];
+    } u;
+    u.i = value;
+    
+    if(fputc(u.b[0], out) == EOF) return EOF;
+    if(fputc(u.b[1], out) == EOF) return EOF;
+    if(fputc(u.b[2], out) == EOF) return EOF;
+    if(fputc(u.b[3], out) == EOF) return EOF;
+    
     return 0;
 }
 
-static double magnitude(unsigned long flag, Ptr5d vector)
+static int write_float(float value) {
+    union {
+        float f;
+        unsigned char b[4];
+    } u;
+    u.f = value;
+    
+    if(fputc(u.b[0], out) == EOF) return EOF;
+    if(fputc(u.b[1], out) == EOF) return EOF;
+    if(fputc(u.b[2], out) == EOF) return EOF;
+    if(fputc(u.b[3], out) == EOF) return EOF;
+
+    return 0;
+}
+
+static double magnitude(int flag, Ptr5d vector)
 {
     double acc = 0.0;
     if(flag & X_IS_SET) {
@@ -130,7 +254,7 @@ static double magnitude(unsigned long flag, Ptr5d vector)
     return sqrt(acc);
 }
 
-static double get_max_feedrate(unsigned long flag)
+static double get_max_feedrate(int flag)
 {
     double feedrate;
     if(flag & F_IS_SET) {
@@ -151,7 +275,7 @@ static double get_max_feedrate(unsigned long flag)
     return feedrate;
 }
 
-static double get_home_feedrate(unsigned long flag) {
+static double get_home_feedrate(int flag) {
     double feedrate;
     if(flag & F_IS_SET) {
         feedrate = command.f;
@@ -171,11 +295,28 @@ static double get_home_feedrate(unsigned long flag) {
     return feedrate;
 }
 
-static u32 feedrate_to_microseconds(unsigned long flag, Ptr5d origin, Ptr5d vector, double feedrate) {
+static Point5d mm_to_steps(Ptr5d mm, Ptr2d excess)
+{
+    Point5d result;
+    result.x = round(mm->x * machine.x.steps_per_mm);
+    result.y = round(mm->y * machine.y.steps_per_mm);
+    result.z = round(mm->z * machine.z.steps_per_mm);
+    if(excess) {
+        result.a = round((mm->a * machine.a.steps_per_mm) + excess->a);
+        result.b = round((mm->b * machine.b.steps_per_mm) + excess->b);
+    }
+    else {
+        result.a = round(mm->a * machine.a.steps_per_mm);
+        result.b = round(mm->b * machine.b.steps_per_mm);        
+    }
+    return result;
+}
+
+static unsigned feedrate_to_microseconds(int flag, Ptr5d origin, Ptr5d vector, double feedrate) {
     Point5d deltaMM;
     Point5d deltaSteps;
     double longestStep = 0.0;
-    
+    // feedrate is in mm/min
     if(flag & X_IS_SET) {
         deltaMM.x = fabs(vector->x - origin->x);
         deltaSteps.x = deltaMM.x * machine.x.steps_per_mm;
@@ -213,14 +354,13 @@ static u32 feedrate_to_microseconds(unsigned long flag, Ptr5d origin, Ptr5d vect
             longestStep = deltaSteps.b;
         }
     }
-    // feedrate is in mm/min
     // distance is in mm
     double distance = magnitude(flag, &deltaMM);
     // move duration in microseconds = distance / feedrate * 60,000,000
     double microseconds = distance / feedrate * 60000000.0;
     // time between steps for longest axis = microseconds / longestStep
     double step_delay = microseconds / longestStep;
-    return (u32)round(step_delay);
+    return (unsigned)round(step_delay);
 }
 
 // X3G COMMANDS
@@ -228,13 +368,14 @@ static u32 feedrate_to_microseconds(unsigned long flag, Ptr5d origin, Ptr5d vect
 // 131 - Find axes minimums
 // 132 - Find axes maximums
 
-static int find_axes(unsigned direction, FILE *out)
+static void home_axes(unsigned direction)
 {
     Point3d origin, vector;
-    u32 flag = command.flag & XYZ_BIT_MASK;
+    int xyz_flag = command.flag & XYZ_BIT_MASK;
     double feedrate = get_home_feedrate(command.flag);
+    assert(direction <= 1);
     // compute the slowest feedrate
-    if(flag & X_IS_SET) {
+    if(xyz_flag & X_IS_SET) {
         if(machine.x.home_feedrate < feedrate) {
             feedrate = machine.x.home_feedrate;
         }
@@ -242,130 +383,356 @@ static int find_axes(unsigned direction, FILE *out)
         vector.x = 1;
         // confirm machine compatibility
         if(direction != machine.x.endstop) {
-            fprintf(stderr, "(line %u) GCode Semantic Warning: X axis homing to %s endstop", line_number, direction ? "maximum" : "minimum");
+            fprintf(stderr, "(line %u) Semantic Warning: X axis homing to %s endstop", line_number, direction ? "maximum" : "minimum");
         }
     }
-    if(flag & Y_IS_SET) {
+    if(xyz_flag & Y_IS_SET) {
         if(machine.y.home_feedrate < feedrate) {
             feedrate = machine.y.home_feedrate;
         }
         origin.y = 0;
         vector.y = 1;
         if(direction != machine.y.endstop) {
-            fprintf(stderr, "(line %u) GCode Semantic Warning: Y axis homing to %s endstop", line_number, direction ? "maximum" : "minimum");
+            fprintf(stderr, "(line %u) Semantic Warning: Y axis homing to %s endstop", line_number, direction ? "maximum" : "minimum");
         }
     }
-    if(flag & Z_IS_SET) {
+    if(xyz_flag & Z_IS_SET) {
         if(machine.z.home_feedrate < feedrate) {
             feedrate = machine.z.home_feedrate;
         }
         origin.z = 0;
         vector.z = 1;
         if(direction != machine.z.endstop) {
-            fprintf(stderr, "(line %u) GCode Semantic Warning: Z axis homing to %s endstop", line_number, direction ? "maximum" : "minimum");
+            fprintf(stderr, "(line %u) Semantic Warning: Z axis homing to %s endstop", line_number, direction ? "maximum" : "minimum");
         }
     }
-    if(fputc(direction == ENDSTOP_IS_MIN ? 131 :132, out) == EOF) return FAILURE;
+    unsigned microseconds = feedrate_to_microseconds(xyz_flag, (Ptr5d)&origin, (Ptr5d)&vector, feedrate);
+    
+    if(write_8(direction == ENDSTOP_IS_MIN ? 131 :132) == EOF) exit(1);
+    
     // uint8: Axes bitfield. Axes whose bits are set will be moved.
-    if(fputc(flag, out) == EOF) return FAILURE;
+    if(write_8(xyz_flag) == EOF) exit(1);
+    
     // uint32: Feedrate, in microseconds between steps on the max delta. (DDA)
-    if(fputu32(feedrate_to_microseconds(flag, (Ptr5d)&origin, (Ptr5d)&vector, feedrate), out) == EOF) return FAILURE;
+    if(write_32(microseconds) == EOF) exit(1);
+    
     // uint16: Timeout, in seconds.
-    if(fputu16(machine.timeout, out) == EOF) return FAILURE;
-    return 0;
+    if(write_16(machine.timeout) == EOF) exit(1);
 }
 
 // 133 - delay
 
-static int delay(u32 milliseconds, FILE *out)
+static void delay(unsigned milliseconds)
 {
-    if(fputc(133, out) == EOF) return FAILURE;
+    if(write_8(133) == EOF) exit(1);
+    
     // uint32: delay, in milliseconds
-    if(fputu32(milliseconds, out) == EOF) return FAILURE;
-    return 0;
+    if(write_32(milliseconds) == EOF) exit(1);
 }
 
 // 134 - Change Tool
- 
+static void change_tool(unsigned tool_id)
+{
+    assert(tool_id < machine.tool_count);
+    if(write_8(134) == EOF) exit(1);
+    
+    // uint8: Tool ID of the tool to switch to
+    if(write_8(tool_id) == EOF) exit(1);
+}
+
 // 135 - Wait for tool ready
 
-static int wait_for_tool(u32 tool_id, u32 timeout, FILE *out)
+static void wait_for_tool(unsigned tool_id, unsigned timeout)
 {
-    currentTool = tool_id;
-    if(fputc(135, out) == EOF) return FAILURE;
+    assert(tool_id < machine.tool_count);
+    if(write_8(135) == EOF) exit(1);
+    
     // uint8: Tool ID of the tool to wait for
-    if(fputc(tool_id, out) == EOF) return FAILURE;
+    if(write_8(tool_id) == EOF) exit(1);
+    
     // uint16: delay between query packets sent to the tool, in ms (nominally 100 ms)
-    if(fputu16(100, out) == EOF) return FAILURE;
+    if(write_16(100) == EOF) exit(1);
+    
     // uint16: Timeout before continuing without tool ready, in seconds (nominally 1 minute)
-    if(fputu16(timeout, out) == EOF) return FAILURE;
-    return 0;
+    if(write_16(timeout) == EOF) exit(1);
 }
  
 // 136 - Tool action command
- 
+
+static void set_extruder_temperature(unsigned tool_id, unsigned temperature)
+{
+    assert(tool_id < machine.tool_count);
+    if(write_8(136) == EOF) exit(1);
+    
+    // uint8: Tool ID of the tool to query
+    if(write_8(tool_id) == EOF) exit(1);
+    
+    // uint8: Action command to send to the tool
+    if(write_8(3) == EOF) exit(1);
+    
+    // uint8: Length of the tool command payload (N)
+    if(write_8(2) == EOF) exit(1);
+    
+    // int16: Desired target temperature, in Celsius
+    if(write_16(temperature) == EOF) exit(1);
+}
+
+static void set_fan(unsigned tool_id, unsigned state)
+{
+    assert(tool_id < machine.tool_count);
+    if(write_8(136) == EOF) exit(1);
+    
+    // uint8: Tool ID of the tool to query
+    if(write_8(tool_id) == EOF) exit(1);
+    
+    // uint8: Action command to send to the tool
+    if(write_8(12) == EOF) exit(1);
+    
+    // uint8: Length of the tool command payload (N)
+    if(write_8(1) == EOF) exit(1);
+    
+    // uint8: 1 to enable, 0 to disable
+    if(write_8(state) == EOF) exit(1);
+}
+
+static void set_valve(unsigned tool_id, unsigned state)
+{
+    assert(tool_id < machine.tool_count);
+    if(write_8(136) == EOF) exit(1);
+    
+    // uint8: Tool ID of the tool to query
+    if(write_8(tool_id) == EOF) exit(1);
+    
+    // uint8: Action command to send to the tool
+    if(write_8(13) == EOF) exit(1);
+    
+    // uint8: Length of the tool command payload (N)
+    if(write_8(1) == EOF) exit(1);
+    
+    // uint8: 1 to enable, 0 to disable
+    if(write_8(state) == EOF) exit(1);
+}
+
+static void set_build_platform_temperature(unsigned tool_id, unsigned temperature)
+{
+    assert(tool_id < machine.tool_count);
+    if(write_8(136) == EOF) exit(1);
+    
+    // uint8: Tool ID of the tool to query
+    if(write_8(tool_id) == EOF) exit(1);
+    
+    // uint8: Action command to send to the tool
+    if(write_8(31) == EOF) exit(1);
+    
+    // uint8: Length of the tool command payload (N)
+    if(write_8(2) == EOF) exit(1);
+    
+    // int16: Desired target temperature, in Celsius
+    if(write_16(temperature) == EOF) exit(1);
+}
+
 // 137 - Enable/disable axes
+
+static void set_steppers(unsigned axes, unsigned state)
+{
+    unsigned bitfield = axes & AXES_BIT_MASK;
+    if(state) {
+        bitfield |= 0x80;
+    }
+    if(write_8(137) == EOF) exit(1);
+    
+    // uint8: Bitfield codifying the command (see below)
+    if(write_8(bitfield) == EOF) exit(1);
+}
  
 // 139 - Queue extended point
  
 // 140 - Set extended position
- 
+
+static void set_position()
+{
+    Point5d steps = mm_to_steps(&workTarget, &excess);
+    if(write_8(140) == EOF) exit(1);
+    
+    // int32: X position, in steps
+    if(write_32((int)steps.x) == EOF) exit(1);
+    
+    // int32: Y position, in steps
+    if(write_32((int)steps.y) == EOF) exit(1);
+    
+    // int32: Z position, in steps
+    if(write_32((int)steps.z) == EOF) exit(1);
+    
+    // int32: A position, in steps
+    if(write_32((int)steps.a) == EOF) exit(1);
+    
+    // int32: B position, in steps
+    if(write_32((int)steps.b) == EOF) exit(1);
+}
+
 // 141 - Wait for platform ready
 
-static int wait_for_platform(u32 tool_id, u32 timeout, FILE *out)
+static void wait_for_platform(unsigned tool_id, int timeout)
 {
-    //currentTool = tool_id;
-    if(fputc(141, out) == EOF) return FAILURE;
+    assert(tool_id < machine.tool_count);
+    if(write_8(141) == EOF) exit(1);
+    
     // uint8: Tool ID of the tool to wait for
-    if(fputc(tool_id, out) == EOF) return FAILURE;
+    if(write_8(tool_id) == EOF) exit(1);
+    
     // uint16: delay between query packets sent to the tool, in ms (nominally 100 ms)
-    if(fputu16(100, out) == EOF) return FAILURE;
+    if(write_16(100) == EOF) exit(1);
+    
     // uint16: Timeout before continuing without tool ready, in seconds (nominally 1 minute)
-    if(fputu16(timeout, out) == EOF) return FAILURE;
-    return 0;
+    if(write_16(timeout) == EOF) exit(1);
 }
 
 // 142 - Queue extended point, new style
  
 // 143 - Store home positions
- 
+
+static void store_home_positions(void)
+{
+    if(write_8(143) == EOF) exit(1);
+    
+    // uint8: Axes bitfield to specify which axes' positions to store.
+    // Any axis with a bit set should have its position stored.
+    if(write_8(command.flag & AXES_BIT_MASK) == EOF) exit(1);
+}
+
 // 144 - Recall home positions
 
-
+static void recall_home_positions(void)
+{
+    if(write_8(144) == EOF) exit(1);
+    
+    // uint8: Axes bitfield to specify which axes' positions to recall.
+    // Any axis with a bit set should have its position recalled.
+    if(write_8(command.flag & AXES_BIT_MASK) == EOF) exit(1);
+}
 
 // 145 - Set digital potentiometer value
 
-static int set_pot_value(int axis, int value, FILE *out)
+static void set_pot_value(unsigned axis, unsigned value)
 {
-    if(fputc(145, out) == EOF) return FAILURE;
+    assert(axis <= 4);
+    assert(value <= 127);
+    if(write_8(145) == EOF) exit(1);
+    
     // uint8: axis value (valid range 0-4) which axis pot to set
-    if(fputc(axis, out) == EOF) return FAILURE;
+    if(write_8(axis) == EOF) exit(1);
+    
     // uint8: value (valid range 0-127), values over max will be capped at max
-    if(fputc(value, out) == EOF) return FAILURE;
-    return 0;
+    if(write_8(value) == EOF) exit(1);
 }
  
 // 146 - Set RGB LED value
  
 // 147 - Set Beep
  
-// 148 - Wait for button
- 
+// 148 - Pause for button
+
 // 149 - Display message to LCD
- 
+
+void display_message(char *message, unsigned timeout, int wait_for_button)
+{
+    long bytesSent = 0;
+    unsigned bitfield = 0;
+    unsigned seconds = 0;
+    unsigned hPos = command.flag & Q_IS_SET ? (unsigned)command.q : 0;
+    unsigned vPos = command.flag & L_IS_SET ? (unsigned)command.l : 0;
+    long length = strlen(message);
+    if(hPos > 19) hPos = 19;
+    if(vPos > 3) vPos = 3;
+    
+    while(bytesSent < length) {
+        if(bytesSent + 20 > length) {
+            seconds = timeout;
+            bitfield |= 0x02; // last message in group
+            if(wait_for_button) {
+                bitfield |= 0x04;
+            }
+        }
+        if(bytesSent > 0) {
+            bitfield |= 0x01; //do not clear flag
+        }
+        
+        if(write_8(149) == EOF) exit(1);
+        
+        // uint8: Options bitfield (see below)
+        if(write_8(bitfield) == EOF) exit(1);
+        // uint8: Horizontal position to display the message at (commonly 0-19)
+        if(write_8(hPos) == EOF) exit(1);
+        // uint8: Vertical position to display the message at (commonly 0-3)
+        if(write_8(vPos) == EOF) exit(1);
+        // uint8: Timeout, in seconds. If 0, this message will left on the screen
+        if(write_8(timeout) == EOF) exit(1);
+        // 1+N bytes: Message to write to the screen, in ASCII, terminated with a null character.
+        bytesSent += fwrite(message + bytesSent, 1, length > 20 ? 20 : length, out);
+        if(write_8('\0') == EOF) exit(1);
+    }
+}
+
 // 150 - Set Build Percentage
- 
+
+static void set_build_percent(unsigned percent)
+{
+    if(percent > 100) percent = 100;
+    
+    if(write_8(150) == EOF) exit(1);
+    
+    // uint8: percent (0-100)
+    if(write_8(percent) == EOF) exit(1);
+    
+    // uint8: 0 (reserved for future use) (reserved for future use)
+    if(write_8(0) == EOF) exit(1);
+}
+
 // 151 - Queue Song
- 
-// 152 - reset to Factory
- 
+
+// song ID 0: error tone with 4 cycles
+// song ID 1: done tone
+// song ID 2: error tone with 2 cycles
+
+static void queue_song(unsigned song_id)
+{
+    assert(song_id <= 2);
+    if(write_8(151) == EOF) exit(1);
+    
+    // uint8: songID: select from a predefined list of songs
+    if(write_8(song_id) == EOF) exit(1);
+}
+
+// 152 - Restore to factory settings
+
 // 153 - Build start notification
- 
+
+static void start_build()
+{
+    char name_of_build[] = "GPX";
+
+    if(write_8(153) == EOF) exit(1);
+    
+    // uint32: 0 (reserved for future use)
+    if(write_32(0) == EOF) exit(1);
+
+    // 1+N bytes: Name of the build, in ASCII, null terminated
+    fwrite(name_of_build, 1, 4, out);
+}
+
 // 154 - Build end notification
+
+static void end_build()
+{
+    if(write_8(154) == EOF) exit(1);
+
+    // uint8: 0 (reserved for future use)
+    if(write_8(0) == EOF) exit(1);
+}
  
 // 155 - Queue extended point x3g
 
-static int queue_point(double feedrate, FILE *out)
+static void queue_point(double feedrate)
 {
 // int32: X coordinate, in steps
 // int32: Y coordinate, in steps
@@ -376,8 +743,18 @@ static int queue_point(double feedrate, FILE *out)
 // uint8: Axes bitfield to specify which axes are relative. Any axis with a bit set should make a relative movement.
 // float (single precision, 32 bit): mm distance for this move.  normal of XYZ if any of these axes are active, and AB for extruder only moves
 // uint16: feedrate in mm/s, multiplied by 64 to assist fixed point calculation on the bot
-    return 0;
 }
+
+// 156 - Set segment acceleration
+
+static void set_acceleration(int state)
+{
+    if(write_8(156) == EOF) exit(1);
+    
+    // uint8: 1 to enable, 0 to disable
+    if(write_8(state) == EOF) exit(1);
+}
+
 
 // 157 - Stream Version
 
@@ -462,13 +839,11 @@ static void usage()
 int main(int argc, char * argv[])
 {
     long filesize = 0;
-    int rval = 1;
+    unsigned progress = 0;
     int c, i;
-    
-    // we default to using pipes
-    FILE *in = stdin;
-    FILE *out = stdout;
-    
+
+    initialize_globals();
+
     // READ COMMAND LINE
     
     // get the command line options
@@ -525,9 +900,9 @@ int main(int argc, char * argv[])
             // or use the input filename with a .x3g extension
             char *dot = strrchr(filename, '.');
             if(dot) {
-                long len = dot - filename;
-                memcpy(buffer, filename, len);
-                filename = buffer + len;
+                long l = dot - filename;
+                memcpy(buffer, filename, l);
+                filename = buffer + l;
             }
             // or just append one if no .gcode extension is present
             else {
@@ -542,40 +917,12 @@ int main(int argc, char * argv[])
         }
         if((out = fopen(filename, "wb")) == NULL) {
             perror("Error creating output");
-            goto CLEANUP_AND_EXIT;
+            out = stdout;
+            exit(1);
         }
     }
     
     // READ INPUT AND CONVERT TO OUTPUT
-    
-    // initialize current position to zero
-    
-    current.x = 0.0;
-    current.y = 0.0;
-    current.z = 0.0;
-    
-    current.a = 0.0;
-    current.b = 0.0;
-    
-    current.f = get_home_feedrate(XYZ_BIT_MASK);
-    current.l = 0.0;
-    current.p = 0.0;
-    current.r = 0.0;
-    current.s = 0.0;
-    
-    currentOffset.x = 0.0;
-    currentOffset.y = 0.0;
-    currentOffset.z = 0.0;
-    
-    for(i = 0; i < 6; i++) {
-        offset[i].x = 0.0;
-        offset[i].y = 0.0;
-        offset[i].z = 0.0;
-    }
-    
-    currentTool = 0;
-    
-    line_number = 1;
     
     // at this point we have read the command line, set the machine definition
     // and both the input and output files are open, so its time to parse the
@@ -590,8 +937,8 @@ int main(int argc, char * argv[])
             digits = p;
             p = normalize_word(p);
             if(*p == 0) {
-                fprintf(stderr, "(line %u) GCode Syntax Error: line number command word 'N' is missing digits", line_number);
-                goto CLEANUP_AND_EXIT;
+                fprintf(stderr, "(line %u) Syntax Error: line number command word 'N' is missing digits", line_number);
+                exit(1);
             }
             line_number = atoi(digits);
         }
@@ -670,7 +1017,14 @@ int main(int argc, char * argv[])
                         command.p = strtod(digits, NULL);
                         command.flag |= P_IS_SET;
                         break;
-                            
+                        
+                        // Qnnn	 Parameter - not currently used
+                    case 'q':
+                    case 'Q':
+                        command.q = strtod(digits, NULL);
+                        command.flag |= Q_IS_SET;
+                        break;
+                        
                         // Rnnn	 Command Parameter, such as RPM
                     case 'r':
                     case 'R':
@@ -707,7 +1061,7 @@ int main(int argc, char * argv[])
                         break;
                     
                     default:
-                        fprintf(stderr, "(line %u) GCode Syntax Warning: unrecognised command word '%c'", line_number, c);
+                        fprintf(stderr, "(line %u) Syntax Warning: unrecognised command word '%c'", line_number, c);
                 }
             }
             else if(*p == ';') {
@@ -726,7 +1080,7 @@ int main(int argc, char * argv[])
                     p = e + 1;
                 }
                 else {
-                    fprintf(stderr, "(line %u) GCode Syntax Warning: comment is missing closing ')'", line_number);
+                    fprintf(stderr, "(line %u) Syntax Warning: comment is missing closing ')'", line_number);
                     command.comment = normalize_comment(p + 1);
                     command.flag |= COMMENT_IS_SET;
                     *p = 0;                   
@@ -742,93 +1096,76 @@ int main(int argc, char * argv[])
         
         // x
         if(command.flag & X_IS_SET) {
-            machineTarget.x = isMetric ? command.x : (command.x * 25.4);
-            if(isRelative) machineTarget.x += current.x;
+            machineTarget.x = isRelative ? (currentPosition.x + command.x) : command.x;
         }
         else {
-            machineTarget.x = current.x;
+            machineTarget.x = currentPosition.x;
         }
         
         // y
         if(command.flag & Y_IS_SET) {
-            machineTarget.y = isMetric ? command.y : (command.y * 25.4);
-            if(isRelative) machineTarget.y += current.y;
+            machineTarget.y = isRelative ? (currentPosition.y + command.y) : command.y;
         }
         else {
-            machineTarget.y = current.y;
+            machineTarget.y = currentPosition.y;
         }
         
         // z
         if(command.flag & Z_IS_SET) {
-            machineTarget.z = isMetric ? command.z : (command.z * 25.4);
-            if(isRelative) machineTarget.z += current.z;
+            machineTarget.z = isRelative ? (currentPosition.z + command.z) : command.z;
         }
         else {
-            machineTarget.z = current.z;
+            machineTarget.z = currentPosition.z;
         }
         
         if(command.flag & E_IS_SET) {
             if(currentTool == 0) {
                 // a = e
-                workTarget.a = isMetric ? command.e : (command.e * 25.4);
-                if(isRelative) workTarget.a += current.a;
+                workTarget.a = isRelative ? (currentPosition.a + command.e) : command.e;
                 
                 // b
                 if(command.flag & B_IS_SET) {
-                    workTarget.b = isMetric ? command.b : (command.b * 25.4);
-                    if(isRelative) workTarget.b += current.b;
+                    workTarget.b = isRelative ? (currentPosition.b + command.b) : command.b;
                 }
                 else {
-                    workTarget.b = current.b;
+                    workTarget.b = currentPosition.b;
                 }
             }
             else {                
                 // a
                 if(command.flag & A_IS_SET) {
-                    workTarget.a = isMetric ? command.a : (command.a * 25.4);
-                    if(isRelative) workTarget.a += current.a;
+                    workTarget.a = isRelative ? (currentPosition.a + command.a) : command.a;
                 }
                 else {
-                    workTarget.a = current.a;
+                    workTarget.a = currentPosition.a;
                 }
                 
                 // b = e
-                workTarget.b = isMetric ? command.e : (command.e * 25.4);
-                if(isRelative) workTarget.b += current.b;
+                workTarget.b = isRelative ? (currentPosition.b + command.e) : command.e;
             }
         }
         else {        
             // a
             if(command.flag & A_IS_SET) {
-                workTarget.a = isMetric ? command.a : (command.a * 25.4);
-                if(isRelative) workTarget.a += current.a;
+                workTarget.a = isRelative ? (currentPosition.a + command.a) : command.a;
             }
             else {
-                workTarget.a = current.a;
+                workTarget.a = currentPosition.a;
             }
             // b
             if(command.flag & B_IS_SET) {
-                workTarget.b = isMetric ? command.b : (command.b * 25.4);
-                if(isRelative) workTarget.b += current.b;
+                workTarget.b = isRelative ? (currentPosition.b + command.b) : command.b;
             }
             else {
-                workTarget.b = current.b;
+                workTarget.b = currentPosition.b;
             }
        }
         
-        // it seems that feed rates should also be converted to metric
-        workTarget.f = (command.flag & F_IS_SET) ? (isMetric ? command.f : (command.f * 25.4)) : current.f;
-        
-        workTarget.l = (command.flag & L_IS_SET) ? command.l : current.l;
-        workTarget.p = (command.flag & P_IS_SET) ? command.p : current.p;
-        workTarget.r = (command.flag & R_IS_SET) ? command.r : current.r;
-        workTarget.s = (command.flag & S_IS_SET) ? command.s : current.s;
-        
         // CALCULATE OFFSET
         
-        workTarget.x = machineTarget.x + currentOffset.x;
-        workTarget.y = machineTarget.y + currentOffset.y;
-        workTarget.z = machineTarget.z + currentOffset.z;
+        workTarget.x = machineTarget.x + offset[currentOffset].x;
+        workTarget.y = machineTarget.y + offset[currentOffset].y;
+        workTarget.z = machineTarget.z + offset[currentOffset].z;
 
         // INTERPRET COMMAND
         
@@ -837,13 +1174,13 @@ int main(int argc, char * argv[])
                     // G0 - Rapid Positioning
                 case 0:
                     if(command.flag & F_IS_SET) {
-                        if(queue_point(workTarget.f, out) != SUCCESS) goto CLEANUP_AND_EXIT;
+                        queue_point(command.f);
                     }
                     else {
                         Point3d delta;
-                        if(command.flag & X_IS_SET) delta.x = fabs(workTarget.x - current.x);
-                        if(command.flag & Y_IS_SET) delta.y = fabs(workTarget.y - current.y);
-                        if(command.flag & Z_IS_SET) delta.z = fabs(workTarget.z - current.z);
+                        if(command.flag & X_IS_SET) delta.x = fabs(workTarget.x - currentPosition.x);
+                        if(command.flag & Y_IS_SET) delta.y = fabs(workTarget.y - currentPosition.y);
+                        if(command.flag & Z_IS_SET) delta.z = fabs(workTarget.z - currentPosition.z);
                         double length = magnitude(command.flag & XYZ_BIT_MASK, (Ptr5d)&delta);
                         double candidate, feedrate = DBL_MAX;
                         if(command.flag & X_IS_SET && delta.x != 0.0) {
@@ -864,13 +1201,13 @@ int main(int argc, char * argv[])
                         if(feedrate == DBL_MAX) {
                             feedrate = machine.x.max_feedrate;
                         }
-                        if(queue_point(feedrate, out) != SUCCESS) goto CLEANUP_AND_EXIT;
+                        queue_point(feedrate);
                     }
                     break;
                     
                     // G1 - Coordinated Motion
                 case 1:
-                    if(queue_point(workTarget.f, out) != SUCCESS) goto CLEANUP_AND_EXIT;
+                    queue_point(command.f);
                     break;
                     
                     // G2 - Clockwise Arc
@@ -878,7 +1215,13 @@ int main(int argc, char * argv[])
                     
                     // G4 - Dwell
                 case 4:
-                    if(delay(workTarget.p, out) != SUCCESS) goto CLEANUP_AND_EXIT;
+                    if(command.flag & P_IS_SET) {
+                        delay(command.p);
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Syntax Error: G4 is missing delay parameter, use Pn where n is milliseconds", line_number);
+                        exit(1);                        
+                    }
                     break;
 
                     // G10 - Create Coordinate System Offset from the Absolute one
@@ -890,60 +1233,44 @@ int main(int argc, char * argv[])
                         if(command.flag & Z_IS_SET) offset[i].z = machineTarget.z;
                     }
                     else {
-                        fprintf(stderr, "(line %u) GCode Syntax Error: G10 is missing coordiante system, use Pn where n is 1-6", line_number);
-                        goto CLEANUP_AND_EXIT;
+                        fprintf(stderr, "(line %u) Syntax Error: G10 is missing coordiante system, use Pn where n is 1-6", line_number);
+                        exit(1);
                     }
                     break;
                     
-                    // G20 - Use Inches as Units
-                case 20:
-                    // G70 - Use Inches as Units
-                case 70:
-                    isMetric = 0;
-                    break;
-                    
-                    // G21 - Use Milimeters as Units
-                case 21:
-                    // G71 - Use Milimeters as Units
-                case 71:
-                    isMetric = 1;
-                    break;
-
                     // G53 - Set absolute coordinate system
                 case 53:
-                    currentOffset.x = 0.0;
-                    currentOffset.y = 0.0;
-                    currentOffset.z = 0.0;
+                    currentOffset = 0;
                     break;
 
                     // G54 - Use coordinate system from G10 P1
                 case 54:
-                    currentOffset = offset[0];
+                    currentOffset = 1;
                     break;
 
                     // G55 - Use coordinate system from G10 P2
                 case 55:
-                    currentOffset = offset[1];
+                    currentOffset = 2;
                     break;
                     
                     // G56 - Use coordinate system from G10 P3
                 case 56:
-                    currentOffset = offset[2];
+                    currentOffset = 3;
                     break;
                     
                     // G57 - Use coordinate system from G10 P4
                 case 57:
-                    currentOffset = offset[3];
+                    currentOffset = 4;
                     break;
                     
                     // G58 - Use coordinate system from G10 P5
                 case 58:
-                    currentOffset = offset[4];
+                    currentOffset = 5;
                     break;
                     
                     // G59 - Use coordinate system from G10 P6
                 case 59:
-                    currentOffset = offset[5];
+                    currentOffset = 6;
                     break;
                     
                     // G90 - Absolute Positioning
@@ -953,147 +1280,407 @@ int main(int argc, char * argv[])
 
                     // G91 - Relative Positioning
                 case 91:
-                    isRelative = 1;
+                    if(positionKnown) {
+                        isRelative = 1;
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Semantic Error: G91 switch to relitive positioning prior to first absolute move", line_number);
+                        exit(1);
+                    }
                     break;
 
                     // G92 - Define current position on axes
                 case 92:
-                    if(command.flag & X_IS_SET) current.x = machineTarget.x;
-                    if(command.flag & Y_IS_SET) current.y = machineTarget.y;
-                    if(command.flag & Z_IS_SET) current.z = machineTarget.z;
-                    if(command.flag & A_IS_SET) current.a = workTarget.a;
-                    if(command.flag & B_IS_SET) current.b = workTarget.b;
+                    if(command.flag & X_IS_SET) currentPosition.x = machineTarget.x;
+                    if(command.flag & Y_IS_SET) currentPosition.y = machineTarget.y;
+                    if(command.flag & Z_IS_SET) currentPosition.z = machineTarget.z;
+                    if(command.flag & A_IS_SET) currentPosition.a = workTarget.a;
+                    if(command.flag & B_IS_SET) currentPosition.b = workTarget.b;
 
                     if(command.flag & E_IS_SET) {
                         if(currentTool == 0) {
-                            current.a = workTarget.a;
+                            currentPosition.a = workTarget.a;
                         }
                         else {
-                            current.b = workTarget.b;
+                            currentPosition.b = workTarget.b;
                         }
                     }
                     break;
                     
-                    // G97 - Spindle speed rate
-                    
                     // G130 - Set given axes potentiometer Value
                 case 130:
-                    if(command.flag & X_IS_SET) if(set_pot_value(0, (int)command.x, out) == FAILURE) goto CLEANUP_AND_EXIT;
-                    if(command.flag & Y_IS_SET) if(set_pot_value(0, (int)command.y, out) == FAILURE) goto CLEANUP_AND_EXIT;
-                    if(command.flag & Z_IS_SET) if(set_pot_value(0, (int)command.z, out) == FAILURE) goto CLEANUP_AND_EXIT;
-                    if(command.flag & A_IS_SET) if(set_pot_value(0, (int)command.a, out) == FAILURE) goto CLEANUP_AND_EXIT;
-                    if(command.flag & B_IS_SET) if(set_pot_value(0, (int)command.b, out) == FAILURE) goto CLEANUP_AND_EXIT;
+                    if(command.flag & X_IS_SET) set_pot_value(0, command.x < 0 ? 0 : command.x > 127 ? 127 : (unsigned)command.x);
+                    if(command.flag & Y_IS_SET) set_pot_value(1, command.y < 0 ? 0 : command.y > 127 ? 127 : (unsigned)command.y);
+                    if(command.flag & Z_IS_SET) set_pot_value(2, command.z < 0 ? 0 : command.z > 127 ? 127 : (unsigned)command.z);
+                    if(command.flag & A_IS_SET) set_pot_value(3, command.a < 0 ? 0 : command.a > 127 ? 127 : (unsigned)command.a);
+                    if(command.flag & B_IS_SET) set_pot_value(4, command.b < 0 ? 0 : command.b > 127 ? 127 : (unsigned)command.b);
                     break;
                     
                     // G161 - Home given axes to minimum
                 case 161:
-                    if(find_axes(ENDSTOP_IS_MIN, out) != SUCCESS) goto CLEANUP_AND_EXIT;
+                    home_axes(ENDSTOP_IS_MIN);
+                    positionKnown = 0;
                     break;
                     // G28 - Home given axes to maximum
-                case 28:
                     // G162 - Home given axes to maximum
+                case 28:
                 case 162:
-                    if(find_axes(ENDSTOP_IS_MAX, out) != SUCCESS) goto CLEANUP_AND_EXIT;
+                    home_axes(ENDSTOP_IS_MAX);
+                    positionKnown = 0;
                     break;
                 default:
-                    fprintf(stderr, "(line %u) GCode Syntax Error: unrecognised Gcode command word 'G%i'", line_number, command.g);
+                    fprintf(stderr, "(line %u) Syntax Warning: unsupported gcode command 'G%u'", line_number, command.g);
             }
         }
         else if(command.flag & M_IS_SET) {
-            switch(command.m) {
-            // M0 - Unconditional Halt, not supported on SD?
-            // M1 - Optional Halt, not supported on SD?
-            // M2 - "End program
-            // M3 - Spindle On - Clockwise
-            // M4 - Spindle On - Counter Clockwise
-            // M5 - Spindle Off
+            switch(command.m) {                    
+                    // M2 - End program
+                case 2:
+                    if(program_is_running()) {
+                        end_program();
+                        set_build_percent(100);
+                        end_build();
+                        set_steppers(AXES_BIT_MASK, 0);
+                    }
+                    exit(0);
             
                     // M6 - Wait for toolhead to come up to reach (or exceed) temperature
                 case 6:
                     if(command.flag & T_IS_SET) {
                         int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                        if(wait_for_tool((int)command.t, timeout, out) == FAILURE) goto CLEANUP_AND_EXIT;
+                        unsigned tool_id = (unsigned)command.t;
+                        if(tool_id < machine.tool_count) {
+                            if(currentTool != tool_id) {
+                                currentTool = tool_id;
+                                change_tool(tool_id);
+                            }
+                        }
+                        else {
+                            fprintf(stderr, "(line %u) Semantic Warning: M6 cannot select non-existant tool T%u", line_number, tool_id);
+                            tool_id = currentTool;
+                        }
+                        if(temperature[currentTool] > 0.0) {
+                            wait_for_tool(tool_id, timeout);
+                        }
                     }
                     else {
-                        fprintf(stderr, "(line %u) GCode Syntax Error: M6 is missing tool change paremeter 'T'", line_number);
-                        goto CLEANUP_AND_EXIT;                        
+                        fprintf(stderr, "(line %u) Syntax Error: M6 is missing tool number, use Tn where n is 0-1", line_number);
+                        exit(1);
                     }
                     break;
                     
-            // M7 - Coolant A on (flood coolant)
-            // M8 - Coolant B on (mist coolant)
-            // M9 - All Coolant Off
-            // M10 - Close Clamp
-            // M11 - Open Clamp
-            // M13 - Spindle CW and Coolant A On
-            // M14 - Spindle CCW and Coolant A On
-            // M17 - Enable Motor(s)
-            // M18 - "Disable Motor(s)
-            // M21 - Open Collet
-            // M22 - Close Collet
-            // M30 - Program Rewind
-            // M40 - Change Gear Ratio to 0
-            // M41 - Change Gear Ratio to 1
-            // M42 - Change Gear Ratio to 2
-            // M43 - "Change Gear Ratio to 3
-            // M44 - Change Gear Ratio to 4
-            // M45 - Change Gear Ratio to 5
-            // M46 - Change Gear Ratio to 6
-            // M50 - Read Spindle Speed
-            // M70 - Display Message On Machine
-            // M71 - Display Message, Wait For User Button Press
-            // M72 - Play a Tone or Song
-            // M73 - Manual Set Build %
-            // M101 - Turn Extruder On, Forward
-            // M102 - Turn Extruder On, Reverse
-            // M103 - Turn Extruder Off
-            // M104 - Set Temperature
-            // M105 - Get Temperature
-            // M106 - Turn Automated Build Platform (or the Fan, on older models) On
-            // M107 - Turn Automated Build Platform (or the Fan, on older models) Off
-            // M108 - Set Extruder's Max Speed (R = RPM, P = PWM)
-            // M109 - Set Build Platform Temperature
-            // M110 - Set Build Chamber Temperature
-            // M126 - Valve Open
-            // M127 - Valve Close
-            // M128 - "Get Position
-            // M131 - Store Current Position to EEPROM
-            // M132 - Load Current Position from EEPROM
-            // M140 - Set Build Platform Temperature
-            // M141 - Set Chamber Temperature (Ignored)
-            // M142 - Set Chamber Holding Pressure (Ignored)
-            // M200 - Reset driver
-            // M300 - Set Servo 1 Position
-            // M301 - Set Servo 2 Position
-            // M310 - Start data capture
-            // M311 - Stop data capture
-            // M312 - Log a note to the data capture store
-            // M320 - Acceleration on for subsequent instructions
-            // M321 - Acceleration off for subsequent instructions
+                    // M70 - Display Message On Machine
+                case 70:
+                    if(command.flag & COMMENT_IS_SET) {
+                        if(command.flag & P_IS_SET) {
+                            display_message(command.comment, command.p, 0);
+                        }
+                        else {
+                            display_message(command.comment, 0, 0);
+                        }
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Syntax Error: M70 is missing message text, use (text) where text is message", line_number);                        
+                    }
+                    break;
+
+                    // M71 - Display Message, Wait For User Button Press
+                case 71:
+                    if(command.flag & COMMENT_IS_SET) {
+                        if(command.flag & P_IS_SET) {
+                            display_message(command.comment, command.p, 0);
+                        }
+                        else {
+                            display_message(command.comment, 0, 0);
+                        }
+                    }
+                    else {
+                        if(command.flag & P_IS_SET) {
+                            display_message("Press M to continue", command.p, 0);
+                        }
+                        else {
+                            display_message("Press M to continue", 0, 0);
+                        }
+                    }
+                    break;
+                    
+                    // M72 - Play a Tone or Song
+                case 72:
+                    if(command.flag & P_IS_SET) {
+                        unsigned song_id = (unsigned)command.p;
+                        if(song_id > 2) song_id = 2;
+                        queue_song(song_id);
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Syntax Warning: M72 is missing song number, use Pn where n is 0-2", line_number);
+                    }
+                    break;
+                    
+                    // M73 - Manual Set Build %
+                case 73:
+                    if(command.flag & P_IS_SET) {
+                        unsigned percent = (unsigned) command.p;
+                        if(percent > 100) percent = 100;
+                        if(program_is_ready()) {
+                            start_program();
+                            start_build();
+                            set_build_percent(0);
+                        }
+                        else if(program_is_running()) {
+                            if(percent == 100) {
+                                end_program();
+                                set_build_percent(100);
+                                end_build();
+                            }
+                            else if(filesize == 0) {
+                                set_build_percent(percent);
+                            }
+                        }
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Syntax Warning: M73 is missing build percentage, use Pn where n is 0-100", line_number);
+                    }
+                    break;
+                    
+                    // M101 - Turn Extruder On, Forward
+                    // M102 - Turn Extruder On, Reverse
+                case 101:
+                case 102:
+                    if(command.flag & T_IS_SET) {
+                        unsigned tool_id = (unsigned)command.t;
+                        if(tool_id < machine.tool_count) {
+                            set_steppers(tool_id == 0 ? A_IS_SET : B_IS_SET, 1);
+                        }
+                        else {
+                            fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant tool T%u", line_number, command.m, tool_id);
+                        }
+
+                    }
+                    else {
+                        set_steppers(currentTool == 0 ? A_IS_SET : B_IS_SET, 1);
+                    }
+                    break;
+                    
+                    // M103 - Turn Extruder Off
+                case 103:
+                    if(command.flag & T_IS_SET) {
+                        unsigned tool_id = (unsigned)command.t;
+                        if(tool_id < machine.tool_count) {
+                            set_steppers(tool_id == 0 ? A_IS_SET : B_IS_SET, 0);
+                        }
+                        else {
+                            fprintf(stderr, "(line %u) Semantic Warning: M103 cannot select non-existant tool T%u", line_number, tool_id);
+                        }
+                        
+                    }
+                    else {
+                        set_steppers(currentTool == 0 ? A_IS_SET : B_IS_SET, 0);
+                    }
+                    break;
+                    
+                    // M104 - Set extruder temperature
+                case 104:
+                    if(command.flag & S_IS_SET) {
+                        unsigned temp = (unsigned)command.t;
+                        if(temp > 260) temp = 260;
+                        if(command.flag & T_IS_SET) {
+                            unsigned tool_id = (unsigned)command.t;
+                            if(tool_id < machine.tool_count) {
+                                set_extruder_temperature(tool_id, temp);
+                                temperature[tool_id] = temp;
+                            }
+                            else {
+                                fprintf(stderr, "(line %u) Semantic Warning: M104 cannot select non-existant tool T%u", line_number, tool_id);
+                            }
+                        }
+                        else {
+                            set_extruder_temperature(currentTool, temp);
+                            temperature[currentTool] = temp;
+                        }
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Syntax Error: M104 is missing temperature, use Sn where n is 0-260", line_number);
+                        exit(1);
+                    }
+                    break;
+                    
+                    // M106 - Turn cooling fan on
+                case 106:
+                    if(command.flag & T_IS_SET) {
+                        unsigned tool_id = (unsigned)command.t;
+                        if(tool_id < machine.tool_count) {
+                            set_fan(tool_id, 1);
+                        }
+                        else {
+                            fprintf(stderr, "(line %u) Semantic Warning: M106 cannot select non-existant tool T%u", line_number, tool_id);
+                        }
+                    }
+                    else {
+                        set_fan(currentTool, 1);
+                    }
+                    break;
+                    
+                    // M107 - Turn cooling fan off
+                case 107:
+                    if(command.flag & T_IS_SET) {
+                        unsigned tool_id = (unsigned)command.t;
+                        if(tool_id < machine.tool_count) {
+                            set_fan(tool_id, 0);
+                        }
+                        else {
+                            fprintf(stderr, "(line %u) Semantic Warning: M107 cannot select non-existant tool T%u", line_number, tool_id);
+                        }
+                    }
+                    else {
+                        set_fan(currentTool, 0);
+                    }
+                    break;
+                    
+                    // M109 - Set Build Platform Temperature
+                    // M140 - Set Build Platform Temperature (skeinforge)
+                case 109:
+                case 140:
+                    if(machine.a.has_heated_build_platform || machine.b.has_heated_build_platform) {
+                        if(command.flag & S_IS_SET) {
+                            unsigned tool_id = machine.a.has_heated_build_platform ? 0 : 1;
+                            unsigned temp = (unsigned)command.t;
+                            if(temp > 160) temp = 160;
+                            if(command.flag & T_IS_SET) {
+                                tool_id = (unsigned)command.t;
+                            }
+                            if(tool_id < machine.tool_count && (tool_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform)) {
+                                set_build_platform_temperature(tool_id, temp);
+                                temperature[tool_id + 2] = temp;
+                            }
+                            else {
+                                fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant hbp tool T%u", line_number, command.m, tool_id);
+                            }
+                        }
+                        else {
+                            fprintf(stderr, "(line %u) Syntax Error: M%u is missing temperature, use Sn where n is 0-160", line_number, command.m);
+                            exit(1);
+                        }
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant heated build platform", line_number, command.m);                        
+                    }
+                    break;
+                    
+                    // M126 - Turn blower fan on (valve open)
+                case 126:
+                    if(command.flag & T_IS_SET) {
+                        unsigned tool_id = (unsigned)command.t;
+                        if(tool_id < machine.tool_count) {
+                            set_valve(tool_id, 1);
+                        }
+                        else {
+                            fprintf(stderr, "(line %u) Semantic Warning: M126 cannot select non-existant tool T%u", line_number, tool_id);
+                        }
+                    }
+                    else {
+                        set_valve(currentTool, 1);
+                    }
+                    break;
+
+                    // M127 - Turn blower fan on (valve close)
+                case 127:
+                    if(command.flag & T_IS_SET) {
+                        unsigned tool_id = (unsigned)command.t;
+                        if(tool_id < machine.tool_count) {
+                            set_valve(tool_id, 0);
+                        }
+                        else {
+                            fprintf(stderr, "(line %u) Semantic Warning: M127 cannot select non-existant tool T%u", line_number, tool_id);
+                        }
+                    }
+                    else {
+                        set_valve(currentTool, 0);
+                    }
+                    break;
+                    
+                    // M146 - Set RGB LED value
+                case 146:
+                    break;
+                    
+                    // M147 - Set Beep
+                case 147:
+                    break;
+                    
+                    // M131 - Store Current Position to EEPROM
+                case 131:
+                    if(command.flag & AXES_BIT_MASK) {
+                        store_home_positions();
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Syntax Error: M131 is missing axes, use X Y Z A B", line_number);
+                        exit(1);
+                    }
+                    break;
+                    
+                    // M132 - Load Current Position from EEPROM
+                case 132:
+                    if(command.flag & AXES_BIT_MASK) {
+                        store_home_positions();
+                        positionKnown = 0;
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Syntax Error: M132 is missing axes, use X Y Z A B", line_number);
+                        exit(1);
+                    }
+                    break;
+                    
+                    // M320 - Acceleration on for subsequent instructions
+                case 320:
+                    set_acceleration(1);
+                    break;
+                    
+                    // M321 - Acceleration off for subsequent instructions
+                case 321:
+                    set_acceleration(0);
+                    break;
+                default:
+                    fprintf(stderr, "(line %u) Syntax Warning: unsupported mcode command 'M%u'", line_number, command.m);
             }
         }
         else if(command.flag & T_IS_SET) {
-            // T0 - Set Current Tool 0
-            
-            // T1 - Set Current Tool 1
+            unsigned tool_id = (unsigned)command.t;
+            if(tool_id < machine.tool_count) {
+                if(currentTool != tool_id) {
+                    currentTool = tool_id;
+                    change_tool(tool_id);
+                }
+            }
+            else {
+                fprintf(stderr, "(line %u) Semantic Warning: T%u cannot select non-existant tool", line_number, tool_id);
+            }
         }
-        else if(command.flag & COMMAND_BIT_MASK) {
-            if(queue_point(workTarget.f, out) == EOF) goto CLEANUP_AND_EXIT;
+        else if(command.flag & PARAMETER_BIT_MASK) {
+            queue_point(command.f);
         }
-        else if(command.flag & F_IS_SET) {
-            current.f = workTarget.f;
+        // update progress
+        if(filesize) {
+            unsigned percent = (unsigned)round(100.0 * (double)ftell(in) / (double)filesize);
+            if(percent > progress) {
+                if(program_is_ready()) {
+                    start_program();
+                    start_build();
+                    set_build_percent(0);
+                }
+                else if(percent < 100) {
+                    set_build_percent(percent);
+                    progress = percent;
+                }
+            }
         }
     }
-    rval = 0;
     
-CLEANUP_AND_EXIT:
-    // close open files
-    if(in != stdin) {
-        fclose(in);
-        if(out != stdout) {
-            fclose(out);
-        }
-    }    
-    return rval;
+    if(program_is_running()) {
+        end_program();
+        set_build_percent(100);
+        end_build();
+    }
+    set_steppers(AXES_BIT_MASK, 0);
+    
+    exit(0);
 }
 
