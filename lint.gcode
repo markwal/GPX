@@ -20,13 +20,14 @@
 ;  along with this program; if not, write to the Free Software Foundation,
 ;  Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ; PREFIX
+
 M70 (M103 - extruder off)
 M103 (turn extruder off)
 
 M70 (M73 - start build)
 M73 P0 (start build progress)
 
-G21 (units to mm)
+;G21 (units to mm)
 G90 (set positioning to absolute)
 
 ; G0 - Rapid Positioning
@@ -59,14 +60,14 @@ G10 P6 X60 Y60 Z60
 
 ; G20 - Use Inches as Units
 ; G70 - Use Inches as Units
-M70 (G20 - imperial units)
-G20
-G1 X1 Y1 Z1 E0.197
+;M70 (G20 - imperial units)
+;G20
+;G1 X1 Y1 Z1 E0.197
 
 ; G21 - Use Milimeters as Units
 ; G71 - Use Milimeters as Units
-M70 (G21 - metric units)
-G21
+;M70 (G21 - metric units)
+;G21
 
 ; G28 - Home given axes to maximum
 M70 (G28 - home to max)
@@ -123,8 +124,8 @@ G92 X30 Y30 Z30 E0
 G1 X0 Y0 Z0 E0
 
 ; G97 - Spindle speed rate
-M70 (G97 - spindle speed)
-G97 S50
+;M70 (G97 - spindle speed)
+;G97 S50
 
 ; G130 - Set given axes potentiometer Value
 M70 (G130 - set pots)
@@ -147,16 +148,16 @@ M104 S230 T0
 M104 S230 T1
 
 ; M3 - Spindle On - Clockwise
-M70 (M3 - spindle on)
-M3
+;M70 (M3 - spindle on)
+;M3
 
 ; M4 - Spindle On - Counter Clockwise
-M70 (M4 - spindle on)
-M4
+;M70 (M4 - spindle on)
+;M4
 
 ; M5 - Spindle Off
-M70 (M5 - spindle off)
-M5
+;M70 (M5 - spindle off)
+;M5
 
 ; M6 - Wait for toolhead to come up to reach (or exceed) temperature
 M70 (M6 - wait for tool)

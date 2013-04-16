@@ -3,7 +3,7 @@
 //
 //  Created by WHPThomas on 1/04/13.
 //
-//  Copyright (c) 2013 WHPThomas.
+//  Copyright (c) 2013 WHPThomas, All rights reserved.
 //
 //  gpx references ReplicatorG sources from /src/replicatorg/drivers
 //  which are part of the ReplicatorG project - http://www.replicat.org
@@ -28,6 +28,8 @@
 #define gpx_gpx_h
 
 #include <limits.h>
+
+#define GPX_VERSION "0.1a"
 
 // x3g axes bitfields
 
@@ -143,5 +145,14 @@ typedef struct tMachine {
     unsigned extruder_count;
     unsigned timeout;
 } Machine;
+
+typedef struct tTool {
+    unsigned motor_enabled;
+    unsigned rpm;
+    unsigned nozzle_temperature;
+    unsigned build_platform_temperature;
+} Tool;
+
+#define EOL "\n"
 
 #endif
