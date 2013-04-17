@@ -40,6 +40,7 @@
 #endif
 
 #include "gpx.h"
+#include "ini.h"
 
 // Machine definitions
 
@@ -95,7 +96,7 @@ static Machine replicator_2X = {
 Machine machine = {
     {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // x axis
     {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // y axis
-    {1170, 400, ENDSTOP_IS_MIN},        // z axis
+    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
     1.75, // nominal filament diameter
@@ -265,6 +266,62 @@ static int write_float(float value) {
 
     return 0;
 }
+
+// Custom machine definition ini handler
+
+#define SECTION_IS(s) strcmp(section, s) == 0
+#define NAME_IS(n) strcmp(name, n) == 0
+
+static int config_handler(void* user, const char* section, const char* name, const char* value)
+{
+    if(SECTION_IS("x")) {
+        if(NAME_IS("max_feedrate")) machine.x.max_feedrate = strtod(value, NULL);
+        else if(NAME_IS("home_feedrate")) machine.x.home_feedrate = strtod(value, NULL);
+        else if(NAME_IS("steps_per_mm")) machine.x.steps_per_mm = strtod(value, NULL);
+        else if(NAME_IS("endstop")) machine.x.endstop = atoi(value);
+        else return 0;
+    }
+    else if(SECTION_IS("y")) {
+        if(NAME_IS("max_feedrate")) machine.y.max_feedrate = strtod(value, NULL);
+        else if(NAME_IS("home_feedrate")) machine.y.home_feedrate = strtod(value, NULL);
+        else if(NAME_IS("steps_per_mm")) machine.y.steps_per_mm = strtod(value, NULL);
+        else if(NAME_IS("endstop")) machine.y.endstop = atoi(value);
+        else return 0;
+    }
+    else if(SECTION_IS("z")) {
+        if(NAME_IS("max_feedrate")) machine.z.max_feedrate = strtod(value, NULL);
+        else if(NAME_IS("home_feedrate")) machine.z.home_feedrate = strtod(value, NULL);
+        else if(NAME_IS("steps_per_mm")) machine.z.steps_per_mm = strtod(value, NULL);
+        else if(NAME_IS("endstop")) machine.z.endstop = atoi(value);
+        else return 0;
+    }
+    else if(SECTION_IS("a")) {
+        if(NAME_IS("max_feedrate")) machine.a.max_feedrate = strtod(value, NULL);
+        else if(NAME_IS("steps_per_mm")) machine.a.steps_per_mm = strtod(value, NULL);
+        else if(NAME_IS("motor_steps")) machine.a.motor_steps = strtod(value, NULL);
+        else if(NAME_IS("has_heated_build_platform")) machine.a.has_heated_build_platform = atoi(value);
+        else return 0;
+    }
+    else if(SECTION_IS("b")) {
+        if(NAME_IS("max_feedrate")) machine.b.max_feedrate = strtod(value, NULL);
+        else if(NAME_IS("steps_per_mm")) machine.b.steps_per_mm = strtod(value, NULL);
+        else if(NAME_IS("motor_steps")) machine.b.motor_steps = strtod(value, NULL);
+        else if(NAME_IS("has_heated_build_platform")) machine.b.has_heated_build_platform = atoi(value);
+        else return 0;
+    }
+    else if(SECTION_IS("machine")) {
+        if(NAME_IS("filament_diameter")) machine.filament_diameter = strtod(value, NULL);
+        else if(NAME_IS("extruder_count")) machine.extruder_count = atoi(value);
+        else if(NAME_IS("timeout")) machine.timeout = atoi(value);
+        else return 0;
+    }
+    else {
+        return 0; // unknown section/name, error
+    }
+    return 1;
+}
+
+// 5D VECTOR FUNCTIONS
 
 // return the magnitude (length) of the 5D vector
 
@@ -652,10 +709,10 @@ static void queue_absolute_point()
     if(write_32((int)steps.z) == EOF) exit(1);
     
     // int32: A coordinate, in steps
-    if(write_32((int)steps.a) == EOF) exit(1);
+    if(write_32(-(int)steps.a) == EOF) exit(1);
     
     // int32: B coordinate, in steps
-    if(write_32((int)steps.b) == EOF) exit(1);
+    if(write_32(-(int)steps.b) == EOF) exit(1);
     
     // uint32: Feedrate, in microseconds between steps on the max delta. (DDA)
     if(write_32((int)longestDDA) == EOF) exit(1);
@@ -828,7 +885,8 @@ void display_message(char *message, unsigned timeout, int wait_for_button)
         // uint8: Timeout, in seconds. If 0, this message will left on the screen
         if(write_8(seconds) == EOF) exit(1);
         // 1+N bytes: Message to write to the screen, in ASCII, terminated with a null character.
-        bytesSent += fwrite(message + bytesSent, 1, length > maxLength ? maxLength : length, out);
+        long rowLength = length - bytesSent;
+        bytesSent += fwrite(message + bytesSent, 1, rowLength < maxLength ? rowLength : maxLength, out);
         if(write_8('\0') == EOF) exit(1);
     }
 }
@@ -1127,17 +1185,18 @@ static char *normalize_comment(char *p) {
 
 static void usage()
 {
-    fputs("GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved.", stderr);
-    fputs("\nUsage: gpx [-m <MACHINE> | -c <CONFIG>] INPUT [OUTPUT]", stderr);
-    fputs("\nSwitches:\n\t-p\toverride build percentage", stderr);
-    fputs("\nMACHINE is the predefined machine type", stderr);
-    fputs("\n\tr1  = Replicator 1 - single extruder", stderr);
-    fputs("\tr1d  = Replicator 1 - dual extruder", stderr);
-    fputs("\tr2 = Replicator 2 (default config)", stderr);
-    fputs("\tr2x = Replicator 2X", stderr);
-    fputs("\nCONFIG is the filename of a custom machine definition (ini)", stderr);
-    fputs("\nINPUT is the name of the sliced gcode input filename", stderr);
-    fputs("\nOUTPUT is the name of the x3g output filename", stderr);
+    fputs(EOL "GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
+    fputs("Usage: gpx [-p] [-m <MACHINE> | -c <CONFIG>] INPUT [OUTPUT]" EOL, stderr);
+    fputs(EOL "Switches:" EOL, stderr);
+    fputs("\t-p\toverride build percentage" EOL, stderr);
+    fputs(EOL "MACHINE is the predefined machine type" EOL, stderr);
+    fputs("\tr1  = Replicator 1 - single extruder" EOL, stderr);
+    fputs("\tr1d  = Replicator 1 - dual extruder" EOL, stderr);
+    fputs("\tr2 = Replicator 2 (default config)" EOL, stderr);
+    fputs("\tr2x = Replicator 2X" EOL, stderr);
+    fputs(EOL "CONFIG is the filename of a custom machine definition (ini)" EOL, stderr);
+    fputs(EOL "INPUT is the name of the sliced gcode input filename" EOL, stderr);
+    fputs(EOL "OUTPUT is the name of the x3g output filename" EOL, stderr);
 
     exit(1);
 }
@@ -1159,12 +1218,10 @@ int main(int argc, char * argv[])
     while ((c = getopt(argc, argv, "pm:c:")) != -1) {
         switch (c) {
             case 'c':
-                /*
-                TODO
-                if(!get_custom_definition(&machine, optarg)) {
+                if (ini_parse(optarg, config_handler, NULL) < 0) {
+                    fprintf(stderr, "Command line error: cannot load custom machine definition '%s'" EOL, optarg);
                     usage();
-                };
-                */
+                }
                 break;
             case 'm':
                 if(strcasecmp(optarg, "r1") == 0) {
@@ -1725,6 +1782,34 @@ int main(int argc, char * argv[])
                     }
                     break;
                 }
+
+                    // M17 - Enable axes steppers
+                case 17:
+                    if(command.flag & AXES_BIT_MASK) {
+                        set_steppers(command.flag & AXES_BIT_MASK, 1);
+                        if(command.flag & A_IS_SET) tool[0].motor_enabled = 1;
+                        if(command.flag & B_IS_SET) tool[1].motor_enabled = 1;
+                    }
+                    else {
+                        set_steppers(machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 1);                        
+                        tool[0].motor_enabled = 1;
+                        if(machine.extruder_count == 2) tool[1].motor_enabled = 1;
+                    }
+                    break;
+                    
+                    // M18 - Disable axes steppers
+                case 18:
+                    if(command.flag & AXES_BIT_MASK) {
+                        set_steppers(command.flag & AXES_BIT_MASK, 0);
+                        if(command.flag & A_IS_SET) tool[0].motor_enabled = 0;
+                        if(command.flag & B_IS_SET) tool[1].motor_enabled = 0;
+                    }
+                    else {
+                        set_steppers(machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 0);
+                        tool[0].motor_enabled = 0;
+                        if(machine.extruder_count == 2) tool[1].motor_enabled = 0;
+                    }
+                    break;
                     
                     // M70 - Display message on LCD
                 case 70:
@@ -1999,7 +2084,7 @@ int main(int argc, char * argv[])
                     // M132 - Load Current Position from EEPROM
                 case 132:
                     if(command.flag & AXES_BIT_MASK) {
-                        store_home_positions();
+                        recall_home_positions();
                         positionKnown = 0;
                         excess.a = 0;
                         excess.b = 0;
@@ -2009,33 +2094,7 @@ int main(int argc, char * argv[])
                         exit(1);
                     }
                     break;
-                    
-                    // M137 - Enable axes steppers
-                case 137:
-                    if(command.flag & AXES_BIT_MASK) {
-                        set_steppers(command.flag & AXES_BIT_MASK, 1);
-                        if(command.flag & A_IS_SET) tool[0].motor_enabled = 1;
-                        if(command.flag & B_IS_SET) tool[1].motor_enabled = 1;
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax Error: M137 is missing axes, use X Y Z A B" EOL, line_number);
-                        exit(1);
-                    }
-                    break;
-                    
-                    // M138 - Disable axes steppers
-                case 138:
-                    if(command.flag & AXES_BIT_MASK) {
-                        set_steppers(command.flag & AXES_BIT_MASK, 0);
-                        if(command.flag & A_IS_SET) tool[0].motor_enabled = 0;
-                        if(command.flag & B_IS_SET) tool[1].motor_enabled = 0;
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax Error: M138 is missing axes, use X Y Z A B" EOL, line_number);
-                        exit(1);
-                    }
-                    break;
-                    
+                                        
                     // M146 - Set RGB LED value (RLS - P)
                 case 146: {
                     unsigned red = 0;

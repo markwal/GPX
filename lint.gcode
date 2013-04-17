@@ -236,10 +236,10 @@ M132 X Y Z A B
 
 ; M137 - Enable axes steppers
 M70 (M137 - steppers on)
-M132 X Y Z A B
+M137 X Y Z A B
 
 ; M138 - Disable axes steppers
-M70 (M138 - steppers on)
+M70 (M138 - steppers off)
 M138 X Y Z A B
 
 ; M146 - Set RGB LED value
