@@ -1,7 +1,7 @@
 //
 //  gpx.c
 //
-//  Created by WHPThomas on 1/04/13.
+//  Created by WHPThomas <me(at)henri(dot)net> on 1/04/13.
 //
 //  Copyright (c) 2013 WHPThomas, All rights reserved.
 //
@@ -34,9 +34,9 @@
 #include <strings.h>
 
 #ifdef _WIN32
-#include "getopt.h"
+#   include "getopt.h"
 #else
-#include <unistd.h>
+#   include <unistd.h>
 #endif
 
 #include "gpx.h"

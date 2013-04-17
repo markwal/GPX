@@ -1,7 +1,7 @@
 //
 //  gpx.c
 //
-//  Created by WHPThomas on 1/04/13.
+//  Created by WHPThomas <me(at)henri(dot)net> on 1/04/13.
 //
 //  Copyright (c) 2013 WHPThomas, All rights reserved.
 //
@@ -24,8 +24,8 @@
 //  along with this program; if not, write to the Free Software Foundation,
 //  Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-#ifndef gpx_gpx_h
-#define gpx_gpx_h
+#ifndef gpx_h
+#define gpx_h
 
 #include <limits.h>
 
