@@ -142,6 +142,7 @@ typedef struct tMachine {
     Axis z;
     Extruder a;
     Extruder b;
+    double filament_diameter;
     unsigned extruder_count;
     unsigned timeout;
 } Machine;

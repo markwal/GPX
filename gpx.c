@@ -32,7 +32,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+
+#ifdef _WIN32
+#include "getopt.h"
+#else
 #include <unistd.h>
+#endif
 
 #include "gpx.h"
 
@@ -47,6 +52,7 @@ static Machine replicator_1 = {
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1.75, // nominal filament diameter
     1,  // extruder count
     20, // timeout
 };
@@ -57,6 +63,7 @@ static Machine replicator_1D = {
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1.75, // nominal filament diameter
     2,  // extruder count
     20, // timeout
 };
@@ -67,6 +74,7 @@ static Machine replicator_2 = {
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1.75, // nominal filament diameter
     1,  // extruder count
     20, // timeout
 };
@@ -77,6 +85,7 @@ static Machine replicator_2X = {
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1.75, // nominal filament diameter
     2,  // extruder count
     20, // timeout
 };
@@ -89,6 +98,7 @@ Machine machine = {
     {1170, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1.75, // nominal filament diameter
     1,  // extruder count
     20, // timeout
 };
@@ -100,9 +110,8 @@ static double get_home_feedrate(int flag);
 // GLOBAL VARIABLES
 
 Command command;            // the gcode command line
-Point5d currentPosition;    // the extruders current position in 5D space
-Point5d machineTarget;      // machine target point
-Point5d workTarget;         // work target point (including G10 offsets)
+Point5d currentPosition;    // the current position of the extruder in 5D space
+Point5d targetPosition;     // the target poaition the extruder will move to (including G10 offsets)
 Point2d excess;             // the accumulated rounding error in mm to step conversion
 int currentExtruder;        // the currently selectd extruder using Tn
 double currentFeedrate;     // the current feed rate
@@ -114,6 +123,7 @@ int positionKnown;          // is the current extruder position known
 int programState;           // gcode program state used to trigger start and end code sequences
 unsigned line_number;       // the current line number in the gcode file
 static char buffer[256];    // the statically allocated parse-in-place buffer
+double scale[2];            // A & B scaling for n x 0.01 mm change in nominal diameter
 
 FILE *in;                   // the gcode input file stream
 FILE *out;                  // the x3g output file stream
@@ -195,6 +205,9 @@ static void initialize_globals(void)
     programState = 0;
     
     line_number = 1;
+    
+    scale[0] = 0;
+    scale[1] = 0;
 }
 
 // STATE
@@ -388,7 +401,9 @@ double get_safe_feedrate(int flag, Ptr5d delta) {
     return feedrate;
 }
 
-// convert mm to steps using the current machine definition and accumulate the rounding error 
+// convert mm to steps using the current machine definition
+
+// IMPORTANT: this command changes the global excess value which accunulates the rounding remainder
 
 static Point5d mm_to_steps(Ptr5d mm, Ptr2d excess)
 {
@@ -398,12 +413,15 @@ static Point5d mm_to_steps(Ptr5d mm, Ptr2d excess)
     result.y = round(mm->y * machine.y.steps_per_mm);
     result.z = round(mm->z * machine.z.steps_per_mm);
     if(excess) {
+        // accumulate rounding remainder
         value = (mm->a * machine.a.steps_per_mm) + excess->a;
         result.a = round(value);
+        // changes to excess
         excess->a = value - result.a;
         
         value = (mm->b * machine.b.steps_per_mm) + excess->b;
         result.b = round(value);
+        // changes to excess
         excess->b = value - result.b;
     }
     else {
@@ -449,7 +467,6 @@ static void home_axes(unsigned direction)
         if(direction != machine.y.endstop) {
             fprintf(stderr, "(line %u) Semantic Warning: Y axis homing to %s endstop" EOL, line_number, direction ? "maximum" : "minimum");
         }
-        
     }
     if(xyz_flag & Z_IS_SET) {
         if(machine.z.home_feedrate < feedrate) {
@@ -522,6 +539,8 @@ static void wait_for_extruder(unsigned extruder_id, unsigned timeout)
  
 // 136 - extruder action command
 
+// Action 03 - Set toolhead target temperature
+
 static void set_extruder_temperature(unsigned extruder_id, unsigned temperature)
 {
     assert(extruder_id < machine.extruder_count);
@@ -539,6 +558,8 @@ static void set_extruder_temperature(unsigned extruder_id, unsigned temperature)
     // int16: Desired target temperature, in Celsius
     if(write_16(temperature) == EOF) exit(1);
 }
+
+// Action 12 - Enable / Disable fan
 
 static void set_fan(unsigned extruder_id, unsigned state)
 {
@@ -558,6 +579,8 @@ static void set_fan(unsigned extruder_id, unsigned state)
     if(write_8(state) == EOF) exit(1);
 }
 
+// Action 13 - Enable / Disable extra output (blower fan)
+
 static void set_valve(unsigned extruder_id, unsigned state)
 {
     assert(extruder_id < machine.extruder_count);
@@ -575,6 +598,8 @@ static void set_valve(unsigned extruder_id, unsigned state)
     // uint8: 1 to enable, 0 to disable
     if(write_8(state) == EOF) exit(1);
 }
+
+// Action 31 - Set build platform target temperature
 
 static void set_build_platform_temperature(unsigned extruder_id, unsigned temperature)
 {
@@ -594,7 +619,7 @@ static void set_build_platform_temperature(unsigned extruder_id, unsigned temper
     if(write_16(temperature) == EOF) exit(1);
 }
 
-// 137 - Enable/disable axes steppers
+// 137 - Enable / Disable axes steppers
 
 static void set_steppers(unsigned axes, unsigned state)
 {
@@ -613,7 +638,7 @@ static void set_steppers(unsigned axes, unsigned state)
 static void queue_absolute_point()
 {
     long longestDDA = get_longest_dda();
-    Point5d steps = mm_to_steps(&workTarget, &excess);
+    Point5d steps = mm_to_steps(&targetPosition, &excess);
     
     if(write_8(139) == EOF) exit(1);
     
@@ -634,16 +659,13 @@ static void queue_absolute_point()
     
     // uint32: Feedrate, in microseconds between steps on the max delta. (DDA)
     if(write_32((int)longestDDA) == EOF) exit(1);
-    
-    currentPosition = machineTarget;
-    positionKnown = 1;
 }
 
 // 140 - Set extended position
 
 static void set_position()
 {
-    Point5d steps = mm_to_steps(&workTarget, &excess);
+    Point5d steps = mm_to_steps(&currentPosition, NULL);
     if(write_8(140) == EOF) exit(1);
     
     // int32: X position, in steps
@@ -719,9 +741,43 @@ static void set_pot_value(unsigned axis, unsigned value)
 }
  
 // 146 - Set RGB LED value
+
+static void set_LED(unsigned red, unsigned green, unsigned blue, unsigned blink)
+{
+    if(write_8(146) == EOF) exit(1);
+    
+    // uint8: red value (all pix are 0-255)
+    if(write_8(red) == EOF) exit(1);
+    
+    // uint8: green
+    if(write_8(green) == EOF) exit(1);
+    
+    // uint8: blue
+    if(write_8(blue) == EOF) exit(1);
+    
+    // uint8: blink rate (0-255 valid)
+    if(write_8(blink) == EOF) exit(1);
+    
+    // uint8: 0 (reserved for future use)
+    if(write_8(0) == EOF) exit(1);
+}
  
 // 147 - Set Beep
- 
+
+static void set_beep(unsigned frequency, unsigned milliseconds)
+{
+    if(write_8(147) == EOF) exit(1);
+    
+    // uint16: frequency
+    if(write_16(frequency) == EOF) exit(1);
+
+    // uint16: buzz length in ms
+    if(write_16(milliseconds) == EOF) exit(1);
+
+    // uint8: 0 (reserved for future use)
+    if(write_8(0) == EOF) exit(1);
+}
+
 // 148 - Pause for button
 
 // 149 - Display message to LCD
@@ -836,10 +892,13 @@ static void end_build()
  
 // 155 - Queue extended point x3g
 
+// IMPORTANT: this command updates the parser state
+
 static void queue_point(double feedrate)
 {
     Point5d deltaMM;
     Point5d deltaSteps;
+    Point5d target = targetPosition;
 
     // Because we don't know our previous position, we can't calculate the feedrate or
     // distance correctly, so we use an unaccelerated command with a fixed DDA
@@ -850,7 +909,7 @@ static void queue_point(double feedrate)
     
     // compute the relative distance traveled along each axis and convert to steps
     if(command.flag & X_IS_SET) {
-        deltaMM.x = machineTarget.x - currentPosition.x;
+        deltaMM.x = targetPosition.x - currentPosition.x;
         deltaSteps.x = round(fabs(deltaMM.x) * machine.x.steps_per_mm);
     }
     else {
@@ -859,7 +918,7 @@ static void queue_point(double feedrate)
     }
     
     if(command.flag & Y_IS_SET) {
-        deltaMM.y = machineTarget.y - currentPosition.y;
+        deltaMM.y = targetPosition.y - currentPosition.y;
         deltaSteps.y = round(fabs(deltaMM.y) * machine.y.steps_per_mm);
     }
     else {
@@ -868,7 +927,7 @@ static void queue_point(double feedrate)
     }
     
     if(command.flag & Z_IS_SET) {
-        deltaMM.z = machineTarget.z - currentPosition.z;
+        deltaMM.z = targetPosition.z - currentPosition.z;
         deltaSteps.z = round(fabs(deltaMM.z) * machine.z.steps_per_mm);
     }
     else {
@@ -877,7 +936,7 @@ static void queue_point(double feedrate)
     }
     
     if(command.flag & A_IS_SET) {
-        deltaMM.a = workTarget.a - currentPosition.a;
+        deltaMM.a = targetPosition.a - currentPosition.a;
         deltaSteps.a = round(fabs(deltaMM.a) * machine.a.steps_per_mm);
     }
     else {
@@ -886,7 +945,7 @@ static void queue_point(double feedrate)
     }
     
     if(command.flag & B_IS_SET) {
-        deltaMM.b = workTarget.b - currentPosition.b;
+        deltaMM.b = targetPosition.b - currentPosition.b;
         deltaSteps.b = round(fabs(deltaMM.b) * machine.b.steps_per_mm);
     }
     else {
@@ -898,8 +957,8 @@ static void queue_point(double feedrate)
     if(magnitude(command.flag, &deltaSteps) > 0) {
         double distance = magnitude(command.flag & XYZ_BIT_MASK, &deltaMM);
         
-        workTarget.a = -deltaMM.a;
-        workTarget.b = -deltaMM.b;
+        target.a = -deltaMM.a;
+        target.b = -deltaMM.b;
         
         deltaMM.x = fabs(deltaMM.x);
         deltaMM.y = fabs(deltaMM.y);
@@ -933,8 +992,8 @@ static void queue_point(double feedrate)
                 double mmPerRevolution = machine.a.motor_steps * (1 / machine.a.steps_per_mm);
                 // set distance
                 deltaMM.a = numRevolutions * mmPerRevolution;
-                deltaSteps.a = round(fabs(workTarget.a - currentPosition.a) * machine.a.steps_per_mm);
-                workTarget.a = -deltaMM.a;
+                deltaSteps.a = round(fabs(targetPosition.a - currentPosition.a) * machine.a.steps_per_mm);
+                target.a = -deltaMM.a;
             }
         }
         if(deltaMM.b == 0.0) {
@@ -945,12 +1004,12 @@ static void queue_point(double feedrate)
                 double mmPerRevolution = machine.b.motor_steps * (1 / machine.b.steps_per_mm);
                 // set distance
                 deltaMM.b = numRevolutions * mmPerRevolution;
-                deltaSteps.b = round(fabs(workTarget.b - currentPosition.b) * machine.b.steps_per_mm);
-                workTarget.b = -deltaMM.b;
+                deltaSteps.b = round(fabs(targetPosition.b - currentPosition.b) * machine.b.steps_per_mm);
+                target.b = -deltaMM.b;
             }
         }
 
-        Point5d steps = mm_to_steps(&workTarget, &excess);
+        Point5d steps = mm_to_steps(&target, &excess);
         
         double usec = (60 * 1000 * 1000 * minutes);
         
@@ -987,8 +1046,6 @@ static void queue_point(double feedrate)
         
         // uint16: feedrate in mm/s, multiplied by 64 to assist fixed point calculation on the bot
         if(write_16((unsigned)(feedrate * 64.0)) == EOF) exit(1);
-        
-        currentPosition = machineTarget;
 	}
 }
 
@@ -1358,30 +1415,30 @@ int main(int argc, char * argv[])
             }
         }
         
-        // CALCULATE TARGET POINT
+        // CALCULATE TARGET POSITION
         
         // x
         if(command.flag & X_IS_SET) {
-            machineTarget.x = isRelative ? (currentPosition.x + command.x) : command.x;
+            targetPosition.x = isRelative ? (currentPosition.x + command.x) : command.x;
         }
         else {
-            machineTarget.x = currentPosition.x;
+            targetPosition.x = currentPosition.x;
         }
         
         // y
         if(command.flag & Y_IS_SET) {
-            machineTarget.y = isRelative ? (currentPosition.y + command.y) : command.y;
+            targetPosition.y = isRelative ? (currentPosition.y + command.y) : command.y;
         }
         else {
-            machineTarget.y = currentPosition.y;
+            targetPosition.y = currentPosition.y;
         }
         
         // z
         if(command.flag & Z_IS_SET) {
-            machineTarget.z = isRelative ? (currentPosition.z + command.z) : command.z;
+            targetPosition.z = isRelative ? (currentPosition.z + command.z) : command.z;
         }
         else {
-            machineTarget.z = currentPosition.z;
+            targetPosition.z = currentPosition.z;
         }
         
         // we treat e as short hand for a or b being set
@@ -1389,29 +1446,29 @@ int main(int argc, char * argv[])
         if(command.flag & E_IS_SET) {
             if(currentExtruder == 0) {
                 // a = e
-                machineTarget.a = isRelative ? (currentPosition.a + command.e) : command.e;
+                targetPosition.a = isRelative ? (currentPosition.a + command.e) : command.e;
                 command.flag |= A_IS_SET;
                 command.a = command.e;
                 
                 // b
                 if(command.flag & B_IS_SET) {
-                    machineTarget.b = isRelative ? (currentPosition.b + command.b) : command.b;
+                    targetPosition.b = isRelative ? (currentPosition.b + command.b) : command.b;
                 }
                 else {
-                    machineTarget.b = currentPosition.b;
+                    targetPosition.b = currentPosition.b;
                 }
             }
             else {                
                 // a
                 if(command.flag & A_IS_SET) {
-                    machineTarget.a = isRelative ? (currentPosition.a + command.a) : command.a;
+                    targetPosition.a = isRelative ? (currentPosition.a + command.a) : command.a;
                 }
                 else {
-                    machineTarget.a = currentPosition.a;
+                    targetPosition.a = currentPosition.a;
                 }
                 
                 // b = e
-                machineTarget.b = isRelative ? (currentPosition.b + command.e) : command.e;
+                targetPosition.b = isRelative ? (currentPosition.b + command.e) : command.e;
                 command.flag |= B_IS_SET;
                 command.b = command.e;
             }
@@ -1419,17 +1476,17 @@ int main(int argc, char * argv[])
         else {        
             // a
             if(command.flag & A_IS_SET) {
-                machineTarget.a = isRelative ? (currentPosition.a + command.a) : command.a;
+                targetPosition.a = isRelative ? (currentPosition.a + command.a) : command.a;
             }
             else {
-                machineTarget.a = currentPosition.a;
+                targetPosition.a = currentPosition.a;
             }
             // b
             if(command.flag & B_IS_SET) {
-                machineTarget.b = isRelative ? (currentPosition.b + command.b) : command.b;
+                targetPosition.b = isRelative ? (currentPosition.b + command.b) : command.b;
             }
             else {
-                machineTarget.b = currentPosition.b;
+                targetPosition.b = currentPosition.b;
             }
         }
         
@@ -1438,13 +1495,11 @@ int main(int argc, char * argv[])
             currentFeedrate = command.f;
         }
         
-        // CALCULATE WORK OFFSET
+        // CALCULATE OFFSET
         
-        workTarget.x = machineTarget.x + offset[currentOffset].x;
-        workTarget.y = machineTarget.y + offset[currentOffset].y;
-        workTarget.z = machineTarget.z + offset[currentOffset].z;
-        workTarget.a = machineTarget.a;
-        workTarget.b = machineTarget.b;
+        if(command.flag & X_IS_SET) targetPosition.x += offset[currentOffset].x;
+        if(command.flag & Y_IS_SET) targetPosition.y += offset[currentOffset].y;
+        if(command.flag & Z_IS_SET) targetPosition.z += offset[currentOffset].z;
 
         // INTERPRET COMMAND
         
@@ -1455,12 +1510,14 @@ int main(int argc, char * argv[])
                 case 0:
                     if(command.flag & F_IS_SET) {
                         queue_point(currentFeedrate);
+                        currentPosition = targetPosition;
+                        positionKnown = 1;
                     }
                     else {
                         Point3d delta;
-                        if(command.flag & X_IS_SET) delta.x = fabs(workTarget.x - currentPosition.x);
-                        if(command.flag & Y_IS_SET) delta.y = fabs(workTarget.y - currentPosition.y);
-                        if(command.flag & Z_IS_SET) delta.z = fabs(workTarget.z - currentPosition.z);
+                        if(command.flag & X_IS_SET) delta.x = fabs(targetPosition.x - currentPosition.x);
+                        if(command.flag & Y_IS_SET) delta.y = fabs(targetPosition.y - currentPosition.y);
+                        if(command.flag & Z_IS_SET) delta.z = fabs(targetPosition.z - currentPosition.z);
                         double length = magnitude(command.flag & XYZ_BIT_MASK, (Ptr5d)&delta);
                         double candidate, feedrate = DBL_MAX;
                         if(command.flag & X_IS_SET && delta.x != 0.0) {
@@ -1482,12 +1539,16 @@ int main(int argc, char * argv[])
                             feedrate = machine.x.max_feedrate;
                         }
                         queue_point(feedrate);
+                        currentPosition = targetPosition;
+                        positionKnown = 1;
                     }
                     break;
                     
                     // G1 - Coordinated Motion
                 case 1:
                     queue_point(currentFeedrate);
+                    currentPosition = targetPosition;
+                    positionKnown = 1;
                     break;
                     
                     // G2 - Clockwise Arc
@@ -1508,14 +1569,20 @@ int main(int argc, char * argv[])
                 case 10:
                     if(command.flag & P_IS_SET && command.p >= 1.0 && command.p <= 6.0) {
                         i = (int)command.p;
-                        if(command.flag & X_IS_SET) offset[i].x = machineTarget.x;
-                        if(command.flag & Y_IS_SET) offset[i].y = machineTarget.y;
-                        if(command.flag & Z_IS_SET) offset[i].z = machineTarget.z;
+                        if(command.flag & X_IS_SET) offset[i].x = command.x;
+                        if(command.flag & Y_IS_SET) offset[i].y = command.y;
+                        if(command.flag & Z_IS_SET) offset[i].z = command.z;
                     }
                     else {
                         fprintf(stderr, "(line %u) Syntax Error: G10 is missing coordiante system, use Pn where n is 1-6" EOL, line_number);
                         exit(1);
                     }
+                    break;
+                
+                    // G21 - Use Milimeters as Units (IGNORED)
+                    // G71 - Use Milimeters as Units (IGNORED)
+                case 21:
+                case 71:
                     break;
                     
                     // G53 - Set absolute coordinate system
@@ -1570,14 +1637,18 @@ int main(int argc, char * argv[])
                     break;
 
                     // G92 - Define current position on axes
-                case 92:
+                case 92: {
+                    if(command.flag & X_IS_SET) currentPosition.x = command.x;
+                    if(command.flag & Y_IS_SET) currentPosition.y = command.y;
+                    if(command.flag & Z_IS_SET) currentPosition.z = command.z;
+                    if(command.flag & A_IS_SET) currentPosition.a = command.a;
+                    if(command.flag & B_IS_SET) currentPosition.b = command.b;
+                    // check if we know where we are
+                    int mask = machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;
+                    if((command.flag & mask) == mask) positionKnown = 1;
                     set_position();
-                    if(command.flag & X_IS_SET) currentPosition.x = machineTarget.x;
-                    if(command.flag & Y_IS_SET) currentPosition.y = machineTarget.y;
-                    if(command.flag & Z_IS_SET) currentPosition.z = machineTarget.z;
-                    if(command.flag & A_IS_SET) currentPosition.a = machineTarget.a;
-                    if(command.flag & B_IS_SET) currentPosition.b = machineTarget.b;
                     break;
+                }
                     
                     // G130 - Set given axes potentiometer Value
                 case 130:
@@ -1630,6 +1701,10 @@ int main(int argc, char * argv[])
                     }
                     if(extruder_id < machine.extruder_count) {
                         if(currentExtruder != extruder_id) {
+                            // check for active G10 offset
+                            if(currentOffset == currentExtruder + 1) {
+                                currentOffset = extruder_id + 1;
+                            }
                             currentExtruder = extruder_id;
                             change_extruder(extruder_id);
                         }
@@ -1670,18 +1745,18 @@ int main(int argc, char * argv[])
                 case 71:
                     if(command.flag & COMMENT_IS_SET) {
                         if(command.flag & P_IS_SET) {
-                            display_message(command.comment, command.p, 0);
+                            display_message(command.comment, command.p, 1);
                         }
                         else {
-                            display_message(command.comment, 0, 0);
+                            display_message(command.comment, 0, 1);
                         }
                     }
                     else {
                         if(command.flag & P_IS_SET) {
-                            display_message("Press M to continue", command.p, 0);
+                            display_message("Press M to continue", command.p, 1);
                         }
                         else {
-                            display_message("Press M to continue", 0, 0);
+                            display_message("Press M to continue", 0, 1);
                         }
                     }
                     break;
@@ -1732,6 +1807,9 @@ int main(int argc, char * argv[])
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_steppers(extruder_id == 0 ? A_IS_SET : B_IS_SET, 1);
+                            tool[extruder_id].motor_enabled = 1;
+                            // update the direction
+                            tool[extruder_id].rpm = command.m == 101 ? fabs(tool[extruder_id].rpm) : -fabs(tool[extruder_id].rpm);
                         }
                         else {
                             fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant extruder T%u" EOL, line_number, command.m, extruder_id);
@@ -1740,6 +1818,9 @@ int main(int argc, char * argv[])
                     }
                     else {
                         set_steppers(currentExtruder == 0 ? A_IS_SET : B_IS_SET, 1);
+                        tool[currentExtruder].motor_enabled = 1;
+                        // update the direction
+                        tool[currentExtruder].rpm = command.m == 101 ? fabs(tool[currentExtruder].rpm) : -fabs(tool[currentExtruder].rpm);
                     }
                     break;
                     
@@ -1749,6 +1830,7 @@ int main(int argc, char * argv[])
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_steppers(extruder_id == 0 ? A_IS_SET : B_IS_SET, 0);
+                            tool[extruder_id].motor_enabled = 0;
                         }
                         else {
                             fprintf(stderr, "(line %u) Semantic Warning: M103 cannot select non-existant extruder T%u" EOL, line_number, extruder_id);
@@ -1757,6 +1839,7 @@ int main(int argc, char * argv[])
                     }
                     else {
                         set_steppers(currentExtruder == 0 ? A_IS_SET : B_IS_SET, 0);
+                        tool[currentExtruder].motor_enabled = 0;
                     }
                     break;
                     
@@ -1815,6 +1898,28 @@ int main(int argc, char * argv[])
                     }
                     else {
                         set_fan(currentExtruder, 0);
+                    }
+                    break;
+                    
+                    // M108 - set extruder motor 5D 'simulated' RPM
+                case 108:
+                    if(command.flag & R_IS_SET) {
+                        if(command.flag & T_IS_SET) {
+                            unsigned extruder_id = (unsigned)command.t;
+                            if(extruder_id < machine.extruder_count) {
+                                tool[extruder_id].rpm = command.r;
+                            }
+                            else {
+                                fprintf(stderr, "(line %u) Semantic Warning: M108 cannot select non-existant extruder T%u" EOL, line_number, extruder_id);
+                            }
+                        }
+                        else {
+                            tool[currentExtruder].rpm = command.r;
+                        }
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Syntax Error: M108 is missing motor RPM, use Rn where n is 0-5" EOL, line_number);
+                        exit(1);
                     }
                     break;
                     
@@ -1879,22 +1984,6 @@ int main(int argc, char * argv[])
                         set_valve(currentExtruder, 0);
                     }
                     break;
-
-                    // M137 - Enable axes steppers
-                case 137:
-                    break;
-                    
-                    // M138 - Disable axes steppers
-                case 138:
-                    break;
-
-                    // M146 - Set RGB LED value
-                case 146:
-                    break;
-                    
-                    // M147 - Set Beep
-                case 147:
-                    break;
                     
                     // M131 - Store Current Position to EEPROM
                 case 131:
@@ -1921,6 +2010,56 @@ int main(int argc, char * argv[])
                     }
                     break;
                     
+                    // M137 - Enable axes steppers
+                case 137:
+                    if(command.flag & AXES_BIT_MASK) {
+                        set_steppers(command.flag & AXES_BIT_MASK, 1);
+                        if(command.flag & A_IS_SET) tool[0].motor_enabled = 1;
+                        if(command.flag & B_IS_SET) tool[1].motor_enabled = 1;
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Syntax Error: M137 is missing axes, use X Y Z A B" EOL, line_number);
+                        exit(1);
+                    }
+                    break;
+                    
+                    // M138 - Disable axes steppers
+                case 138:
+                    if(command.flag & AXES_BIT_MASK) {
+                        set_steppers(command.flag & AXES_BIT_MASK, 0);
+                        if(command.flag & A_IS_SET) tool[0].motor_enabled = 0;
+                        if(command.flag & B_IS_SET) tool[1].motor_enabled = 0;
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Syntax Error: M138 is missing axes, use X Y Z A B" EOL, line_number);
+                        exit(1);
+                    }
+                    break;
+                    
+                    // M146 - Set RGB LED value (RLS - P)
+                case 146: {
+                    unsigned red = 0;
+                    if(command.flag & R_IS_SET) red = (unsigned)command.r & 0xFF;
+                    unsigned green = 0;
+                    if(command.flag & L_IS_SET) green = (unsigned)command.l & 0xFF;
+                    unsigned blue = 0;
+                    if(command.flag & S_IS_SET) blue = (unsigned)command.s & 0xFF;
+                    unsigned blink = 0;
+                    if(command.flag & P_IS_SET) blink = (unsigned)command.p & 0xFF;
+                    set_LED(red, green, blue, blink);
+                    break;
+                }
+
+                    // M147 - Set Beep (SP)
+                case 147: {
+                    unsigned frequency = 6000;
+                    if(command.flag & S_IS_SET) frequency = (unsigned)command.s & 0xFFFF;
+                    unsigned milliseconds = 100;
+                    if(command.flag & P_IS_SET) milliseconds = (unsigned)command.p & 0xFFFF;
+                    set_beep(frequency, milliseconds);
+                    break;
+                }
+
                     // M320 - Acceleration on for subsequent instructions
                 case 320:
                     set_acceleration(1);
@@ -1934,22 +2073,30 @@ int main(int argc, char * argv[])
                     fprintf(stderr, "(line %u) Syntax Warning: unsupported mcode command 'M%u'" EOL, line_number, command.m);
             }
         }
-        else if(command.flag & T_IS_SET) {
-            unsigned extruder_id = (unsigned)command.t;
-            if(extruder_id < machine.extruder_count) {
-                if(currentExtruder != extruder_id) {
-                    currentExtruder = extruder_id;
-                    change_extruder(extruder_id);
-                    command_line++;
+        else {
+            if(command.flag & T_IS_SET) {
+                unsigned extruder_id = (unsigned)command.t;
+                if(extruder_id < machine.extruder_count) {
+                    if(currentExtruder != extruder_id) {
+                        command_line++;
+                        // check for active G10 offset
+                        if(currentOffset == currentExtruder + 1) {
+                            currentOffset = extruder_id + 1;
+                        }
+                        currentExtruder = extruder_id;
+                        change_extruder(extruder_id);
+                    }
+                }
+                else {
+                    fprintf(stderr, "(line %u) Semantic Warning: T%u cannot select non-existant extruder" EOL, line_number, extruder_id);
                 }
             }
-            else {
-                fprintf(stderr, "(line %u) Semantic Warning: T%u cannot select non-existant extruder" EOL, line_number, extruder_id);
+            if(command.flag & AXES_BIT_MASK) {
+                command_line++;
+                queue_point(currentFeedrate);
+                currentPosition = targetPosition;
+                positionKnown = 1;
             }
-        }
-        else if(command.flag & AXES_BIT_MASK) {
-            command_line++;
-            queue_point(currentFeedrate);
         }
         // update progress
         if(filesize && build_percent && command_line) {

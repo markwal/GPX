@@ -19,6 +19,7 @@
 ;  You should have received a copy of the GNU General Public License
 ;  along with this program; if not, write to the Free Software Foundation,
 ;  Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
 ; PREFIX
 
 M70 (M103 - extruder off)
@@ -58,16 +59,11 @@ G10 P4 X40 Y40 Z40
 G10 P5 X50 Y50 Z50
 G10 P6 X60 Y60 Z60
 
-; G20 - Use Inches as Units
-; G70 - Use Inches as Units
-;M70 (G20 - imperial units)
-;G20
-;G1 X1 Y1 Z1 E0.197
-
 ; G21 - Use Milimeters as Units
 ; G71 - Use Milimeters as Units
-;M70 (G21 - metric units)
-;G21
+M70 (G21 - metric units)
+G21
+G71
 
 ; G28 - Home given axes to maximum
 M70 (G28 - home to max)
@@ -147,18 +143,6 @@ M70 (M104 - set temp)
 M104 S230 T0
 M104 S230 T1
 
-; M3 - Spindle On - Clockwise
-;M70 (M3 - spindle on)
-;M3
-
-; M4 - Spindle On - Counter Clockwise
-;M70 (M4 - spindle on)
-;M4
-
-; M5 - Spindle Off
-;M70 (M5 - spindle off)
-;M5
-
 ; M6 - Wait for toolhead to come up to reach (or exceed) temperature
 M70 (M6 - wait for tool)
 M6 T0
@@ -188,32 +172,6 @@ M6
 M70 (T1 - tool change)
 T1
 
-; M13 - Spindle CW and Coolant A On
-;M70 (M13 - spindle +cool)
-;M13
-
-; M14 - Spindle CCW and Coolant A On
-;M70 (M14 - spindle +cool)
-;M14
-
-; M17 - Enable Motor(s)
-;M70 (M17 - enable motor)
-;M17
-
-; M18 - Disable Motor(s)
-;M70 (M18 - disable motor)
-;M18
-
-; M21 - Open Collet
-;M70 (M21 - open collet)
-;M21
-
-; M22 - Close Collet
-;M70 (M22 - close collet)
-;M22
-
-; M30 - Program Rewind
-
 ; M70 - Display Message On Machine
 M70 P20 (This is a really large message that will take up quite a few rows to display on the makerbot LCD screen)
 
@@ -232,34 +190,85 @@ M70 (M73 - progress)
 M73 P10 (build progress)
 
 ; M101 - Turn Extruder On, Forward
+M70 (M101 - extruder on-f)
+M101 T1
+M101 T0
+
 ; M102 - Turn Extruder On, Reverse
+M70 (M102 - extruder on-r)
+M102 T1
+M102 T0
+
 ; M103 - Turn Extruder Off
+M70 (M103 - extruder off)
+M103 T1
+M103 T0
+
 ; M104 - Set Temperature
-; M105 - Get Temperature
-; M106 - Turn Automated Build Platform (or the Fan, on older models) On
-; M107 - Turn Automated Build Platform (or the Fan, on older models) Off
-; M108 - Set Extruder's Max Speed (R = RPM, P = PWM)
+M70 (M104 - set temp)
+M104 T1 S240
+M104 T0 S230
+
+; M108 - Set Extruder's Max Speed (R = RPM)
+M70 (M108 - set rpm)
+M108 T1 R5.0
+M108 T0 R3.0
+
 ; M109 - Set Build Platform Temperature
-; M110 - Set Build Chamber Temperature
+M70 (M109 - hbp temp)
+M109 S110
+
 ; M126 - Valve Open
+M70 (M126 - blower on)
+M126
+
 ; M127 - Valve Close
-; M128 - "Get Position
+M70 (M127 - blower off)
+M127
+
 ; M131 - Store Current Position to EEPROM
+M70 (M131 - store EEPROM)
+M131 X Y Z A B
+
 ; M132 - Load Current Position from EEPROM
+M70 (M132 - load EEPROM)
+M132 X Y Z A B
+
+; M137 - Enable axes steppers
+M70 (M137 - steppers on)
+M132 X Y Z A B
+
+; M138 - Disable axes steppers
+M70 (M138 - steppers on)
+M138 X Y Z A B
+
+; M146 - Set RGB LED value
+M70 (M146 - set LED)
+M146 R255 L0 S0 P0
+
+; M147 - Set Beep
+M70 (M147 - set beep)
+M147 S4000 P100
+
 ; M140 - Set Build Platform Temperature
-; M141 - Set Chamber Temperature (Ignored)
-; M142 - Set Chamber Holding Pressure (Ignored)
-; M200 - Reset driver
-; M300 - Set Servo 1 Position
-; M301 - Set Servo 2 Position
-; M310 - Start data capture
-; M311 - Stop data capture
-; M312 - Log a note to the data capture store
+M70 (M140 - hbp temp)
+M140 T0 S100
+
 ; M320 - Acceleration on for subsequent instructions
+M70 (M320 - acc on)
+M320
+
 ; M321 - Acceleration off for subsequent instructions
+M70 (M21 - acc off)
+M321
+
+; T1 - Set Current Tool 1
+M70 (T1 - set tool)
+T1
 
 ; T0 - Set Current Tool 0
-; T1 - Set Current Tool 1
+M70 (T0 - set tool)
+T0
 
 ;POSTFIX
 M70 (M73 - end build)

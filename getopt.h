@@ -1,0 +1,93 @@
+/*
+Newsgroups: mod.std.unix
+Subject: public domain AT&T getopt source
+Date: 3 Nov 85 19:34:15 GMT
+
+Here's something you've all been waiting for:  the AT&T public domain
+source for getopt(3).  It is the code which was given out at the 1985
+UNIFORUM conference in Dallas.  I obtained it by electronic mail
+directly from AT&T.  The people there assure me that it is indeed
+in the public domain.
+
+25/1/2005 Henry Thomas <me(at)henri.net>
+
+Ported this original AT&T version of 'getopt' to windows.
+
+Added documentation to this header, so know what everything does.
+
+*/
+
+#ifndef GETOPT_H_
+#define GETOPT_H_
+
+#ifdef HAS_GETOPT_H
+#   include <getopt.h>
+#else
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern int opterr;
+
+/* If the value of the 'opterr' variable is nonzero, then getopt prints an
+error message to the standard error stream if it encounters an unknown option
+character or an option with a missing required argument. The windows version
+reports the error using a message box. This is the default behavior. If you
+set this variable to zero, getopt does not print any messages, but it still
+returns the character ? to indicate an error. */
+
+extern int optopt;
+
+/* When getopt encounters an unknown option character or an option with a
+missing required argument, it stores that option character the 'optopt'
+variable. You can use this for providing your own diagnostic messages. */
+
+extern int optind;
+
+/* The 'optind' variable is set by getopt to the index of the next element of
+the argv array to be processed. Once getopt has found all of the option
+arguments, you can use this variable to determine where the remaining
+non-option arguments begin. The initial value of this variable is 1. */
+
+extern char *optarg;
+
+/* The 'optarg' variable is set by getopt to point at the value of the
+option argument, for those options that accept arguments. */
+
+int getopt(int argc, char **argv, char *opts);
+
+/* The getopt function gets the next option argument from the argument list
+specified by the argv and argc arguments. Normally these values come directly
+from the arguments received by main.
+
+The options argument is a string that specifies the option characters that are
+valid for this program. An option character in this string can be followed
+by a colon (':') to indicate that it takes a required argument. */
+
+#ifdef WIN32
+
+#ifndef HAS_WIN_CLI
+#define HAS_WIN_GUI 1
+#endif
+
+/* Define 'HAS_WIN_CLI' if you plan to use this version of getopt in a
+windows console application */
+
+#define MAX_ARGC 32
+
+/* This is the maximum argument count that 'getargv' will return. */
+
+char **getargv(char *cl, int *argc);
+
+/* Parse a single command line sting and convert it into an argc/argv pair
+compatible with getopt */
+
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  /* HAS_GETOPT_H */
+#endif  /* GETOPT_H_ */
