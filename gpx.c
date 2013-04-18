@@ -44,8 +44,8 @@
 
 // Machine definitions
 
-//  Axis - maxfeedrate, stepspermm, endstop
-//  Extruder - maxfeedrate, stepspermm, motorsteps
+//  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
+//  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
 
 static Machine replicator_1 = {
     {18000, 2500, 94.139704, ENDSTOP_IS_MAX}, // x axis
@@ -119,9 +119,12 @@ double currentFeedrate;     // the current feed rate
 int currentOffset;          // current G10 offset
 Point3d offset[7];          // G10 offsets
 Tool tool[2];               // tool state
+Override override[2];       // gcode override
 int isRelative;             // signals relitive or absolute coordinates
 int positionKnown;          // is the current extruder position known
 int programState;           // gcode program state used to trigger start and end code sequences
+int dittoPrinting;          // enable ditto printing
+int buildPercent;           // override build percent
 unsigned line_number;       // the current line number in the gcode file
 static char buffer[256];    // the statically allocated parse-in-place buffer
 double scale[2];            // A & B scaling for n x 0.01 mm change in nominal diameter
@@ -199,11 +202,19 @@ static void initialize_globals(void)
         tool[i].rpm = 0;
         tool[i].nozzle_temperature = 0;
         tool[i].build_platform_temperature = 0;
+        
+        override[i].actual_filament_diameter = 0;
+        override[i].filament_scale = 1.0;
+        override[i].nozzle_temperature = 0;
+        override[i].build_platform_temperature = 0;
     }
-    
+
     isRelative = 0;
     positionKnown = 0;
     programState = 0;
+
+    dittoPrinting = 0;
+    buildPercent = 0;
     
     line_number = 1;
     
@@ -269,12 +280,33 @@ static int write_float(float value) {
 
 // Custom machine definition ini handler
 
-#define SECTION_IS(s) strcmp(section, s) == 0
-#define NAME_IS(n) strcmp(name, n) == 0
+#define SECTION_IS(s) strcasecmp(section, s) == 0
+#define NAME_IS(n) strcasecmp(name, n) == 0
+#define VALUE_IS(v) strcasecmp(value, v) == 0
 
 static int config_handler(void* user, const char* section, const char* name, const char* value)
 {
-    if(SECTION_IS("x")) {
+    if(SECTION_IS("options")) {
+        if(NAME_IS("ditto_printing")) dittoPrinting = atoi(value);
+        else if(NAME_IS("build_percent")) buildPercent = atoi(value);
+        else if(NAME_IS("printer_type")) {
+            // use on-board machine definition
+            if(VALUE_IS("r1")) {
+                machine = replicator_1;
+            }
+            else if(VALUE_IS("r1d")) {
+                machine = replicator_1D;
+            }
+            else if(VALUE_IS("r2")) {
+                machine = replicator_2;
+            }
+            else if(VALUE_IS("r2x")) {
+                machine = replicator_2X;
+            }
+        }
+        else return 0;
+    }
+    else if(SECTION_IS("x")) {
         if(NAME_IS("max_feedrate")) machine.x.max_feedrate = strtod(value, NULL);
         else if(NAME_IS("home_feedrate")) machine.x.home_feedrate = strtod(value, NULL);
         else if(NAME_IS("steps_per_mm")) machine.x.steps_per_mm = strtod(value, NULL);
@@ -300,6 +332,10 @@ static int config_handler(void* user, const char* section, const char* name, con
         else if(NAME_IS("steps_per_mm")) machine.a.steps_per_mm = strtod(value, NULL);
         else if(NAME_IS("motor_steps")) machine.a.motor_steps = strtod(value, NULL);
         else if(NAME_IS("has_heated_build_platform")) machine.a.has_heated_build_platform = atoi(value);
+        // overrides
+        else if(NAME_IS("nozzle_temperature")) override[0].nozzle_temperature = atoi(value);
+        else if(NAME_IS("build_platform_temperature")) override[0].build_platform_temperature = atoi(value);
+        else if(NAME_IS("actual_filament_diameter")) override[0].actual_filament_diameter = strtod(value, NULL);
         else return 0;
     }
     else if(SECTION_IS("b")) {
@@ -307,10 +343,14 @@ static int config_handler(void* user, const char* section, const char* name, con
         else if(NAME_IS("steps_per_mm")) machine.b.steps_per_mm = strtod(value, NULL);
         else if(NAME_IS("motor_steps")) machine.b.motor_steps = strtod(value, NULL);
         else if(NAME_IS("has_heated_build_platform")) machine.b.has_heated_build_platform = atoi(value);
+        // overrides
+        else if(NAME_IS("nozzle_temperature")) override[1].nozzle_temperature = atoi(value);
+        else if(NAME_IS("build_platform_temperature")) override[1].build_platform_temperature = atoi(value);
+        else if(NAME_IS("actual_filament_diameter")) override[1].actual_filament_diameter = strtod(value, NULL);
         else return 0;
     }
     else if(SECTION_IS("machine")) {
-        if(NAME_IS("filament_diameter")) machine.filament_diameter = strtod(value, NULL);
+        if(NAME_IS("nominal_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
         else if(NAME_IS("extruder_count")) machine.extruder_count = atoi(value);
         else if(NAME_IS("timeout")) machine.timeout = atoi(value);
         else return 0;
@@ -322,6 +362,16 @@ static int config_handler(void* user, const char* section, const char* name, con
 }
 
 // 5D VECTOR FUNCTIONS
+
+// compute the filament scaling factor
+
+void set_filament_scale(unsigned extruder_id) {
+    double actual_radious = override[extruder_id].actual_filament_diameter / 2;
+    double actual =  actual_radious * actual_radious;
+    double nominal_radious = machine.nominal_filament_diameter / 2;
+    double nominal =  nominal_radious * nominal_radious;
+    override[extruder_id].filament_scale = nominal / actual;
+}
 
 // return the magnitude (length) of the 5D vector
 
@@ -598,7 +648,7 @@ static void wait_for_extruder(unsigned extruder_id, unsigned timeout)
 
 // Action 03 - Set toolhead target temperature
 
-static void set_extruder_temperature(unsigned extruder_id, unsigned temperature)
+static void set_nozzle_temperature(unsigned extruder_id, unsigned temperature)
 {
     assert(extruder_id < machine.extruder_count);
     if(write_8(136) == EOF) exit(1);
@@ -1186,14 +1236,14 @@ static char *normalize_comment(char *p) {
 static void usage()
 {
     fputs("GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
-    fputs(EOL "Usage: gpx [-ps] [-m <MACHINE> | -c <CONFIG>] INPUT [OUTPUT]" EOL, stderr);
+    fputs(EOL "Usage: gpx [-ps] [-m <MACHINE>] [-c <CONFIG>] INPUT [OUTPUT]" EOL, stderr);
     fputs(EOL "Switches:" EOL EOL, stderr);
     fputs("\t-p\toverride build percentage" EOL, stderr);
     fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
     fputs(EOL "MACHINE is the predefined machine type" EOL EOL, stderr);
     fputs("\tr1  = Replicator 1 - single extruder" EOL, stderr);
-    fputs("\tr1d  = Replicator 1 - dual extruder" EOL, stderr);
-    fputs("\tr2 = Replicator 2 (default config)" EOL, stderr);
+    fputs("\tr1d = Replicator 1 - dual extruder" EOL, stderr);
+    fputs("\tr2  = Replicator 2 (default config)" EOL, stderr);
     fputs("\tr2x = Replicator 2X" EOL, stderr);
     fputs(EOL "CONFIG is the filename of a custom machine definition (ini)" EOL, stderr);
     fputs(EOL "INPUT is the name of the sliced gcode input filename" EOL, stderr);
@@ -1213,7 +1263,6 @@ int main(int argc, char * argv[])
     int c, i;
     int next_line = 0;
     int command_line = 0;
-    int build_percent = 0;
     int standard_io = 0;
 
     initialize_globals();
@@ -1221,12 +1270,22 @@ int main(int argc, char * argv[])
     // READ COMMAND LINE
     
     // get the command line options
-    while ((c = getopt(argc, argv, "pm:c:")) != -1) {
+    while ((c = getopt(argc, argv, "c:m:ps")) != -1) {
+        command_line++;
         switch (c) {
             case 'c':
                 if (ini_parse(optarg, config_handler, NULL) < 0) {
                     fprintf(stderr, "Command line error: cannot load custom machine definition '%s'" EOL, optarg);
                     usage();
+                }
+                // check if the filament diameter has been overridden
+                if(override[0].actual_filament_diameter > 0.0 || override[0].actual_filament_diameter > 0.0) {
+                    if(override[0].actual_filament_diameter != machine.nominal_filament_diameter) {
+                        
+                    }
+                    if(override[1].actual_filament_diameter != machine.nominal_filament_diameter) {
+                        
+                    }
                 }
                 break;
             case 'm':
@@ -1247,7 +1306,7 @@ int main(int argc, char * argv[])
                 }
                 break;
             case 'p':
-                build_percent = 1;
+                buildPercent = 1;
                 break;
             case 's':
                 standard_io = 1;
@@ -1257,6 +1316,49 @@ int main(int argc, char * argv[])
                 usage();
         }
     }
+    
+    // READ GPX.INI
+    
+    // if no command line arguments then read gpx.ini file from program directory
+    if(command_line == 0) {
+        char *filename = argv[0];
+        // check for .exe extension
+        char *dot = strrchr(filename, '.');
+        if(dot) {
+            long l = dot - filename;
+            memcpy(buffer, filename, l);
+            filename = buffer + l;
+        }
+        // or just append .ini if no extension is present
+        else {
+            filename = stpncpy(buffer, filename, 256 - 5);
+        }
+        *filename++ = '.';
+        *filename++ = 'i';
+        *filename++ = 'n';
+        *filename++ = 'i';
+        *filename++ = '\0';
+        filename = buffer;
+        ini_parse(filename, config_handler, NULL);
+
+        if(dittoPrinting && machine.extruder_count == 1) {
+            fputs("Command line error: ditto printing cannot access non-existant extruder" EOL, stderr);
+            dittoPrinting = 0;
+        }
+    }
+
+    // CALCULATE FILAMENT SCALING
+    
+    if(override[0].actual_filament_diameter
+       && override[0].actual_filament_diameter != machine.nominal_filament_diameter) {
+        set_filament_scale(0);
+    }
+    
+    if(override[1].actual_filament_diameter
+       && override[1].actual_filament_diameter != machine.nominal_filament_diameter) {
+        set_filament_scale(1);
+    }
+    
     argc -= optind;
     argv += optind;
     
@@ -1458,7 +1560,7 @@ int main(int argc, char * argv[])
             }
             else if(*p == '(') {
                 // Comment
-                char *e = strchr(p + 1, ')');
+                char *e = strrchr(p + 1, ')');
                 if(e) {
                     *e = 0;
                     command.comment = normalize_comment(p + 1);
@@ -1564,15 +1666,34 @@ int main(int argc, char * argv[])
             currentFeedrate = command.f;
         }
         
-        // CALCULATE OFFSET
+        // ADD ANY G10 OFFSETS
         
         if(command.flag & X_IS_SET) targetPosition.x += offset[currentOffset].x;
         if(command.flag & Y_IS_SET) targetPosition.y += offset[currentOffset].y;
         if(command.flag & Z_IS_SET) targetPosition.z += offset[currentOffset].z;
+        
+        // DITTO PRINTING
+        
+        if(dittoPrinting) {
+            if(command.flag & A_IS_SET) {
+                targetPosition.b = targetPosition.a;
+                command.flag |= B_IS_SET;
+            }
+            else if(command.flag & B_IS_SET) {
+                targetPosition.a = targetPosition.b;
+                command.flag |= A_IS_SET;
+            }
+        }
+        
+        // SCALE FILAMENT INDEPENDENTLY
+        
+        if(command.flag & A_IS_SET && override[0].filament_scale != 1.0) targetPosition.a *= override[0].filament_scale;
+        if(command.flag & B_IS_SET && override[1].filament_scale != 1.0) targetPosition.b *= override[1].filament_scale;
 
         // INTERPRET COMMAND
         
         if(command.flag & G_IS_SET) {
+            // command line incremented to ensure that at least one command is emmited before each build percent
             command_line++;
             switch(command.g) {
                     // G0 - Rapid Positioning
@@ -1891,7 +2012,7 @@ int main(int argc, char * argv[])
                                 set_build_percent(100);
                                 end_build();
                             }
-                            else if(filesize == 0 || build_percent == 0) {
+                            else if(filesize == 0 || buildPercent == 0) {
                                 set_build_percent(percent);
                             }
                         }
@@ -1953,7 +2074,10 @@ int main(int argc, char * argv[])
                         if(command.flag & T_IS_SET) {
                             unsigned extruder_id = (unsigned)command.t;
                             if(extruder_id < machine.extruder_count) {
-                                set_extruder_temperature(extruder_id, temperature);
+                                if(temperature && override[extruder_id].nozzle_temperature) {
+                                    temperature = override[extruder_id].nozzle_temperature;
+                                }
+                                set_nozzle_temperature(extruder_id, temperature);
                                 tool[extruder_id].nozzle_temperature = temperature;
                             }
                             else {
@@ -1961,7 +2085,10 @@ int main(int argc, char * argv[])
                             }
                         }
                         else {
-                            set_extruder_temperature(currentExtruder, temperature);
+                            if(temperature && override[currentExtruder].nozzle_temperature) {
+                                temperature = override[currentExtruder].nozzle_temperature;
+                            }
+                            set_nozzle_temperature(currentExtruder, temperature);
                             tool[currentExtruder].nozzle_temperature = temperature;
                         }
                     }
@@ -2037,7 +2164,11 @@ int main(int argc, char * argv[])
                             if(command.flag & T_IS_SET) {
                                 extruder_id = (unsigned)command.t;
                             }
-                            if(extruder_id < machine.extruder_count && (extruder_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform)) {
+                            if(extruder_id < machine.extruder_count
+                               && (extruder_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform)) {
+                                if(temperature && override[extruder_id].build_platform_temperature) {
+                                    temperature = override[extruder_id].build_platform_temperature;
+                                }
                                 set_build_platform_temperature(extruder_id, temperature);
                                 tool[currentExtruder].build_platform_temperature = temperature;
                             }
@@ -2175,7 +2306,7 @@ int main(int argc, char * argv[])
             }
         }
         // update progress
-        if(filesize && build_percent && command_line) {
+        if(filesize && buildPercent && command_line) {
             unsigned percent = (unsigned)round(100.0 * (double)ftell(in) / (double)filesize);
             if(percent > progress) {
                 if(program_is_ready()) {
@@ -2183,7 +2314,7 @@ int main(int argc, char * argv[])
                     start_build();
                     set_build_percent(0);
                 }
-                else if(percent < 100) {
+                else if(percent < 100 && program_is_running()) {
                     set_build_percent(percent);
                     progress = percent;
                 }

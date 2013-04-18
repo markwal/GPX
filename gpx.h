@@ -29,7 +29,7 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "0.3 (beta)"
+#define GPX_VERSION "0.4 (beta)"
 
 // x3g axes bitfields
 
@@ -142,7 +142,7 @@ typedef struct tMachine {
     Axis z;
     Extruder a;
     Extruder b;
-    double filament_diameter;
+    double nominal_filament_diameter;
     unsigned extruder_count;
     unsigned timeout;
 } Machine;
@@ -153,6 +153,13 @@ typedef struct tTool {
     unsigned nozzle_temperature;
     unsigned build_platform_temperature;
 } Tool;
+
+typedef struct tOverride {
+    double actual_filament_diameter;
+    double filament_scale;
+    unsigned nozzle_temperature;
+    unsigned build_platform_temperature;
+} Override;
 
 #define EOL "\n"
 
