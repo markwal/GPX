@@ -365,12 +365,10 @@ static int config_handler(void* user, const char* section, const char* name, con
 
 // compute the filament scaling factor
 
-void set_filament_scale(unsigned extruder_id) {
-    double actual_radious = override[extruder_id].actual_filament_diameter / 2;
-    double actual =  actual_radious * actual_radious;
-    double nominal_radious = machine.nominal_filament_diameter / 2;
-    double nominal =  nominal_radious * nominal_radious;
-    override[extruder_id].filament_scale = nominal / actual;
+static void set_filament_scale(unsigned extruder_id) {
+    double actual_radius = override[extruder_id].actual_filament_diameter / 2;
+    double nominal_radius = machine.nominal_filament_diameter / 2;
+    override[extruder_id].filament_scale = (nominal_radius * nominal_radius) / (actual_radius * actual_radius);
 }
 
 // return the magnitude (length) of the 5D vector
@@ -459,7 +457,7 @@ static double get_home_feedrate(int flag) {
 
 // return the maximum safe feedrate
 
-double get_safe_feedrate(int flag, Ptr5d delta) {
+static double get_safe_feedrate(int flag, Ptr5d delta) {
     
     double feedrate = currentFeedrate;
     if(feedrate == 0.0) {
@@ -889,7 +887,7 @@ static void set_beep(unsigned frequency, unsigned milliseconds)
 
 // 149 - Display message to LCD
 
-void display_message(char *message, unsigned timeout, int wait_for_button)
+static void display_message(char *message, unsigned timeout, int wait_for_button)
 {
     long bytesSent = 0;
     unsigned bitfield = 0;
@@ -1170,6 +1168,8 @@ static void set_acceleration(int state)
 
 // 157 - Stream Version
 
+// PARSER INPUT PREPROCESSORS
+
 // return the length of the given file in bytes
 
 static long get_filesize(FILE *file)
@@ -1180,6 +1180,8 @@ static long get_filesize(FILE *file)
     fseek(file, 0L, SEEK_SET);
     return filesize;
 }
+
+// clean up the gcode command for processing
 
 static char *normalize_word(char* p)
 {
@@ -1224,6 +1226,8 @@ static char *normalize_word(char* p)
     return s;
 }
 
+// clean up the gcode comment for processing
+
 static char *normalize_comment(char *p) {
     // strip white space from the end of comment
     char *e = p + strlen(p);
@@ -1232,6 +1236,8 @@ static char *normalize_comment(char *p) {
     while(isspace(*p)) p++;
     return p;
 }
+
+// display usage and exit
 
 static void usage()
 {
@@ -1255,6 +1261,8 @@ static void usage()
 
     exit(1);
 }
+
+// program entry point
 
 int main(int argc, char * argv[])
 {
