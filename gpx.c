@@ -1185,18 +1185,23 @@ static char *normalize_comment(char *p) {
 
 static void usage()
 {
-    fputs(EOL "GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
-    fputs("Usage: gpx [-p] [-m <MACHINE> | -c <CONFIG>] INPUT [OUTPUT]" EOL, stderr);
-    fputs(EOL "Switches:" EOL, stderr);
+    fputs("GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
+    fputs(EOL "Usage: gpx [-ps] [-m <MACHINE> | -c <CONFIG>] INPUT [OUTPUT]" EOL, stderr);
+    fputs(EOL "Switches:" EOL EOL, stderr);
     fputs("\t-p\toverride build percentage" EOL, stderr);
-    fputs(EOL "MACHINE is the predefined machine type" EOL, stderr);
+    fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
+    fputs(EOL "MACHINE is the predefined machine type" EOL EOL, stderr);
     fputs("\tr1  = Replicator 1 - single extruder" EOL, stderr);
     fputs("\tr1d  = Replicator 1 - dual extruder" EOL, stderr);
     fputs("\tr2 = Replicator 2 (default config)" EOL, stderr);
     fputs("\tr2x = Replicator 2X" EOL, stderr);
     fputs(EOL "CONFIG is the filename of a custom machine definition (ini)" EOL, stderr);
     fputs(EOL "INPUT is the name of the sliced gcode input filename" EOL, stderr);
-    fputs(EOL "OUTPUT is the name of the x3g output filename" EOL, stderr);
+    fputs(EOL "OUTPUT is the name of the x3g output filename" EOL EOL, stderr);
+    fputs("This program is free software; you can redistribute it and/or modify" EOL, stderr);
+    fputs("it under the terms of the GNU General Public License as published by" EOL, stderr);
+    fputs("the Free Software Foundation; either version 2 of the License, or" EOL, stderr);
+    fputs("(at your option) any later version." EOL EOL, stderr);
 
     exit(1);
 }
@@ -1209,6 +1214,7 @@ int main(int argc, char * argv[])
     int next_line = 0;
     int command_line = 0;
     int build_percent = 0;
+    int standard_io = 0;
 
     initialize_globals();
 
@@ -1242,6 +1248,9 @@ int main(int argc, char * argv[])
                 break;
             case 'p':
                 build_percent = 1;
+                break;
+            case 's':
+                standard_io = 1;
                 break;
             case '?':
             default:
@@ -1291,6 +1300,9 @@ int main(int argc, char * argv[])
             out = stdout;
             exit(1);
         }
+    }
+    else if(!standard_io) {
+        usage();
     }
     
     // READ INPUT AND CONVERT TO OUTPUT
@@ -1614,7 +1626,12 @@ int main(int argc, char * argv[])
                     // G4 - Dwell
                 case 4:
                     if(command.flag & P_IS_SET) {
-                        delay(command.p);
+                        if(tool[currentExtruder].motor_enabled && tool[currentExtruder].rpm) {
+                            queue_point(currentFeedrate);
+                        }
+                        else {
+                            delay(command.p);
+                        }
                     }
                     else {
                         fprintf(stderr, "(line %u) Syntax Error: G4 is missing delay parameter, use Pn where n is milliseconds" EOL, line_number);

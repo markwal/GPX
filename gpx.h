@@ -29,7 +29,7 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "0.2 (beta)"
+#define GPX_VERSION "0.3 (beta)"
 
 // x3g axes bitfields
 
