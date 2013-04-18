@@ -126,7 +126,7 @@ int programState;           // gcode program state used to trigger start and end
 int dittoPrinting;          // enable ditto printing
 int buildPercent;           // override build percent
 unsigned line_number;       // the current line number in the gcode file
-static char buffer[256];    // the statically allocated parse-in-place buffer
+static char buffer[300];    // the statically allocated parse-in-place buffer
 double scale[2];            // A & B scaling for n x 0.01 mm change in nominal diameter
 
 FILE *in;                   // the gcode input file stream
@@ -1339,7 +1339,9 @@ int main(int argc, char * argv[])
         }
         // or just append .ini if no extension is present
         else {
-            filename = stpncpy(buffer, filename, 256 - 5);
+            size_t sl = strlen(filename);
+            memcpy(buffer, filename, sl);
+            filename = buffer + sl;
         }
         *filename++ = '.';
         *filename++ = 'i';
@@ -1396,7 +1398,9 @@ int main(int argc, char * argv[])
             }
             // or just append one if no .gcode extension is present
             else {
-                filename = stpncpy(buffer, filename, 256 - 5);
+                size_t sl = strlen(filename);
+                memcpy(buffer, filename, sl);
+                filename = buffer + sl;
             }
             *filename++ = '.';
             *filename++ = 'x';
