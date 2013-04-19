@@ -1102,6 +1102,10 @@ static void queue_point(double feedrate)
                 target.a = -deltaMM.a;
             }
         }
+        else {
+            // disable RPM as soon as we begin 5D printing
+            tool[0].rpm = 0;
+        }
         if(deltaMM.b == 0.0) {
             if(tool[1].motor_enabled && tool[1].rpm) {
                 // minute * revolution/minute
@@ -1113,6 +1117,10 @@ static void queue_point(double feedrate)
                 deltaSteps.b = round(fabs(targetPosition.b - currentPosition.b) * machine.b.steps_per_mm);
                 target.b = -deltaMM.b;
             }
+        }
+        else {
+            // disable RPM as soon as we begin 5D printing
+            tool[0].rpm = 0;
         }
 
         Point5d steps = mm_to_steps(&target, &excess);
