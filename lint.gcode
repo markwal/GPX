@@ -169,6 +169,14 @@ M6
 ;M70 (M11 - open clamp)
 ;M11
 
+; M137 - Enable axes steppers
+M70 (M17 - steppers on)
+M17 X Y Z A B
+
+; M138 - Disable axes steppers
+M70 (M18 - steppers off)
+M18 X Y Z A B
+
 M70 (T1 - tool change)
 T1
 
@@ -234,14 +242,6 @@ M131 X Y Z A B
 M70 (M132 - load EEPROM)
 M132 X Y Z A B
 
-; M137 - Enable axes steppers
-M70 (M137 - steppers on)
-M137 X Y Z A B
-
-; M138 - Disable axes steppers
-M70 (M138 - steppers off)
-M138 X Y Z A B
-
 ; M146 - Set RGB LED value
 M70 (M146 - set LED)
 M146 R255 L0 S0 P0
@@ -261,6 +261,10 @@ M320
 ; M321 - Acceleration off for subsequent instructions
 M70 (M21 - acc off)
 M321
+
+; M322 - Pause @ zPos
+M70 (M322 - pause@z)
+M322 Z10
 
 ; T1 - Set Current Tool 1
 M70 (T1 - set tool)

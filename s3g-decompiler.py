@@ -145,6 +145,7 @@ commandTable = {
     155: ("<iiiiiIBfh","\t[155] Move to (%i,%i,%i,%i,%i) dda_rate: %i (relative: %X) distance: %f feedrateX64: %i"),
     156: ("<B","\t[156] Set acceleration to %i"),
     157: ("<BBBIHHIIB","\t[157] Stream version %i.%i (%i %i %i %i %i %i %i)"),
+    158: ("<f","\t[158] Pause @ zPos %f"),
 }
 
 def parseNextCommand():
