@@ -1168,6 +1168,17 @@ static void set_acceleration(int state)
 
 // 157 - Stream Version
 
+// 158 - Pause @ zPos
+
+static void pause_at_z(float z_positon)
+{
+    if(write_8(158) == EOF) exit(1);
+    
+    // uint8: pause at Z coordinate or 0.0 to disable
+    if(write_float(z_positon) == EOF) exit(1);
+}
+
+
 // PARSER INPUT PREPROCESSORS
 
 // return the length of the given file in bytes
@@ -2288,6 +2299,18 @@ int main(int argc, char * argv[])
                 case 321:
                     set_acceleration(0);
                     break;
+                    
+                    // M322 - Pause @ zPos
+                case 322:
+                    if(command.flag & Z_IS_SET) {
+                        pause_at_z(targetPosition.z);
+                    }
+                    else {
+                        pause_at_z(0.0);
+                        fprintf(stderr, "(line %u) Syntax Warning: M322 is missing Z axes, assuming 0.0" EOL, line_number);
+                    }
+                    break;
+                    
                 default:
                     fprintf(stderr, "(line %u) Syntax Warning: unsupported mcode command 'M%u'" EOL, line_number, command.m);
             }
