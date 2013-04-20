@@ -42,6 +42,9 @@
 #include "gpx.h"
 #include "ini.h"
 
+#define A 0
+#define B 1
+
 // Machine definitions
 
 //  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
@@ -218,8 +221,8 @@ static void initialize_globals(void)
     
     line_number = 1;
     
-    scale[0] = 0;
-    scale[1] = 0;
+    scale[A] = 0;
+    scale[B] = 0;
 }
 
 // STATE
@@ -333,9 +336,9 @@ static int config_handler(void* user, const char* section, const char* name, con
         else if(NAME_IS("motor_steps")) machine.a.motor_steps = strtod(value, NULL);
         else if(NAME_IS("has_heated_build_platform")) machine.a.has_heated_build_platform = atoi(value);
         // overrides
-        else if(NAME_IS("nozzle_temperature")) override[0].nozzle_temperature = atoi(value);
-        else if(NAME_IS("build_platform_temperature")) override[0].build_platform_temperature = atoi(value);
-        else if(NAME_IS("actual_filament_diameter")) override[0].actual_filament_diameter = strtod(value, NULL);
+        else if(NAME_IS("nozzle_temperature")) override[A].nozzle_temperature = atoi(value);
+        else if(NAME_IS("build_platform_temperature")) override[A].build_platform_temperature = atoi(value);
+        else if(NAME_IS("actual_filament_diameter")) override[A].actual_filament_diameter = strtod(value, NULL);
         else return 0;
     }
     else if(SECTION_IS("b")) {
@@ -344,9 +347,9 @@ static int config_handler(void* user, const char* section, const char* name, con
         else if(NAME_IS("motor_steps")) machine.b.motor_steps = strtod(value, NULL);
         else if(NAME_IS("has_heated_build_platform")) machine.b.has_heated_build_platform = atoi(value);
         // overrides
-        else if(NAME_IS("nozzle_temperature")) override[1].nozzle_temperature = atoi(value);
-        else if(NAME_IS("build_platform_temperature")) override[1].build_platform_temperature = atoi(value);
-        else if(NAME_IS("actual_filament_diameter")) override[1].actual_filament_diameter = strtod(value, NULL);
+        else if(NAME_IS("nozzle_temperature")) override[B].nozzle_temperature = atoi(value);
+        else if(NAME_IS("build_platform_temperature")) override[B].build_platform_temperature = atoi(value);
+        else if(NAME_IS("actual_filament_diameter")) override[B].actual_filament_diameter = strtod(value, NULL);
         else return 0;
     }
     else if(SECTION_IS("machine")) {
@@ -428,12 +431,12 @@ static int get_longest_dda()
     // calculate once
     static int longestDDA = 0;
     if(longestDDA == 0) {
-        longestDDA = (int)(60 * 1000 * 1000 / (machine.x.max_feedrate * machine.x.steps_per_mm));
+        longestDDA = (int)(60 * 1000000.0 / (machine.x.max_feedrate * machine.x.steps_per_mm));
     
-        int axisDDA = (int)(60 * 1000 * 1000 / (machine.y.max_feedrate * machine.y.steps_per_mm));
+        int axisDDA = (int)(60 * 1000000.0 / (machine.y.max_feedrate * machine.y.steps_per_mm));
         if(longestDDA < axisDDA) longestDDA = axisDDA;
     
-        axisDDA = (int)(60 * 1000 * 1000 / (machine.z.max_feedrate * machine.z.steps_per_mm));
+        axisDDA = (int)(60 * 1000000.0 / (machine.z.max_feedrate * machine.z.steps_per_mm));
         if(longestDDA < axisDDA) longestDDA = axisDDA;
     }
     return longestDDA;
@@ -807,7 +810,63 @@ static void wait_for_build_platform(unsigned extruder_id, int timeout)
 }
 
 // 142 - Queue extended point, new style
- 
+
+void queue_new_point(unsigned milliseconds)
+{
+    Point5d target = targetPosition;
+
+    // if we have a G4 dwell and either the a or b motor is on, 'simulate' a 5D extrusion distance
+    if(tool[A].motor_enabled && tool[A].rpm) {
+        double maxrpm = machine.a.max_feedrate * machine.a.steps_per_mm / machine.a.motor_steps;
+        double rpm = tool[A].rpm > maxrpm ? maxrpm : tool[A].rpm;
+        double minutes = milliseconds / 60000.0;
+        // minute * revolution/minute
+        double numRevolutions = minutes * (tool[A].motor_enabled > 0 ? rpm : -rpm);
+        // steps/revolution * mm/steps
+        double mmPerRevolution = machine.a.motor_steps * (1 / machine.a.steps_per_mm);
+        target.a = -(numRevolutions * mmPerRevolution);
+        command.flag |= A_IS_SET;
+    }
+    
+    if(tool[B].motor_enabled && tool[B].rpm) {
+        double maxrpm = machine.b.max_feedrate * machine.b.steps_per_mm / machine.b.motor_steps;
+        double rpm = tool[B].rpm > maxrpm ? maxrpm : tool[B].rpm;
+        double minutes = milliseconds / 60000.0;
+        // minute * revolution/minute
+        double numRevolutions = minutes * (tool[B].motor_enabled > 0 ? rpm : -rpm);
+        // steps/revolution * mm/steps
+        double mmPerRevolution = machine.b.motor_steps * (1 / machine.b.steps_per_mm);
+        target.b = -(numRevolutions * mmPerRevolution);
+        command.flag |= B_IS_SET;
+    }
+
+    Point5d steps = mm_to_steps(&target, &excess);
+
+    if(write_8(142) == EOF) exit(1);
+    
+    // int32: X coordinate, in steps
+    if(write_32((int)steps.x) == EOF) exit(1);
+    
+    // int32: Y coordinate, in steps
+    if(write_32((int)steps.y) == EOF) exit(1);
+    
+    // int32: Z coordinate, in steps
+    if(write_32((int)steps.z) == EOF) exit(1);
+    
+    // int32: A coordinate, in steps
+    if(write_32((int)steps.a) == EOF) exit(1);
+    
+    // int32: B coordinate, in steps
+    if(write_32((int)steps.b) == EOF) exit(1);
+    
+    // uint32: Duration of the movement, in microseconds
+    if(write_32(milliseconds * 1000) == EOF) exit(1);
+    
+    // uint8: Axes bitfield to specify which axes are relative. Any axis with a bit set should make a relative movement.
+    if(write_8(A_IS_SET|B_IS_SET) == EOF) exit(1);
+    
+}
+
 // 143 - Store home positions
 
 static void store_home_positions(void)
@@ -1000,7 +1059,7 @@ static void end_build()
 
 // IMPORTANT: this command updates the parser state
 
-static void queue_point(double feedrate)
+static void queue_ext_point(double feedrate)
 {
     Point5d deltaMM;
     Point5d deltaSteps;
@@ -1089,48 +1148,48 @@ static void queue_point(double feedrate)
         //convert feedrate to mm/sec
         feedrate /= 60.0;
         
-        // if either a or b is 0, but their motor is on, 'simulate' a 5D extrusion distance for them
-        if(deltaMM.a == 0.0) {
-            if(tool[0].motor_enabled && tool[0].rpm) {
-                // minute * revolution/minute
-                double numRevolutions = minutes * tool[0].rpm;
-                // steps/revolution * mm/steps
-                double mmPerRevolution = machine.a.motor_steps * (1 / machine.a.steps_per_mm);
-                // set distance
-                deltaMM.a = numRevolutions * mmPerRevolution;
-                deltaSteps.a = round(fabs(targetPosition.a - currentPosition.a) * machine.a.steps_per_mm);
-                target.a = -deltaMM.a;
-            }
+        // if either a or b is 0, but their motor is on, 'simulate' a 5D extrusion distance
+        if(deltaMM.a == 0.0 && tool[A].motor_enabled && tool[A].rpm) {
+            double maxrpm = machine.a.max_feedrate * machine.a.steps_per_mm / machine.a.motor_steps;
+            double rpm = tool[A].rpm > maxrpm ? maxrpm : tool[A].rpm;
+            // minute * revolution/minute
+            double numRevolutions = minutes * (tool[A].motor_enabled > 0 ? rpm : -rpm);
+            // steps/revolution * mm/steps
+            double mmPerRevolution = machine.a.motor_steps * (1 / machine.a.steps_per_mm);
+            // set distance
+            deltaMM.a = numRevolutions * mmPerRevolution;
+            deltaSteps.a = round(fabs(deltaMM.a) * machine.a.steps_per_mm);
+            target.a = -deltaMM.a;
         }
         else {
             // disable RPM as soon as we begin 5D printing
-            tool[0].rpm = 0;
+            tool[A].rpm = 0;
         }
-        if(deltaMM.b == 0.0) {
-            if(tool[1].motor_enabled && tool[1].rpm) {
-                // minute * revolution/minute
-                double numRevolutions = minutes * tool[1].rpm;
-                // steps/revolution * mm/steps
-                double mmPerRevolution = machine.b.motor_steps * (1 / machine.b.steps_per_mm);
-                // set distance
-                deltaMM.b = numRevolutions * mmPerRevolution;
-                deltaSteps.b = round(fabs(targetPosition.b - currentPosition.b) * machine.b.steps_per_mm);
-                target.b = -deltaMM.b;
-            }
+        if(deltaMM.b == 0.0 && tool[B].motor_enabled && tool[B].rpm) {
+            double maxrpm = machine.b.max_feedrate * machine.b.steps_per_mm / machine.b.motor_steps;
+            double rpm = tool[B].rpm > maxrpm ? maxrpm : tool[B].rpm;
+            // minute * revolution/minute
+            double numRevolutions = minutes * (tool[B].motor_enabled > 0 ? rpm : -rpm);
+            // steps/revolution * mm/steps
+            double mmPerRevolution = machine.b.motor_steps * (1 / machine.b.steps_per_mm);
+            // set distance
+            deltaMM.b = numRevolutions * mmPerRevolution;
+            deltaSteps.b = round(fabs(deltaMM.b) * machine.b.steps_per_mm);
+            target.b = -deltaMM.b;
         }
         else {
             // disable RPM as soon as we begin 5D printing
-            tool[0].rpm = 0;
+            tool[B].rpm = 0;
         }
 
         Point5d steps = mm_to_steps(&target, &excess);
         
-        double usec = (60 * 1000 * 1000 * minutes);
+        double usec = (60000000.0 * minutes);
         
         double dda_interval = usec / largest_axis(command.flag, &deltaSteps);
         
         // Convert dda_interval into dda_rate (dda steps per second on the longest axis)
-        double dda_rate = 1000 * 1000 / dda_interval;
+        double dda_rate = 1000000.0 / dda_interval;
 
         if(write_8(155) == EOF) exit(1);
         
@@ -1305,15 +1364,6 @@ int main(int argc, char * argv[])
                     fprintf(stderr, "Command line error: cannot load custom machine definition '%s'" EOL, optarg);
                     usage();
                 }
-                // check if the filament diameter has been overridden
-                if(override[0].actual_filament_diameter > 0.0 || override[0].actual_filament_diameter > 0.0) {
-                    if(override[0].actual_filament_diameter != machine.nominal_filament_diameter) {
-                        
-                    }
-                    if(override[1].actual_filament_diameter != machine.nominal_filament_diameter) {
-                        
-                    }
-                }
                 break;
             case 'm':
                 if(strcasecmp(optarg, "r1") == 0) {
@@ -1378,14 +1428,14 @@ int main(int argc, char * argv[])
 
     // CALCULATE FILAMENT SCALING
     
-    if(override[0].actual_filament_diameter
-       && override[0].actual_filament_diameter != machine.nominal_filament_diameter) {
-        set_filament_scale(0);
+    if(override[A].actual_filament_diameter > 0.0001
+       && override[A].actual_filament_diameter != machine.nominal_filament_diameter) {
+        set_filament_scale(A);
     }
     
-    if(override[1].actual_filament_diameter
-       && override[1].actual_filament_diameter != machine.nominal_filament_diameter) {
-        set_filament_scale(1);
+    if(override[B].actual_filament_diameter > 0.0001
+       && override[B].actual_filament_diameter != machine.nominal_filament_diameter) {
+        set_filament_scale(B);
     }
     
     argc -= optind;
@@ -1446,7 +1496,8 @@ int main(int argc, char * argv[])
     while(fgets(buffer, 256, in) != NULL) {
         // reset flag state
         command.flag = 0;
-        char *digits, *p = buffer;
+        char *digits;
+        char *p = buffer; // current parser location
         while(isspace(*p)) p++;
         // check for line number
         if(*p == 'n' || *p == 'N') {
@@ -1454,9 +1505,11 @@ int main(int argc, char * argv[])
             p = normalize_word(p);
             if(*p == 0) {
                 fprintf(stderr, "(line %u) Syntax Error: line number command word 'N' is missing digits" EOL, line_number);
-                exit(1);
+                next_line = line_number + 1;
             }
-            next_line = line_number = atoi(digits);
+            else {
+                next_line = line_number = atoi(digits);
+            }
         }
         else {
             next_line = line_number + 1;
@@ -1591,7 +1644,13 @@ int main(int argc, char * argv[])
             }
             else if(*p == '(') {
                 // Comment
-                char *e = strrchr(p + 1, ')');
+                char *s = strchr(p + 1, '(');
+                char *e = strchr(p + 1, ')');
+                // check for nested comment
+                if(s && e && s < e) {
+                    fprintf(stderr, "(line %u) Syntax Warning: nested comment detected" EOL, line_number);
+                    e = strrchr(p + 1, ')');
+                }
                 if(e) {
                     *e = 0;
                     command.comment = normalize_comment(p + 1);
@@ -1608,12 +1667,14 @@ int main(int argc, char * argv[])
             else if(*p == '*') {
                 // Checksum
                 *p = 0;
+                break;
             }
             else if(iscntrl(*p)) {
                 break;
             }
             else {
                 fprintf(stderr, "(line %u) Syntax Error: unrecognised gcode '%s'" EOL, line_number, p);
+                break;
             }
         }
         
@@ -1718,8 +1779,8 @@ int main(int argc, char * argv[])
         
         // SCALE FILAMENT INDEPENDENTLY
         
-        if(command.flag & A_IS_SET && override[0].filament_scale != 1.0) targetPosition.a *= override[0].filament_scale;
-        if(command.flag & B_IS_SET && override[1].filament_scale != 1.0) targetPosition.b *= override[1].filament_scale;
+        if(command.flag & A_IS_SET && override[A].filament_scale != 1.0) targetPosition.a *= override[A].filament_scale;
+        if(command.flag & B_IS_SET && override[B].filament_scale != 1.0) targetPosition.b *= override[B].filament_scale;
 
         // INTERPRET COMMAND
         
@@ -1730,7 +1791,7 @@ int main(int argc, char * argv[])
                     // G0 - Rapid Positioning
                 case 0:
                     if(command.flag & F_IS_SET) {
-                        queue_point(currentFeedrate);
+                        queue_ext_point(currentFeedrate);
                         currentPosition = targetPosition;
                         positionKnown = 1;
                     }
@@ -1759,7 +1820,7 @@ int main(int argc, char * argv[])
                         if(feedrate == DBL_MAX) {
                             feedrate = machine.x.max_feedrate;
                         }
-                        queue_point(feedrate);
+                        queue_ext_point(feedrate);
                         currentPosition = targetPosition;
                         positionKnown = 1;
                     }
@@ -1767,7 +1828,7 @@ int main(int argc, char * argv[])
                     
                     // G1 - Coordinated Motion
                 case 1:
-                    queue_point(currentFeedrate);
+                    queue_ext_point(currentFeedrate);
                     currentPosition = targetPosition;
                     positionKnown = 1;
                     break;
@@ -1779,7 +1840,7 @@ int main(int argc, char * argv[])
                 case 4:
                     if(command.flag & P_IS_SET) {
                         if(tool[currentExtruder].motor_enabled && tool[currentExtruder].rpm) {
-                            queue_point(currentFeedrate);
+                            queue_new_point(command.p);
                         }
                         else {
                             delay(command.p);
@@ -1939,15 +2000,15 @@ int main(int argc, char * argv[])
                         fprintf(stderr, "(line %u) Semantic Warning: M6 cannot select non-existant extruder T%u" EOL, line_number, extruder_id);
                         extruder_id = currentExtruder;
                     }
-                    if(tool[currentExtruder].nozzle_temperature > 0.0) {
+                    if(tool[currentExtruder].nozzle_temperature > 0) {
                         wait_for_extruder(currentExtruder, timeout);
                     }
                     // if we have a HBP wait for that too
-                    if(machine.a.has_heated_build_platform && tool[0].build_platform_temperature > 0.0) {
-                        wait_for_build_platform(0, timeout);
+                    if(machine.a.has_heated_build_platform && tool[A].build_platform_temperature > 0) {
+                        wait_for_build_platform(A, timeout);
                     }
-                    if(machine.b.has_heated_build_platform && tool[1].build_platform_temperature > 0.0) {
-                        wait_for_build_platform(1, timeout);
+                    if(machine.b.has_heated_build_platform && tool[B].build_platform_temperature > 0) {
+                        wait_for_build_platform(B, timeout);
                     }
                     break;
                 }
@@ -1956,13 +2017,13 @@ int main(int argc, char * argv[])
                 case 17:
                     if(command.flag & AXES_BIT_MASK) {
                         set_steppers(command.flag & AXES_BIT_MASK, 1);
-                        if(command.flag & A_IS_SET) tool[0].motor_enabled = 1;
-                        if(command.flag & B_IS_SET) tool[1].motor_enabled = 1;
+                        if(command.flag & A_IS_SET) tool[A].motor_enabled = 1;
+                        if(command.flag & B_IS_SET) tool[B].motor_enabled = 1;
                     }
                     else {
                         set_steppers(machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 1);                        
-                        tool[0].motor_enabled = 1;
-                        if(machine.extruder_count == 2) tool[1].motor_enabled = 1;
+                        tool[A].motor_enabled = 1;
+                        if(machine.extruder_count == 2) tool[B].motor_enabled = 1;
                     }
                     break;
                     
@@ -1970,13 +2031,13 @@ int main(int argc, char * argv[])
                 case 18:
                     if(command.flag & AXES_BIT_MASK) {
                         set_steppers(command.flag & AXES_BIT_MASK, 0);
-                        if(command.flag & A_IS_SET) tool[0].motor_enabled = 0;
-                        if(command.flag & B_IS_SET) tool[1].motor_enabled = 0;
+                        if(command.flag & A_IS_SET) tool[A].motor_enabled = 0;
+                        if(command.flag & B_IS_SET) tool[B].motor_enabled = 0;
                     }
                     else {
                         set_steppers(machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 0);
-                        tool[0].motor_enabled = 0;
-                        if(machine.extruder_count == 2) tool[1].motor_enabled = 0;
+                        tool[A].motor_enabled = 0;
+                        if(machine.extruder_count == 2) tool[B].motor_enabled = 0;
                     }
                     break;
                     
@@ -2061,9 +2122,7 @@ int main(int argc, char * argv[])
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_steppers(extruder_id == 0 ? A_IS_SET : B_IS_SET, 1);
-                            tool[extruder_id].motor_enabled = 1;
-                            // update the direction
-                            tool[extruder_id].rpm = command.m == 101 ? fabs(tool[extruder_id].rpm) : -fabs(tool[extruder_id].rpm);
+                            tool[extruder_id].motor_enabled = command.m == 101 ? 1 : -1;
                         }
                         else {
                             fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant extruder T%u" EOL, line_number, command.m, extruder_id);
@@ -2072,9 +2131,7 @@ int main(int argc, char * argv[])
                     }
                     else {
                         set_steppers(currentExtruder == 0 ? A_IS_SET : B_IS_SET, 1);
-                        tool[currentExtruder].motor_enabled = 1;
-                        // update the direction
-                        tool[currentExtruder].rpm = command.m == 101 ? fabs(tool[currentExtruder].rpm) : -fabs(tool[currentExtruder].rpm);
+                        tool[currentExtruder].motor_enabled = command.m == 101 ? 1 : -1;
                     }
                     break;
                     
@@ -2189,7 +2246,7 @@ int main(int argc, char * argv[])
                 case 140:
                     if(machine.a.has_heated_build_platform || machine.b.has_heated_build_platform) {
                         if(command.flag & S_IS_SET) {
-                            unsigned extruder_id = machine.a.has_heated_build_platform ? 0 : 1;
+                            unsigned extruder_id = machine.a.has_heated_build_platform ? A : B;
                             unsigned temperature = (unsigned)command.s;
                             if(temperature > 160) temperature = 160;
                             if(command.flag & T_IS_SET) {
@@ -2314,8 +2371,8 @@ int main(int argc, char * argv[])
                         pause_at_z(targetPosition.z);
                     }
                     else {
+                        fprintf(stderr, "(line %u) Syntax Warning: M322 is missing Z axes, assuming zero (0)" EOL, line_number);
                         pause_at_z(0.0);
-                        fprintf(stderr, "(line %u) Syntax Warning: M322 is missing Z axes, assuming 0.0" EOL, line_number);
                     }
                     break;
                     
@@ -2343,7 +2400,7 @@ int main(int argc, char * argv[])
             }
             if(command.flag & AXES_BIT_MASK) {
                 command_line++;
-                queue_point(currentFeedrate);
+                queue_ext_point(currentFeedrate);
                 currentPosition = targetPosition;
                 positionKnown = 1;
             }

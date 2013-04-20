@@ -22,6 +22,8 @@
 
 ; PREFIX
 
+(*(* THIS IS A NESTED COMMENT *)*)
+
 M70 (M103 - extruder off)
 M103 (turn extruder off)
 
