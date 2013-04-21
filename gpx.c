@@ -110,6 +110,7 @@ Machine machine = {
 // PRIVATE FUNCTION PROTOTYPES
 
 static double get_home_feedrate(int flag);
+static void pause_at_zpos(float z_positon);
 
 // GLOBAL VARIABLES
 
@@ -127,10 +128,16 @@ int isRelative;             // signals relitive or absolute coordinates
 int positionKnown;          // is the current extruder position known
 int programState;           // gcode program state used to trigger start and end code sequences
 int dittoPrinting;          // enable ditto printing
-int buildPercent;           // override build percent
-unsigned line_number;       // the current line number in the gcode file
+int buildProgress;          // override build percent
+unsigned lineNumber;        // the current line number in the gcode file
 static char buffer[300];    // the statically allocated parse-in-place buffer
-double scale[2];            // A & B scaling for n x 0.01 mm change in nominal diameter
+
+Filament filament[FILAMENT_MAX];
+int filamentLength;
+
+PauseAt pauseAt[PAUSE_AT_MAX];
+int pauseAtIndex;
+int pauseAtLength;
 
 FILE *in;                   // the gcode input file stream
 FILE *out;                  // the x3g output file stream
@@ -202,7 +209,9 @@ static void initialize_globals(void)
     
     for(i = 0; i < 2; i++) {
         tool[i].motor_enabled = 0;
+#if ENABLE_RPM
         tool[i].rpm = 0;
+#endif
         tool[i].nozzle_temperature = 0;
         tool[i].build_platform_temperature = 0;
         
@@ -217,12 +226,18 @@ static void initialize_globals(void)
     programState = 0;
 
     dittoPrinting = 0;
-    buildPercent = 0;
+    buildProgress = 0;
     
-    line_number = 1;
+    lineNumber = 1;
     
-    scale[A] = 0;
-    scale[B] = 0;
+    filament[0].colour = "_null_";
+    filament[0].diameter = 0.0;
+    filament[0].temperature = 0;
+    filament[0].LED = 0;
+    filamentLength = 1;
+
+    pauseAtIndex = 0;
+    pauseAtLength = 0;
 }
 
 // STATE
@@ -289,22 +304,18 @@ static int write_float(float value) {
 
 static int config_handler(void* user, const char* section, const char* name, const char* value)
 {
-    if(SECTION_IS("options")) {
+    if(SECTION_IS("printer")) {
         if(NAME_IS("ditto_printing")) dittoPrinting = atoi(value);
-        else if(NAME_IS("build_percent")) buildPercent = atoi(value);
-        else if(NAME_IS("printer_type")) {
+        else if(NAME_IS("build_progress")) buildProgress = atoi(value);
+        else if(NAME_IS("slicer_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
+        else if(NAME_IS("machine_type")) {
             // use on-board machine definition
-            if(VALUE_IS("r1")) {
-                machine = replicator_1;
-            }
-            else if(VALUE_IS("r1d")) {
-                machine = replicator_1D;
-            }
-            else if(VALUE_IS("r2")) {
-                machine = replicator_2;
-            }
-            else if(VALUE_IS("r2x")) {
-                machine = replicator_2X;
+            if(VALUE_IS("r1")) machine = replicator_1;
+            else if(VALUE_IS("r1d")) machine = replicator_1D;
+            else if(VALUE_IS("r2")) machine = replicator_2;
+            else if(VALUE_IS("r2x")) machine = replicator_2X;
+            else {
+                fprintf(stderr, "Configuration error: unrecognised machine type '%s'" EOL, value);
             }
         }
         else return 0;
@@ -335,8 +346,10 @@ static int config_handler(void* user, const char* section, const char* name, con
         else if(NAME_IS("steps_per_mm")) machine.a.steps_per_mm = strtod(value, NULL);
         else if(NAME_IS("motor_steps")) machine.a.motor_steps = strtod(value, NULL);
         else if(NAME_IS("has_heated_build_platform")) machine.a.has_heated_build_platform = atoi(value);
-        // overrides
-        else if(NAME_IS("nozzle_temperature")) override[A].nozzle_temperature = atoi(value);
+        else return 0;
+    }
+    else if(SECTION_IS("right")) {
+        if(NAME_IS("nozzle_temperature")) override[A].nozzle_temperature = atoi(value);
         else if(NAME_IS("build_platform_temperature")) override[A].build_platform_temperature = atoi(value);
         else if(NAME_IS("actual_filament_diameter")) override[A].actual_filament_diameter = strtod(value, NULL);
         else return 0;
@@ -346,8 +359,10 @@ static int config_handler(void* user, const char* section, const char* name, con
         else if(NAME_IS("steps_per_mm")) machine.b.steps_per_mm = strtod(value, NULL);
         else if(NAME_IS("motor_steps")) machine.b.motor_steps = strtod(value, NULL);
         else if(NAME_IS("has_heated_build_platform")) machine.b.has_heated_build_platform = atoi(value);
-        // overrides
-        else if(NAME_IS("nozzle_temperature")) override[B].nozzle_temperature = atoi(value);
+        else return 0;
+    }
+    else if(SECTION_IS("left")) {
+        if(NAME_IS("nozzle_temperature")) override[B].nozzle_temperature = atoi(value);
         else if(NAME_IS("build_platform_temperature")) override[B].build_platform_temperature = atoi(value);
         else if(NAME_IS("actual_filament_diameter")) override[B].actual_filament_diameter = strtod(value, NULL);
         else return 0;
@@ -364,12 +379,79 @@ static int config_handler(void* user, const char* section, const char* name, con
     return 1;
 }
 
+// PAUSE @ ZPOS FUNCTIONS
+
+// find an existing filament definition
+
+static int find_filament(char *filament_id)
+{
+    int index = -1;
+    // a brute force search is generally fastest for low n
+    for(int i = 0; i < filamentLength; i++) {
+        if(strcmp(filament_id, filament[i].colour) == 0) {
+            index = i;
+            break;
+        }
+    }
+    return index;
+}
+
+// add a new filament definition
+
+static int add_filament(char *filament_id, double diameter, unsigned temperature, unsigned LED)
+{
+    int index = find_filament(filament_id);
+    if(index < 0) {
+        if(filamentLength < FILAMENT_MAX) {
+            index = filamentLength++;
+            filament[index].colour = strdup(filament_id);
+            filament[index].diameter = diameter;
+            filament[index].temperature = temperature;
+            filament[index].LED = LED;
+        }
+        else {
+            fprintf(stderr, "(line %u) Buffer Overflow: too many @filament definitions (maximum = %i)" EOL, lineNumber, FILAMENT_MAX - 1);
+            index = 0;
+        }
+    }
+    return index;
+}
+
+// append a new pause at z function
+
+static int add_pause_at(double z, char *filament_id)
+{
+    static double previous_z = 0.0;
+    if(z <= previous_z) {
+        fprintf(stderr, "(line %u) Semantic error: @pause at z pos %f lower than previous z %f" EOL, lineNumber, z, previous_z);
+        exit(1);
+    }
+    int index = filament_id ? find_filament(filament_id) : 0;
+    if(index < 0) {
+        fprintf(stderr, "(line %u) Semantic error: @pause with undefined filament '%s', use a @filament macro to define it" EOL, lineNumber, filament_id);
+        index = 0;
+    }
+    if(pauseAtLength < PAUSE_AT_MAX) {
+        pauseAt[pauseAtLength].z = z;
+        pauseAt[pauseAtLength].filament_index = index;
+        pauseAtLength++;
+        if(pauseAtLength == 1) {
+            pause_at_zpos(z);
+        }
+    }
+    else {
+        fprintf(stderr, "(line %u) Buffer Overflow: too many @pause definitions (maximum = %i)" EOL, lineNumber, PAUSE_AT_MAX);
+        index = 0;
+    }
+    return index;
+}
+
 // 5D VECTOR FUNCTIONS
 
 // compute the filament scaling factor
 
-static void set_filament_scale(unsigned extruder_id) {
-    double actual_radius = override[extruder_id].actual_filament_diameter / 2;
+static void set_filament_scale(unsigned extruder_id, double filament_diameter) {
+    double actual_radius = filament_diameter / 2;
     double nominal_radius = machine.nominal_filament_diameter / 2;
     override[extruder_id].filament_scale = (nominal_radius * nominal_radius) / (actual_radius * actual_radius);
 }
@@ -511,7 +593,7 @@ static double get_safe_feedrate(int flag, Ptr5d delta) {
 
 // convert mm to steps using the current machine definition
 
-// IMPORTANT: this command changes the global excess value which accunulates the rounding remainder
+// IMPORTANT: this command changes the global excess value which accumulates the rounding remainder
 
 static Point5d mm_to_steps(Ptr5d mm, Ptr2d excess)
 {
@@ -561,7 +643,7 @@ static void home_axes(unsigned direction)
         longestAxis = machine.x.steps_per_mm;
         // confirm machine compatibility
         if(direction != machine.x.endstop) {
-            fprintf(stderr, "(line %u) Semantic Warning: X axis homing to %s endstop" EOL, line_number, direction ? "maximum" : "minimum");
+            fprintf(stderr, "(line %u) Semantic warning: X axis homing to %s endstop" EOL, lineNumber, direction ? "maximum" : "minimum");
         }
     }
     if(xyz_flag & Y_IS_SET) {
@@ -573,7 +655,7 @@ static void home_axes(unsigned direction)
             longestAxis = machine.y.steps_per_mm;
         }
         if(direction != machine.y.endstop) {
-            fprintf(stderr, "(line %u) Semantic Warning: Y axis homing to %s endstop" EOL, line_number, direction ? "maximum" : "minimum");
+            fprintf(stderr, "(line %u) Semantic warning: Y axis homing to %s endstop" EOL, lineNumber, direction ? "maximum" : "minimum");
         }
     }
     if(xyz_flag & Z_IS_SET) {
@@ -585,7 +667,7 @@ static void home_axes(unsigned direction)
             longestAxis = machine.z.steps_per_mm;
         }
         if(direction != machine.z.endstop) {
-            fprintf(stderr, "(line %u) Semantic Warning: Z axis homing to %s endstop" EOL, line_number, direction ? "maximum" : "minimum");
+            fprintf(stderr, "(line %u) Semantic warning: Z axis homing to %s endstop" EOL, lineNumber, direction ? "maximum" : "minimum");
         }
     }
     
@@ -741,7 +823,7 @@ static void set_steppers(unsigned axes, unsigned state)
     if(write_8(bitfield) == EOF) exit(1);
 }
  
-// 139 - Queue extended point
+// 139 - Queue absolute point
 
 static void queue_absolute_point()
 {
@@ -811,9 +893,19 @@ static void wait_for_build_platform(unsigned extruder_id, int timeout)
 
 // 142 - Queue extended point, new style
 
-void queue_new_point(unsigned milliseconds)
+#if ENABLE_RPM
+static void queue_new_point(unsigned milliseconds)
 {
-    Point5d target = targetPosition;
+    Point5d target;
+    
+    // the function is only called by dwell, which is by definition stationary,
+    // so set zero relitive position change
+
+    target.x = 0;
+    target.y = 0;
+    target.z = 0;
+    target.a = 0;
+    target.b = 0;
 
     // if we have a G4 dwell and either the a or b motor is on, 'simulate' a 5D extrusion distance
     if(tool[A].motor_enabled && tool[A].rpm) {
@@ -863,9 +955,9 @@ void queue_new_point(unsigned milliseconds)
     if(write_32(milliseconds * 1000) == EOF) exit(1);
     
     // uint8: Axes bitfield to specify which axes are relative. Any axis with a bit set should make a relative movement.
-    if(write_8(A_IS_SET|B_IS_SET) == EOF) exit(1);
-    
+    if(write_8(AXES_BIT_MASK) == EOF) exit(1);
 }
+#endif
 
 // 143 - Store home positions
 
@@ -925,7 +1017,28 @@ static void set_LED(unsigned red, unsigned green, unsigned blue, unsigned blink)
     // uint8: 0 (reserved for future use)
     if(write_8(0) == EOF) exit(1);
 }
- 
+
+static void set_LED_RGB(unsigned rgb, unsigned blink)
+{
+    if(write_8(146) == EOF) exit(1);
+    
+    // uint8: red value (all pix are 0-255)
+    if(write_8((rgb >> 16) & 0xFF) == EOF) exit(1);
+    
+    // uint8: green
+    if(write_8((rgb >> 8) & 0xFF) == EOF) exit(1);
+    
+    // uint8: blue
+    if(write_8(rgb & 0xFF) == EOF) exit(1);
+    
+    // uint8: blink rate (0-255 valid)
+    if(write_8(blink) == EOF) exit(1);
+    
+    // uint8: 0 (reserved for future use)
+    if(write_8(0) == EOF) exit(1);
+
+}
+
 // 147 - Set Beep
 
 static void set_beep(unsigned frequency, unsigned milliseconds)
@@ -946,17 +1059,14 @@ static void set_beep(unsigned frequency, unsigned milliseconds)
 
 // 149 - Display message to LCD
 
-static void display_message(char *message, unsigned timeout, int wait_for_button)
+static void display_message(char *message, unsigned vPos, unsigned hPos, unsigned timeout, int wait_for_button)
 {
+    assert(vPos < 4);
+    assert(hPos < 20);
+    
     long bytesSent = 0;
     unsigned bitfield = 0;
     unsigned seconds = 0;
-
-    unsigned vPos = command.flag & L_IS_SET ? (unsigned)command.l : 0;
-    if(vPos > 3) vPos = 3;
-
-    unsigned hPos = command.flag & Q_IS_SET ? (unsigned)command.q : 0;
-    if(hPos > 19) hPos = 19;
     
     unsigned maxLength = hPos ? 20 - hPos : 20;
     
@@ -1000,7 +1110,7 @@ static void display_message(char *message, unsigned timeout, int wait_for_button
 
 // 150 - Set Build Percentage
 
-static void set_build_percent(unsigned percent)
+static void set_build_progress(unsigned percent)
 {
     if(percent > 100) percent = 100;
     
@@ -1147,7 +1257,8 @@ static void queue_ext_point(double feedrate)
         
         //convert feedrate to mm/sec
         feedrate /= 60.0;
-        
+
+#if ENABLE_RPM
         // if either a or b is 0, but their motor is on, 'simulate' a 5D extrusion distance
         if(deltaMM.a == 0.0 && tool[A].motor_enabled && tool[A].rpm) {
             double maxrpm = machine.a.max_feedrate * machine.a.steps_per_mm / machine.a.motor_steps;
@@ -1181,7 +1292,8 @@ static void queue_ext_point(double feedrate)
             // disable RPM as soon as we begin 5D printing
             tool[B].rpm = 0;
         }
-
+#endif
+        
         Point5d steps = mm_to_steps(&target, &excess);
         
         double usec = (60000000.0 * minutes);
@@ -1237,7 +1349,7 @@ static void set_acceleration(int state)
 
 // 158 - Pause @ zPos
 
-static void pause_at_z(float z_positon)
+static void pause_at_zpos(float z_positon)
 {
     if(write_8(158) == EOF) exit(1);
     
@@ -1245,8 +1357,7 @@ static void pause_at_z(float z_positon)
     if(write_float(z_positon) == EOF) exit(1);
 }
 
-
-// PARSER INPUT PREPROCESSORS
+// PARSER PRE-PROCESSOR
 
 // return the length of the given file in bytes
 
@@ -1315,6 +1426,167 @@ static char *normalize_comment(char *p) {
     return p;
 }
 
+// MACRO PARSER
+
+/* format
+ 
+ ;@<MACRO> <STRING> <DOUBLE> <DIAMETER>mm <TEMP>c #<COLOUR> (MESSAGE)
+
+ ;@printer <TYPE-STRING> <HBP-TEMP>c
+ ;@printer r2x 110c
+ 
+ ;@enable ditto
+ ;@enable progress
+
+ ;@left <TEMP>c <DIAMETER>mm
+ ;@right <TEMP>c <DIAMETER>mm
+ ;@right 230c 1.96mm
+
+ ;@slicer <DIAMETER>mm
+ ;@slicer 1.75mm
+
+ ;@filament <NAME-STRING> <DIAMETER>mm <TEMP>c #<LED-COLOUR> (MESSAGE)
+ ;@filament white 1.69mm 220c #FFFFFF (white filament)
+ 
+ ;@pause <Z-DOUBLE> <NAME-STRING>
+ ;@pause 10.0 red
+ 
+ ;@start <NAME-STRING>
+ ;@start white
+ 
+ */
+
+#define MACRO_IS(token) strcmp(token, macro) == 0
+
+static void parse_macro(char *p)
+{
+    char *macro;
+    char *name = NULL;
+    double z = 0.0;
+    double diameter = 0.0;
+    unsigned temperature = 0;
+    unsigned LED = 0;
+    if(!isalpha(*p)) {
+        return;
+    }
+    macro = p;
+    p++;
+    while(*p && !isspace(*p)) p++;
+    if(*p) *p++ = 0;
+    while(*p != 0) {
+        // trim any leading white space
+        while(isspace(*p)) p++;
+        if(isalpha(*p)) {
+            name = p;
+            while(*p && !isspace(*p)) p++;
+            if(*p) *p++ = 0;
+        }
+        else if(isdigit(*p)) {
+            char *t = p;
+            while(*p && !isspace(*p)) p++;
+            if(*(p - 1) == 'm') {
+                diameter = strtod(t, NULL);
+            }
+            else if(*(p - 1) == 'c') {
+                temperature = atoi(t);
+            }
+            else {
+                z = strtod(t, NULL);
+            }
+            if(*p) *p++ = 0;
+        }
+        else if(*p == '#') {
+            char *t = ++p;
+            while(*p && !isspace(*p)) p++;
+            if(*p) *p++ = 0;
+            LED = (unsigned)strtol(t, NULL, 16);
+        }
+        else if(*p == '(') {
+            char *t = strrchr(p + 1, ')');
+            if(t) {
+                *t = 0;
+                p = t + 1;
+            }
+            else {
+                *p = 0;
+            }
+        }
+        else {
+            fprintf(stderr, "(line %u) Syntax error: unrecognised macro parameter" EOL, lineNumber);
+            break;
+        }
+    }
+    // ;@printer <TYPE> <DIAMETER>mm <HBP-TEMP>c #<LED-COLOUR>
+    if(MACRO_IS("printer") || MACRO_IS("printer")) {
+        if(name) {
+            if(NAME_IS("r1")) machine = replicator_1;
+            else if(NAME_IS("r1d")) machine = replicator_1D;
+            else if(NAME_IS("r2")) machine = replicator_2;
+            else if(NAME_IS("r2x")) machine = replicator_2X;
+            else {
+                fprintf(stderr, "(line %u) Semantic warning: @printer unrecognised type '%s'" EOL, lineNumber, name);
+            }
+        }
+        if(diameter > 0.0001) machine.nominal_filament_diameter = diameter;
+        if(temperature) {
+            if(machine.a.has_heated_build_platform) override[A].build_platform_temperature = temperature;
+            else if(machine.b.has_heated_build_platform) override[B].build_platform_temperature = temperature;
+            else {
+                fprintf(stderr, "(line %u) Semantic warning: @printer macro cannot override non-existant heated build platform" EOL, lineNumber);                
+            }
+        }
+        if(LED) set_LED_RGB(LED, 0);
+    }
+    // ;@enable ditto
+    // ;@enable progress
+    else if(MACRO_IS("enable")) {
+        if(name) {
+            if(NAME_IS("ditto")) dittoPrinting = 1;
+            else if(NAME_IS("progress")) buildProgress = 1;
+        }
+    }
+    // ;@right <DIAMETER>mm <TEMP>c
+    else if(MACRO_IS("right")) {
+        if(diameter > 0.0001) set_filament_scale(A, diameter);
+        if(temperature) override[A].nozzle_temperature = temperature;
+    }
+    // ;@left <DIAMETER>mm <TEMP>c
+    else if(MACRO_IS("left")) {
+        if(diameter > 0.0001) set_filament_scale(B, diameter);
+        if(temperature) override[B].nozzle_temperature = temperature;
+    }
+    // ;@slicer <DIAMETER>mm
+    else if(MACRO_IS("slicer")) {
+        if(diameter > 0.0001) machine.nominal_filament_diameter = diameter;
+    }
+    // ;@filament <NAME> <DIAMETER>mm <TEMP>c #<LED-COLOUR> (MESSAGE)
+    else if(MACRO_IS("filament")) {
+        if(name) {
+            add_filament(name, diameter, temperature, LED);
+        }
+        else {
+            fprintf(stderr, "(line %u) Semantic warning: @filament macro has no colour name" EOL, lineNumber);
+        }
+    }
+    // ;@pause <Z-DOUBLE> <NAME>
+    else if(MACRO_IS("pause")) {
+        add_pause_at(z, name);
+    }
+    else if(MACRO_IS("start")) {
+        int index = find_filament(name);
+        if(index > 0) {
+            // override filament diameter
+            if(filament[index].diameter > 0.0001) {
+                set_filament_scale(currentExtruder, filament[index].diameter);
+            }
+            // override nozzle temperature
+            if(filament[index].temperature) {
+                override[currentExtruder].nozzle_temperature = filament[index].temperature;
+            }
+        }
+    }
+}
+
 // display usage and exit
 
 static void usage()
@@ -1340,7 +1612,7 @@ static void usage()
     exit(1);
 }
 
-// program entry point
+// GPX program entry point
 
 int main(int argc, char * argv[])
 {
@@ -1348,7 +1620,8 @@ int main(int argc, char * argv[])
     unsigned progress = 0;
     int c, i;
     int next_line = 0;
-    int command_line = 0;
+    int command_emitted = 0;
+    int do_pause_at_zpos = 0;
     int standard_io = 0;
 
     initialize_globals();
@@ -1357,11 +1630,16 @@ int main(int argc, char * argv[])
     
     // get the command line options
     while ((c = getopt(argc, argv, "c:m:ps")) != -1) {
-        command_line++;
+        command_emitted++;
         switch (c) {
             case 'c':
-                if (ini_parse(optarg, config_handler, NULL) < 0) {
+                i = ini_parse(optarg, config_handler, NULL);
+                if (i < 0) {
                     fprintf(stderr, "Command line error: cannot load custom machine definition '%s'" EOL, optarg);
+                    usage();
+                }
+                else if (i > 0) {
+                    fprintf(stderr, "(line %u) Condifuration syntax error: unrecognised paremeters" EOL, i);
                     usage();
                 }
                 break;
@@ -1383,7 +1661,7 @@ int main(int argc, char * argv[])
                 }
                 break;
             case 'p':
-                buildPercent = 1;
+                buildProgress = 1;
                 break;
             case 's':
                 standard_io = 1;
@@ -1397,7 +1675,7 @@ int main(int argc, char * argv[])
     // READ GPX.INI
     
     // if no command line arguments then read gpx.ini file from program directory
-    if(command_line == 0) {
+    if(command_emitted == 0) {
         char *filename = argv[0];
         // check for .exe extension
         char *dot = strrchr(filename, '.');
@@ -1418,10 +1696,14 @@ int main(int argc, char * argv[])
         *filename++ = 'i';
         *filename++ = '\0';
         filename = buffer;
-        ini_parse(filename, config_handler, NULL);
+        i = ini_parse(filename, config_handler, NULL);
+        if (i > 0) {
+            fprintf(stderr, "(line %u) Condifuration syntax error in gpx.ini: unrecognised paremeters" EOL, i);
+            usage();
+        }
 
         if(dittoPrinting && machine.extruder_count == 1) {
-            fputs("Command line error: ditto printing cannot access non-existant extruder" EOL, stderr);
+            fputs("Configuration error: ditto printing cannot access non-existant extruder" EOL, stderr);
             dittoPrinting = 0;
         }
     }
@@ -1430,12 +1712,12 @@ int main(int argc, char * argv[])
     
     if(override[A].actual_filament_diameter > 0.0001
        && override[A].actual_filament_diameter != machine.nominal_filament_diameter) {
-        set_filament_scale(A);
+        set_filament_scale(A, override[A].actual_filament_diameter);
     }
     
     if(override[B].actual_filament_diameter > 0.0001
        && override[B].actual_filament_diameter != machine.nominal_filament_diameter) {
-        set_filament_scale(B);
+        set_filament_scale(B, override[B].actual_filament_diameter);
     }
     
     argc -= optind;
@@ -1504,15 +1786,15 @@ int main(int argc, char * argv[])
             digits = p;
             p = normalize_word(p);
             if(*p == 0) {
-                fprintf(stderr, "(line %u) Syntax Error: line number command word 'N' is missing digits" EOL, line_number);
-                next_line = line_number + 1;
+                fprintf(stderr, "(line %u) Syntax error: line number command word 'N' is missing digits" EOL, lineNumber);
+                next_line = lineNumber + 1;
             }
             else {
-                next_line = line_number = atoi(digits);
+                next_line = lineNumber = atoi(digits);
             }
         }
         else {
-            next_line = line_number + 1;
+            next_line = lineNumber + 1;
         }
         // parse command words in command line
         while(*p != 0) {
@@ -1558,7 +1840,7 @@ int main(int argc, char * argv[])
                         command.b = strtod(digits, NULL);
                         command.flag |= B_IS_SET;
                         if(machine.extruder_count < 2) {
-                            fprintf(stderr, "(line %u) Semantic Warning: Bn cannot access non-existant extruder" EOL, line_number);
+                            fprintf(stderr, "(line %u) Semantic warning: Bn cannot access non-existant extruder" EOL, lineNumber);
                         }
                         break;
                                                 
@@ -1633,13 +1915,18 @@ int main(int argc, char * argv[])
                         break;
                     
                     default:
-                        fprintf(stderr, "(line %u) Syntax Warning: unrecognised command word '%c'" EOL, line_number, c);
+                        fprintf(stderr, "(line %u) Syntax warning: unrecognised command word '%c'" EOL, lineNumber, c);
                 }
             }
             else if(*p == ';') {
-                // Comment
-                command.comment = normalize_comment(p + 1);
-                command.flag |= COMMENT_IS_SET;
+                if(*(p + 1) == '@') {
+                    parse_macro(normalize_comment(p + 2));
+                }
+                else {
+                    // Comment
+                    command.comment = normalize_comment(p + 1);
+                    command.flag |= COMMENT_IS_SET;
+                }
                 *p = 0;
             }
             else if(*p == '(') {
@@ -1648,7 +1935,7 @@ int main(int argc, char * argv[])
                 char *e = strchr(p + 1, ')');
                 // check for nested comment
                 if(s && e && s < e) {
-                    fprintf(stderr, "(line %u) Syntax Warning: nested comment detected" EOL, line_number);
+                    fprintf(stderr, "(line %u) Syntax warning: nested comment detected" EOL, lineNumber);
                     e = strrchr(p + 1, ')');
                 }
                 if(e) {
@@ -1658,7 +1945,7 @@ int main(int argc, char * argv[])
                     p = e + 1;
                 }
                 else {
-                    fprintf(stderr, "(line %u) Syntax Warning: comment is missing closing ')'" EOL, line_number);
+                    fprintf(stderr, "(line %u) Syntax warning: comment is missing closing ')'" EOL, lineNumber);
                     command.comment = normalize_comment(p + 1);
                     command.flag |= COMMENT_IS_SET;
                     *p = 0;                   
@@ -1673,7 +1960,7 @@ int main(int argc, char * argv[])
                 break;
             }
             else {
-                fprintf(stderr, "(line %u) Syntax Error: unrecognised gcode '%s'" EOL, line_number, p);
+                fprintf(stderr, "(line %u) Syntax error: unrecognised gcode '%s'" EOL, lineNumber, p);
                 break;
             }
         }
@@ -1704,8 +1991,8 @@ int main(int argc, char * argv[])
             targetPosition.z = currentPosition.z;
         }
         
-        // we treat e as short hand for a or b being set
-        // depending on the state of the currentExtruder
+        // we treat e as short hand for a or b being set, depending on the state of the currentExtruder
+        
         if(command.flag & E_IS_SET) {
             if(currentExtruder == 0) {
                 // a = e
@@ -1777,6 +2064,44 @@ int main(int argc, char * argv[])
             }
         }
         
+        // CHECK FOR PAUSE @ Z
+        
+        if(pauseAtIndex < pauseAtLength) {
+            // check if the next command will cross the threshold
+            if(pauseAt[pauseAtIndex].z <= targetPosition.z) {
+                int pause_pending = 0;
+                if(command.flag & G_IS_SET) {
+                    if(command.g == 0 || command.g == 1) {
+                        pause_pending = 1;
+                    }
+                }
+                else if(!(command.flag & M_IS_SET) && command.flag & AXES_BIT_MASK) {
+                    pause_pending = 1;
+                }
+                if(pause_pending) {
+                    int index = pauseAt[pauseAtIndex].filament_index;
+                    // override filament diameter
+                    if(filament[index].diameter > 0.0001) {
+                        set_filament_scale(currentExtruder, filament[index].diameter);
+                    }
+                    // override nozzle temperature
+                    if(filament[index].temperature
+                       && tool[currentExtruder].nozzle_temperature != filament[index].temperature) {
+                        set_nozzle_temperature(currentExtruder, filament[index].temperature);
+                        tool[currentExtruder].nozzle_temperature = filament[index].temperature;
+                    }
+                    // override LED colour
+                    if(filament[index].LED) {
+                        set_LED_RGB(filament[index].LED, 0);
+                    }
+                    pauseAtIndex++;
+                    if(pauseAtIndex < pauseAtLength) {
+                        do_pause_at_zpos = 1;
+                    }
+                }
+            }
+        }
+        
         // SCALE FILAMENT INDEPENDENTLY
         
         if(command.flag & A_IS_SET && override[A].filament_scale != 1.0) targetPosition.a *= override[A].filament_scale;
@@ -1785,13 +2110,12 @@ int main(int argc, char * argv[])
         // INTERPRET COMMAND
         
         if(command.flag & G_IS_SET) {
-            // command line incremented to ensure that at least one command is emmited before each build percent
-            command_line++;
             switch(command.g) {
                     // G0 - Rapid Positioning
                 case 0:
                     if(command.flag & F_IS_SET) {
                         queue_ext_point(currentFeedrate);
+                        command_emitted++;
                         currentPosition = targetPosition;
                         positionKnown = 1;
                     }
@@ -1821,6 +2145,7 @@ int main(int argc, char * argv[])
                             feedrate = machine.x.max_feedrate;
                         }
                         queue_ext_point(feedrate);
+                        command_emitted++;
                         currentPosition = targetPosition;
                         positionKnown = 1;
                     }
@@ -1829,6 +2154,7 @@ int main(int argc, char * argv[])
                     // G1 - Coordinated Motion
                 case 1:
                     queue_ext_point(currentFeedrate);
+                    command_emitted++;
                     currentPosition = targetPosition;
                     positionKnown = 1;
                     break;
@@ -1839,16 +2165,21 @@ int main(int argc, char * argv[])
                     // G4 - Dwell
                 case 4:
                     if(command.flag & P_IS_SET) {
+#if ENABLE_RPM
                         if(tool[currentExtruder].motor_enabled && tool[currentExtruder].rpm) {
                             queue_new_point(command.p);
+                            command_emitted++;
                         }
-                        else {
+                        else
+#endif
+                        {
                             delay(command.p);
+                            command_emitted++;
                         }
+
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax Error: G4 is missing delay parameter, use Pn where n is milliseconds" EOL, line_number);
-                        exit(1);                        
+                        fprintf(stderr, "(line %u) Syntax error: G4 is missing delay parameter, use Pn where n is milliseconds" EOL, lineNumber);
                     }
                     break;
 
@@ -1861,8 +2192,7 @@ int main(int argc, char * argv[])
                         if(command.flag & Z_IS_SET) offset[i].z = command.z;
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax Error: G10 is missing coordiante system, use Pn where n is 1-6" EOL, line_number);
-                        exit(1);
+                        fprintf(stderr, "(line %u) Syntax error: G10 is missing coordiante system, use Pn where n is 1-6" EOL, lineNumber);
                     }
                     break;
                 
@@ -1918,7 +2248,7 @@ int main(int argc, char * argv[])
                         isRelative = 1;
                     }
                     else {
-                        fprintf(stderr, "(line %u) Semantic Error: G91 switch to relitive positioning prior to first absolute move" EOL, line_number);
+                        fprintf(stderr, "(line %u) Semantic error: G91 switch to relitive positioning prior to first absolute move" EOL, lineNumber);
                         exit(1);
                     }
                     break;
@@ -1930,10 +2260,11 @@ int main(int argc, char * argv[])
                     if(command.flag & Z_IS_SET) currentPosition.z = command.z;
                     if(command.flag & A_IS_SET) currentPosition.a = command.a;
                     if(command.flag & B_IS_SET) currentPosition.b = command.b;
+                    set_position();
+                    command_emitted++;
                     // check if we know where we are
                     int mask = machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;
                     if((command.flag & mask) == mask) positionKnown = 1;
-                    set_position();
                     break;
                 }
                     
@@ -1949,6 +2280,7 @@ int main(int argc, char * argv[])
                     // G161 - Home given axes to minimum
                 case 161:
                     home_axes(ENDSTOP_IS_MIN);
+                    command_emitted++;
                     positionKnown = 0;
                     excess.a = 0;
                     excess.b = 0;
@@ -1958,22 +2290,22 @@ int main(int argc, char * argv[])
                 case 28:
                 case 162:
                     home_axes(ENDSTOP_IS_MAX);
+                    command_emitted++;
                     positionKnown = 0;
                     excess.a = 0;
                     excess.b = 0;
                     break;
                 default:
-                    fprintf(stderr, "(line %u) Syntax Warning: unsupported gcode command 'G%u'" EOL, line_number, command.g);
+                    fprintf(stderr, "(line %u) Syntax warning: unsupported gcode command 'G%u'" EOL, lineNumber, command.g);
             }
         }
         else if(command.flag & M_IS_SET) {
-            command_line++;
             switch(command.m) {                    
                     // M2 - End program
                 case 2:
                     if(program_is_running()) {
                         end_program();
-                        set_build_percent(100);
+                        set_build_progress(100);
                         end_build();
                         set_steppers(AXES_BIT_MASK, 0);
                     }
@@ -1994,21 +2326,25 @@ int main(int argc, char * argv[])
                             }
                             currentExtruder = extruder_id;
                             change_extruder(extruder_id);
+                            command_emitted++;
                         }
                     }
                     else {
-                        fprintf(stderr, "(line %u) Semantic Warning: M6 cannot select non-existant extruder T%u" EOL, line_number, extruder_id);
+                        fprintf(stderr, "(line %u) Semantic warning: M6 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
                         extruder_id = currentExtruder;
                     }
                     if(tool[currentExtruder].nozzle_temperature > 0) {
                         wait_for_extruder(currentExtruder, timeout);
+                        command_emitted++;
                     }
                     // if we have a HBP wait for that too
                     if(machine.a.has_heated_build_platform && tool[A].build_platform_temperature > 0) {
                         wait_for_build_platform(A, timeout);
+                        command_emitted++;
                     }
                     if(machine.b.has_heated_build_platform && tool[B].build_platform_temperature > 0) {
                         wait_for_build_platform(B, timeout);
+                        command_emitted++;
                     }
                     break;
                 }
@@ -2017,11 +2353,13 @@ int main(int argc, char * argv[])
                 case 17:
                     if(command.flag & AXES_BIT_MASK) {
                         set_steppers(command.flag & AXES_BIT_MASK, 1);
+                        command_emitted++;
                         if(command.flag & A_IS_SET) tool[A].motor_enabled = 1;
                         if(command.flag & B_IS_SET) tool[B].motor_enabled = 1;
                     }
                     else {
-                        set_steppers(machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 1);                        
+                        set_steppers(machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 1);
+                        command_emitted++;
                         tool[A].motor_enabled = 1;
                         if(machine.extruder_count == 2) tool[B].motor_enabled = 1;
                     }
@@ -2031,11 +2369,13 @@ int main(int argc, char * argv[])
                 case 18:
                     if(command.flag & AXES_BIT_MASK) {
                         set_steppers(command.flag & AXES_BIT_MASK, 0);
+                        command_emitted++;
                         if(command.flag & A_IS_SET) tool[A].motor_enabled = 0;
                         if(command.flag & B_IS_SET) tool[B].motor_enabled = 0;
                     }
                     else {
                         set_steppers(machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 0);
+                        command_emitted++;
                         tool[A].motor_enabled = 0;
                         if(machine.extruder_count == 2) tool[B].motor_enabled = 0;
                     }
@@ -2044,37 +2384,48 @@ int main(int argc, char * argv[])
                     // M70 - Display message on LCD
                 case 70:
                     if(command.flag & COMMENT_IS_SET) {
+                        unsigned vPos = command.flag & L_IS_SET ? (unsigned)command.l : 0;
+                        if(vPos > 3) vPos = 3;
+                        unsigned hPos = command.flag & Q_IS_SET ? (unsigned)command.q : 0;
+                        if(hPos > 19) hPos = 19;
                         if(command.flag & P_IS_SET) {
-                            display_message(command.comment, command.p, 0);
+                            display_message(command.comment, vPos, hPos, command.p, 0);
                         }
                         else {
-                            display_message(command.comment, 0, 0);
+                            display_message(command.comment, vPos, hPos, 0, 0);
                         }
+                        command_emitted++;
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax Error: M70 is missing message text, use (text) where text is message" EOL, line_number);                        
+                        fprintf(stderr, "(line %u) Syntax error: M70 is missing message text, use (text) where text is message" EOL, lineNumber);                        
                     }
                     break;
 
                     // M71 - Display message and wait for button press
-                case 71:
+                case 71: {
+                    unsigned vPos = command.flag & L_IS_SET ? (unsigned)command.l : 0;
+                    if(vPos > 3) vPos = 3;
+                    unsigned hPos = command.flag & Q_IS_SET ? (unsigned)command.q : 0;
+                    if(hPos > 19) hPos = 19;
                     if(command.flag & COMMENT_IS_SET) {
                         if(command.flag & P_IS_SET) {
-                            display_message(command.comment, command.p, 1);
+                            display_message(command.comment, vPos, hPos, command.p, 1);
                         }
                         else {
-                            display_message(command.comment, 0, 1);
+                            display_message(command.comment, vPos, hPos, 0, 1);
                         }
                     }
                     else {
                         if(command.flag & P_IS_SET) {
-                            display_message("Press M to continue", command.p, 1);
+                            display_message("Press M to continue", vPos, hPos, command.p, 1);
                         }
                         else {
-                            display_message("Press M to continue", 0, 1);
+                            display_message("Press M to continue", vPos, hPos, 0, 1);
                         }
                     }
+                    command_emitted++;
                     break;
+                }
                     
                     // M72 - Queue a song or play a tone
                 case 72:
@@ -2082,9 +2433,10 @@ int main(int argc, char * argv[])
                         unsigned song_id = (unsigned)command.p;
                         if(song_id > 2) song_id = 2;
                         queue_song(song_id);
+                        command_emitted++;
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax Warning: M72 is missing song number, use Pn where n is 0-2" EOL, line_number);
+                        fprintf(stderr, "(line %u) Syntax warning: M72 is missing song number, use Pn where n is 0-2" EOL, lineNumber);
                     }
                     break;
                     
@@ -2096,21 +2448,21 @@ int main(int argc, char * argv[])
                         if(program_is_ready()) {
                             start_program();
                             start_build();
-                            set_build_percent(0);
+                            set_build_progress(0);
                         }
                         else if(program_is_running()) {
                             if(percent == 100) {
                                 end_program();
-                                set_build_percent(100);
+                                set_build_progress(100);
                                 end_build();
                             }
-                            else if(filesize == 0 || buildPercent == 0) {
-                                set_build_percent(percent);
+                            else if(filesize == 0 || buildProgress == 0) {
+                                set_build_progress(percent);
                             }
                         }
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax Warning: M73 is missing build percentage, use Pn where n is 0-100" EOL, line_number);
+                        fprintf(stderr, "(line %u) Syntax warning: M73 is missing build percentage, use Pn where n is 0-100" EOL, lineNumber);
                     }
                     break;
                     
@@ -2122,15 +2474,17 @@ int main(int argc, char * argv[])
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_steppers(extruder_id == 0 ? A_IS_SET : B_IS_SET, 1);
+                            command_emitted++;
                             tool[extruder_id].motor_enabled = command.m == 101 ? 1 : -1;
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant extruder T%u" EOL, line_number, command.m, extruder_id);
+                            fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant extruder T%u" EOL, lineNumber, command.m, extruder_id);
                         }
 
                     }
                     else {
                         set_steppers(currentExtruder == 0 ? A_IS_SET : B_IS_SET, 1);
+                        command_emitted++;
                         tool[currentExtruder].motor_enabled = command.m == 101 ? 1 : -1;
                     }
                     break;
@@ -2141,15 +2495,17 @@ int main(int argc, char * argv[])
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_steppers(extruder_id == 0 ? A_IS_SET : B_IS_SET, 0);
+                            command_emitted++;
                             tool[extruder_id].motor_enabled = 0;
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M103 cannot select non-existant extruder T%u" EOL, line_number, extruder_id);
+                            fprintf(stderr, "(line %u) Semantic warning: M103 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
                         }
                         
                     }
                     else {
                         set_steppers(currentExtruder == 0 ? A_IS_SET : B_IS_SET, 0);
+                        command_emitted++;
                         tool[currentExtruder].motor_enabled = 0;
                     }
                     break;
@@ -2166,10 +2522,11 @@ int main(int argc, char * argv[])
                                     temperature = override[extruder_id].nozzle_temperature;
                                 }
                                 set_nozzle_temperature(extruder_id, temperature);
+                                command_emitted++;
                                 tool[extruder_id].nozzle_temperature = temperature;
                             }
                             else {
-                                fprintf(stderr, "(line %u) Semantic Warning: M104 cannot select non-existant extruder T%u" EOL, line_number, extruder_id);
+                                fprintf(stderr, "(line %u) Semantic warning: M104 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
                             }
                         }
                         else {
@@ -2177,12 +2534,12 @@ int main(int argc, char * argv[])
                                 temperature = override[currentExtruder].nozzle_temperature;
                             }
                             set_nozzle_temperature(currentExtruder, temperature);
+                            command_emitted++;
                             tool[currentExtruder].nozzle_temperature = temperature;
                         }
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax Error: M104 is missing temperature, use Sn where n is 0-260" EOL, line_number);
-                        exit(1);
+                        fprintf(stderr, "(line %u) Syntax error: M104 is missing temperature, use Sn where n is 0-260" EOL, lineNumber);
                     }
                     break;
                     
@@ -2192,9 +2549,10 @@ int main(int argc, char * argv[])
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_fan(extruder_id, 1);
+                            command_emitted++;
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M106 cannot select non-existant extruder T%u" EOL, line_number, extruder_id);
+                            fprintf(stderr, "(line %u) Semantic warning: M106 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
                         }
                     }
                     else {
@@ -2208,9 +2566,10 @@ int main(int argc, char * argv[])
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_fan(extruder_id, 0);
+                            command_emitted++;
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M107 cannot select non-existant extruder T%u" EOL, line_number, extruder_id);
+                            fprintf(stderr, "(line %u) Semantic warning: M107 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
                         }
                     }
                     else {
@@ -2220,6 +2579,7 @@ int main(int argc, char * argv[])
                     
                     // M108 - set extruder motor 5D 'simulated' RPM
                 case 108:
+#if ENABLE_RPM
                     if(command.flag & R_IS_SET) {
                         if(command.flag & T_IS_SET) {
                             unsigned extruder_id = (unsigned)command.t;
@@ -2227,7 +2587,7 @@ int main(int argc, char * argv[])
                                 tool[extruder_id].rpm = command.r;
                             }
                             else {
-                                fprintf(stderr, "(line %u) Semantic Warning: M108 cannot select non-existant extruder T%u" EOL, line_number, extruder_id);
+                                fprintf(stderr, "(line %u) Semantic warning: M108 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
                             }
                         }
                         else {
@@ -2235,9 +2595,9 @@ int main(int argc, char * argv[])
                         }
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax Error: M108 is missing motor RPM, use Rn where n is 0-5" EOL, line_number);
-                        exit(1);
+                        fprintf(stderr, "(line %u) Syntax error: M108 is missing motor RPM, use Rn where n is 0-5" EOL, lineNumber);
                     }
+#endif
                     break;
                     
                     // M109 - Set Build Platform Temperature
@@ -2258,19 +2618,19 @@ int main(int argc, char * argv[])
                                     temperature = override[extruder_id].build_platform_temperature;
                                 }
                                 set_build_platform_temperature(extruder_id, temperature);
+                                command_emitted++;
                                 tool[currentExtruder].build_platform_temperature = temperature;
                             }
                             else {
-                                fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant hbp extruder T%u" EOL, line_number, command.m, extruder_id);
+                                fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, lineNumber, command.m, extruder_id);
                             }
                         }
                         else {
-                            fprintf(stderr, "(line %u) Syntax Error: M%u is missing temperature, use Sn where n is 0-160" EOL, line_number, command.m);
-                            exit(1);
+                            fprintf(stderr, "(line %u) Syntax error: M%u is missing temperature, use Sn where n is 0-160" EOL, lineNumber, command.m);
                         }
                     }
                     else {
-                        fprintf(stderr, "(line %u) Semantic Warning: M%u cannot select non-existant heated build platform" EOL, line_number, command.m);                        
+                        fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, lineNumber, command.m);
                     }
                     break;
                     
@@ -2280,13 +2640,15 @@ int main(int argc, char * argv[])
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_valve(extruder_id, 1);
+                            command_emitted++;
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M126 cannot select non-existant extruder T%u" EOL, line_number, extruder_id);
+                            fprintf(stderr, "(line %u) Semantic warning: M126 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
                         }
                     }
                     else {
                         set_valve(currentExtruder, 1);
+                        command_emitted++;
                     }
                     break;
 
@@ -2296,13 +2658,15 @@ int main(int argc, char * argv[])
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_valve(extruder_id, 0);
+                            command_emitted++;
                         }
                         else {
-                            fprintf(stderr, "(line %u) Semantic Warning: M127 cannot select non-existant extruder T%u" EOL, line_number, extruder_id);
+                            fprintf(stderr, "(line %u) Semantic warning: M127 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
                         }
                     }
                     else {
                         set_valve(currentExtruder, 0);
+                        command_emitted++;
                     }
                     break;
                     
@@ -2310,10 +2674,10 @@ int main(int argc, char * argv[])
                 case 131:
                     if(command.flag & AXES_BIT_MASK) {
                         store_home_positions();
+                        command_emitted++;
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax Error: M131 is missing axes, use X Y Z A B" EOL, line_number);
-                        exit(1);
+                        fprintf(stderr, "(line %u) Syntax error: M131 is missing axes, use X Y Z A B" EOL, lineNumber);
                     }
                     break;
                     
@@ -2321,16 +2685,17 @@ int main(int argc, char * argv[])
                 case 132:
                     if(command.flag & AXES_BIT_MASK) {
                         recall_home_positions();
+                        command_emitted++;
                         positionKnown = 0;
                         excess.a = 0;
                         excess.b = 0;
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax Error: M132 is missing axes, use X Y Z A B" EOL, line_number);
-                        exit(1);
+                        fprintf(stderr, "(line %u) Syntax error: M132 is missing axes, use X Y Z A B" EOL, lineNumber);
                     }
                     break;
-                                        
+
+#if EXPERIMENTAL_GCODES
                     // M146 - Set RGB LED value (RLS - P)
                 case 146: {
                     unsigned red = 0;
@@ -2342,6 +2707,7 @@ int main(int argc, char * argv[])
                     unsigned blink = 0;
                     if(command.flag & P_IS_SET) blink = (unsigned)command.p & 0xFF;
                     set_LED(red, green, blue, blink);
+                    command_emitted++;
                     break;
                 }
 
@@ -2352,32 +2718,36 @@ int main(int argc, char * argv[])
                     unsigned milliseconds = 100;
                     if(command.flag & P_IS_SET) milliseconds = (unsigned)command.p & 0xFFFF;
                     set_beep(frequency, milliseconds);
+                    command_emitted++;
                     break;
                 }
-
+#endif
                     // M320 - Acceleration on for subsequent instructions
                 case 320:
                     set_acceleration(1);
+                    command_emitted++;
                     break;
                     
                     // M321 - Acceleration off for subsequent instructions
                 case 321:
                     set_acceleration(0);
+                    command_emitted++;
                     break;
                     
                     // M322 - Pause @ zPos
                 case 322:
                     if(command.flag & Z_IS_SET) {
-                        pause_at_z(targetPosition.z);
+                        pause_at_zpos(targetPosition.z);
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax Warning: M322 is missing Z axes, assuming zero (0)" EOL, line_number);
-                        pause_at_z(0.0);
+                        fprintf(stderr, "(line %u) Syntax warning: M322 is missing Z axes, assuming zero (0)" EOL, lineNumber);
+                        pause_at_zpos(0.0);
                     }
+                    command_emitted++;
                     break;
                     
                 default:
-                    fprintf(stderr, "(line %u) Syntax Warning: unsupported mcode command 'M%u'" EOL, line_number, command.m);
+                    fprintf(stderr, "(line %u) Syntax warning: unsupported mcode command 'M%u'" EOL, lineNumber, command.m);
             }
         }
         else {
@@ -2385,48 +2755,53 @@ int main(int argc, char * argv[])
                 unsigned extruder_id = (unsigned)command.t;
                 if(extruder_id < machine.extruder_count) {
                     if(currentExtruder != extruder_id) {
-                        command_line++;
                         // check for active G10 offset
                         if(currentOffset == currentExtruder + 1) {
                             currentOffset = extruder_id + 1;
                         }
-                        currentExtruder = extruder_id;
                         change_extruder(extruder_id);
+                        command_emitted++;
+                        currentExtruder = extruder_id;
                     }
                 }
                 else {
-                    fprintf(stderr, "(line %u) Semantic Warning: T%u cannot select non-existant extruder" EOL, line_number, extruder_id);
+                    fprintf(stderr, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, lineNumber, extruder_id);
                 }
             }
             if(command.flag & AXES_BIT_MASK) {
-                command_line++;
                 queue_ext_point(currentFeedrate);
+                command_emitted++;
                 currentPosition = targetPosition;
                 positionKnown = 1;
             }
         }
+        // check for pending pause @ zPos
+        if(do_pause_at_zpos) {
+            pause_at_zpos(pauseAt[pauseAtIndex].z);
+            do_pause_at_zpos = 0;
+        }
         // update progress
-        if(filesize && buildPercent && command_line) {
+        if(filesize && buildProgress && command_emitted) {
             unsigned percent = (unsigned)round(100.0 * (double)ftell(in) / (double)filesize);
             if(percent > progress) {
                 if(program_is_ready()) {
                     start_program();
                     start_build();
-                    set_build_percent(0);
+                    set_build_progress(0);
                 }
                 else if(percent < 100 && program_is_running()) {
-                    set_build_percent(percent);
+                    set_build_progress(percent);
                     progress = percent;
                 }
-                command_line = 0;
+                command_emitted = 0;
             }
         }
-        line_number = next_line;
+        lineNumber = next_line;
     }
     
     if(program_is_running()) {
         end_program();
-        set_build_percent(100);
+        set_build_progress(100);
         end_build();
     }
     set_steppers(AXES_BIT_MASK, 0);

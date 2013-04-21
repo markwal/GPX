@@ -29,7 +29,21 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "0.5 (beta)"
+#define GPX_VERSION "0.6 (beta)"
+
+/* Nonzero to 'simulate' RPM using 5D, zero to disable */
+
+#define ENABLE_RPM 1
+
+/* Nonzero to enable G146 and G147, zero to disable */
+
+#define EXPERIMENTAL_GCODE 1
+
+#ifdef _WIN32
+#   define EOL "\r\n"
+#else
+#   define EOL "\n"
+#endif
 
 // x3g axes bitfields
 
@@ -149,7 +163,9 @@ typedef struct tMachine {
 
 typedef struct tTool {
     unsigned motor_enabled;
+#if ENABLE_RPM
     unsigned rpm;
+#endif
     unsigned nozzle_temperature;
     unsigned build_platform_temperature;
 } Tool;
@@ -161,6 +177,20 @@ typedef struct tOverride {
     unsigned build_platform_temperature;
 } Override;
 
-#define EOL "\n"
+typedef struct tFilament {
+    char *colour;
+    double diameter;
+    unsigned temperature;
+    unsigned LED;
+} Filament;
+
+#define FILAMENT_MAX 32
+
+typedef struct tPauseAt {
+    double z;
+    unsigned filament_index;
+} PauseAt;
+
+#define PAUSE_AT_MAX 64
 
 #endif

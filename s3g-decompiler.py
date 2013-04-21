@@ -136,7 +136,7 @@ commandTable = {
     146: ("<BBBBB","\t[146] Set RGB led red %i, green %i, blue %i, blink rate %i, effect %i"),
     147: ("<HHB","\t[147] Set beep, frequency %i, length %i, effect %i"),
     148: ("<BHB","\t[148] Pause for button 0x%X, timeout %i s, timeout_bevavior %i"),
-    149: (parseDisplayMessageAction, "\t[149] Display message, options 0x%X at %i,%i timeout %i\n    %s"),
+    149: (parseDisplayMessageAction, "\t[149] Display message, options 0x%X at %i,%i timeout %i\n '%s'"),
     150: ("<BB","\t[150] Set build percent %i%%, ignore %i"),
     151: ("<B","\t[151] Queue song %i"),
     152: ("<B","\t[152] Reset to factory, options 0x%X"),
