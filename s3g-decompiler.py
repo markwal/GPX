@@ -26,7 +26,7 @@ import sys
 
 toolCommandTable = {
     1: ("", "[1] init: Initialize firmware to boot state"),
-    3: ("<H", "[3] Extruder: set temperature = %i"),
+    3: ("<H", "[3] set target temperature = %i"),
     4: ("<B", "[4] Motor 1: set speed (PWM) = %i"),
     5: ("<B", "[5] Motor 2: set speed (PWM) = %i"),
     6: ("<I", "[6] Motor 1: set speed (RPM) = %i"),
@@ -35,12 +35,12 @@ toolCommandTable = {
     9: ("<I", "[9] Motor 2: set direction = %i"),
     10: ("B", "[10] Motor 1: toggle = %d"),
     11: ("B", "[11] Motor 2: toggle = %d"),
-    12: ("B", "[12] Fan: toggle = %d"),
-    13: ("B", "[13] Valve: toggle = %d"),
-    13: ("B", "[14] Servo 1: angle = %d"),
-    13: ("B", "[15] Serve 2: angle = %d"),
+    12: ("B", "[12] toggle cooling fan = %d"),
+    13: ("B", "[13] toggle blower fan = %d"),
+    14: ("B", "[14] Servo 1: angle = %d"),
+    15: ("B", "[15] Servo 2: angle = %d"),
     27: ("B", "[27] Automated build platform: toggle = %d"),
-    31: ("<H", "[31] Build Platform: set temperature = %i"),
+    31: ("<H", "'[31] set build platform temperature = %i"),
 }
 
 def parseToolAction():
@@ -55,7 +55,7 @@ def parseToolAction():
     return (index,command,contents)
 
 def printToolAction(tuple):
-    print "\t[136] Tool %i:" % (tuple[0]),
+    print "\t[136] Extruder(%i)" % (tuple[0]),
     # command - tuple[1]
     # data - tuple[2]
     (parse, disp) = toolCommandTable[tuple[1]]
@@ -121,13 +121,13 @@ commandTable = {
     131: ("<BIH","\t[131] Home minimum on %X, feedrate %i, timeout %i s"),
     132: ("<BIH","\t[132] Home maximum on %X, feedrate %i, timeout %i s"),
     133: ("<I","\t[133] Delay of %i us"),
-    134: ("<B","\t[134] Switch to tool %i"),
-    135: ("<BHH","\t[135] Wait for tool %i (%i ms between polls, %i s timeout"),
+    134: ("<B","\t[134] Change extruder %i"),
+    135: ("<BHH","\t[135] Wait until extruder %i ready (%i ms between polls, %i s timeout"),
     136: (parseToolAction, printToolAction),
-    137: ("<B", "\t[137] Enable/disable axes %X"),
+    137: ("<B", "\t[137] Enable/disable steppers %X"),
     138: ("<H", "\t[138] User block on ID %i"),
     139: ("<iiiiiI","\t[139] Absolute move to (%i,%i,%i,%i,%i) at DDA %i"),
-    140: ("<iiiii","\t[140] Extended Machine position set as (%i,%i,%i,%i,%i)"),
+    140: ("<iiiii","\t[140] Set extended position as (%i,%i,%i,%i,%i)"),
     141: ("<BHH","\t[141] Wait for platform %i (%i ms between polls, %i s timeout)"),
     142: ("<iiiiiIB","\t[142] Move to (%i,%i,%i,%i,%i) in %i us (relative: %X)"),
     143: ("<b","\t[143] Store home position for axes %d"),

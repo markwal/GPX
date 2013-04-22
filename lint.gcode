@@ -20,6 +20,8 @@
 ;  along with this program; if not, write to the Free Software Foundation,
 ;  Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+;@machine r2x
+
 ; PREFIX
 
 (*(* THIS IS A NESTED COMMENT *)*)
@@ -244,17 +246,13 @@ M131 X Y Z A B
 M70 (M132 - load EEPROM)
 M132 X Y Z A B
 
-; M146 - Set RGB LED value
-M70 (M146 - set LED)
-M146 R255 L0 S0 P0
-
-; M147 - Set Beep
-M70 (M147 - set beep)
-M147 S4000 P100
-
 ; M140 - Set Build Platform Temperature
 M70 (M140 - hbp temp)
 M140 T0 S100
+
+; M300 - Set Beep
+M70 (M300 - set beep)
+M300 S4000 P100
 
 ; M320 - Acceleration on for subsequent instructions
 M70 (M320 - acc on)
@@ -267,6 +265,10 @@ M321
 ; M322 - Pause @ zPos
 M70 (M322 - pause@z)
 M322 Z10
+
+; M420 - Set RGB LED value
+M70 (M420 - set LED)
+M420 R255 E0 B0 P0
 
 ; T1 - Set Current Tool 1
 M70 (T1 - set tool)

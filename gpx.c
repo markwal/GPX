@@ -110,6 +110,8 @@ Machine machine = {
 // PRIVATE FUNCTION PROTOTYPES
 
 static double get_home_feedrate(int flag);
+static void set_nozzle_temperature(unsigned extruder_id, unsigned temperature);
+static void set_LED_RGB(unsigned rgb, unsigned blink);
 static void pause_at_zpos(float z_positon);
 
 // GLOBAL VARIABLES
@@ -184,9 +186,7 @@ static void initialize_globals(void)
     
     command.e = 0.0;
     command.f = 0.0;
-    command.l = 0.0;
     command.p = 0.0;
-    command.q = 0.0;
     command.r = 0.0;
     command.s = 0.0;
     
@@ -217,7 +217,8 @@ static void initialize_globals(void)
         
         override[i].actual_filament_diameter = 0;
         override[i].filament_scale = 1.0;
-        override[i].nozzle_temperature = 0;
+        override[i].standby_temperature = 0;
+        override[i].active_temperature = 0;
         override[i].build_platform_temperature = 0;
     }
 
@@ -307,7 +308,8 @@ static int config_handler(void* user, const char* section, const char* name, con
     if(SECTION_IS("printer")) {
         if(NAME_IS("ditto_printing")) dittoPrinting = atoi(value);
         else if(NAME_IS("build_progress")) buildProgress = atoi(value);
-        else if(NAME_IS("slicer_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
+        else if(NAME_IS("nominal_filament_diameter")
+                || NAME_IS("slicer_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
         else if(NAME_IS("machine_type")) {
             // use on-board machine definition
             if(VALUE_IS("r1")) machine = replicator_1;
@@ -317,6 +319,10 @@ static int config_handler(void* user, const char* section, const char* name, con
             else {
                 fprintf(stderr, "Configuration error: unrecognised machine type '%s'" EOL, value);
             }
+        }
+        else if(NAME_IS("build_platform_temperature")) {
+            if(machine.a.has_heated_build_platform) override[A].build_platform_temperature = atoi(value);
+            else if(machine.b.has_heated_build_platform) override[B].build_platform_temperature = atoi(value);
         }
         else return 0;
     }
@@ -349,7 +355,9 @@ static int config_handler(void* user, const char* section, const char* name, con
         else return 0;
     }
     else if(SECTION_IS("right")) {
-        if(NAME_IS("nozzle_temperature")) override[A].nozzle_temperature = atoi(value);
+        if(NAME_IS("active_temperature")
+           || NAME_IS("nozzle_temperature")) override[A].active_temperature = atoi(value);
+        else if(NAME_IS("standby_temperature")) override[A].standby_temperature = atoi(value);
         else if(NAME_IS("build_platform_temperature")) override[A].build_platform_temperature = atoi(value);
         else if(NAME_IS("actual_filament_diameter")) override[A].actual_filament_diameter = strtod(value, NULL);
         else return 0;
@@ -362,13 +370,16 @@ static int config_handler(void* user, const char* section, const char* name, con
         else return 0;
     }
     else if(SECTION_IS("left")) {
-        if(NAME_IS("nozzle_temperature")) override[B].nozzle_temperature = atoi(value);
+        if(NAME_IS("active_temperature")
+           || NAME_IS("nozzle_temperature")) override[B].active_temperature = atoi(value);
+        else if(NAME_IS("standby_temperature")) override[B].standby_temperature = atoi(value);
         else if(NAME_IS("build_platform_temperature")) override[B].build_platform_temperature = atoi(value);
         else if(NAME_IS("actual_filament_diameter")) override[B].actual_filament_diameter = strtod(value, NULL);
         else return 0;
     }
     else if(SECTION_IS("machine")) {
-        if(NAME_IS("nominal_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
+        if(NAME_IS("nominal_filament_diameter")
+           || NAME_IS("slicer_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
         else if(NAME_IS("extruder_count")) machine.extruder_count = atoi(value);
         else if(NAME_IS("timeout")) machine.timeout = atoi(value);
         else return 0;
@@ -410,7 +421,7 @@ static int add_filament(char *filament_id, double diameter, unsigned temperature
             filament[index].LED = LED;
         }
         else {
-            fprintf(stderr, "(line %u) Buffer Overflow: too many @filament definitions (maximum = %i)" EOL, lineNumber, FILAMENT_MAX - 1);
+            fprintf(stderr, "(line %u) Buffer overflow: too many @filament definitions (maximum = %i)" EOL, lineNumber, FILAMENT_MAX - 1);
             index = 0;
         }
     }
@@ -428,7 +439,7 @@ static int add_pause_at(double z, char *filament_id)
     }
     int index = filament_id ? find_filament(filament_id) : 0;
     if(index < 0) {
-        fprintf(stderr, "(line %u) Semantic error: @pause with undefined filament '%s', use a @filament macro to define it" EOL, lineNumber, filament_id);
+        fprintf(stderr, "(line %u) Semantic error: @pause macro with undefined filament name '%s', use a @filament macro to define it" EOL, lineNumber, filament_id);
         index = 0;
     }
     if(pauseAtLength < PAUSE_AT_MAX) {
@@ -440,7 +451,7 @@ static int add_pause_at(double z, char *filament_id)
         }
     }
     else {
-        fprintf(stderr, "(line %u) Buffer Overflow: too many @pause definitions (maximum = %i)" EOL, lineNumber, PAUSE_AT_MAX);
+        fprintf(stderr, "(line %u) Buffer overflow: too many @pause definitions (maximum = %i)" EOL, lineNumber, PAUSE_AT_MAX);
         index = 0;
     }
     return index;
@@ -621,6 +632,153 @@ static Point5d mm_to_steps(Ptr5d mm, Ptr2d excess)
     return result;
 }
 
+// calculate target position
+
+static int calculate_target_position(void)
+{
+    int do_pause_at_zpos = 0;
+
+    // CALCULATE TARGET POSITION
+    
+    // x
+    if(command.flag & X_IS_SET) {
+        targetPosition.x = isRelative ? (currentPosition.x + command.x) : (command.x + offset[currentOffset].x);
+    }
+    else {
+        targetPosition.x = currentPosition.x;
+    }
+    
+    // y
+    if(command.flag & Y_IS_SET) {
+        targetPosition.y = isRelative ? (currentPosition.y + command.y) : (command.y + offset[currentOffset].y);
+    }
+    else {
+        targetPosition.y = currentPosition.y;
+    }
+    
+    // z
+    if(command.flag & Z_IS_SET) {
+        targetPosition.z = isRelative ? (currentPosition.z + command.z) : (command.z + offset[currentOffset].z);
+    }
+    else {
+        targetPosition.z = currentPosition.z;
+    }
+    
+    // we treat E as short hand for A or B being set, depending on the state of the currentExtruder
+    
+    if(command.flag & E_IS_SET) {
+        if(currentExtruder == 0) {
+            // a = e
+            targetPosition.a = isRelative ? (currentPosition.a + command.e) : command.e;
+            command.flag |= A_IS_SET;
+            command.a = command.e;
+            
+            // b
+            if(command.flag & B_IS_SET) {
+                targetPosition.b = isRelative ? (currentPosition.b + command.b) : command.b;
+            }
+            else {
+                targetPosition.b = currentPosition.b;
+            }
+        }
+        else {
+            // a
+            if(command.flag & A_IS_SET) {
+                targetPosition.a = isRelative ? (currentPosition.a + command.a) : command.a;
+            }
+            else {
+                targetPosition.a = currentPosition.a;
+            }
+            
+            // b = e
+            targetPosition.b = isRelative ? (currentPosition.b + command.e) : command.e;
+            command.flag |= B_IS_SET;
+            command.b = command.e;
+        }
+    }
+    else {
+        // a
+        if(command.flag & A_IS_SET) {
+            targetPosition.a = isRelative ? (currentPosition.a + command.a) : command.a;
+        }
+        else {
+            targetPosition.a = currentPosition.a;
+        }
+        // b
+        if(command.flag & B_IS_SET) {
+            targetPosition.b = isRelative ? (currentPosition.b + command.b) : command.b;
+        }
+        else {
+            targetPosition.b = currentPosition.b;
+        }
+    }
+    
+    // update current feedrate
+    if(command.flag & F_IS_SET) {
+        currentFeedrate = command.f;
+    }
+    
+    // DITTO PRINTING
+    
+    if(dittoPrinting) {
+        if(command.flag & A_IS_SET) {
+            targetPosition.b = targetPosition.a;
+            command.flag |= B_IS_SET;
+        }
+        else if(command.flag & B_IS_SET) {
+            targetPosition.a = targetPosition.b;
+            command.flag |= A_IS_SET;
+        }
+    }
+    
+    // CHECK FOR PAUSE @ Z POS
+    
+    if(pauseAtIndex < pauseAtLength) {
+        // check if the next command will cross the threshold
+        if(pauseAt[pauseAtIndex].z <= targetPosition.z) {
+            int index = pauseAt[pauseAtIndex].filament_index;
+            // override filament diameter
+            if(filament[index].diameter > 0.0001) {
+                if(dittoPrinting) {
+                    set_filament_scale(A, filament[index].diameter);
+                    set_filament_scale(B, filament[index].diameter);
+                }
+                else {
+                    set_filament_scale(currentExtruder, filament[index].diameter);
+                }
+            }
+            // override nozzle temperature
+            if(filament[index].temperature
+               && tool[currentExtruder].nozzle_temperature != filament[index].temperature) {
+                if(dittoPrinting) {
+                    set_nozzle_temperature(A, filament[index].temperature);
+                    set_nozzle_temperature(B, filament[index].temperature);
+                    tool[A].nozzle_temperature = tool[B].nozzle_temperature = filament[index].temperature;
+                }
+                else {
+                    set_nozzle_temperature(currentExtruder, filament[index].temperature);
+                    tool[currentExtruder].nozzle_temperature = filament[index].temperature;
+                }
+            }
+            // override LED colour
+            if(filament[index].LED) {
+                set_LED_RGB(filament[index].LED, 0);
+            }
+            pauseAtIndex++;
+            if(pauseAtIndex < pauseAtLength) {
+                do_pause_at_zpos = 1;
+            }
+        }
+    }
+    
+    // SCALE FILAMENT INDEPENDENTLY
+    
+    if(command.flag & A_IS_SET && override[A].filament_scale != 1.0) targetPosition.a *= override[A].filament_scale;
+    if(command.flag & B_IS_SET && override[B].filament_scale != 1.0) targetPosition.b *= override[B].filament_scale;
+
+    return do_pause_at_zpos;
+}
+
 // X3G COMMANDS
 
 // 131 - Find axes minimums
@@ -700,8 +858,12 @@ static void delay(unsigned milliseconds)
     if(write_32(milliseconds) == EOF) exit(1);
 }
 
-// 134 - Change extruder
-static void change_extruder(unsigned extruder_id)
+// 134 - Change extruder offset
+
+// This is important to use on dual-head Replicators, because the machine needs to know
+// the current toolhead in order to apply a calibration offset.
+
+static void change_extruder_offset(unsigned extruder_id)
 {
     assert(extruder_id < machine.extruder_count);
     if(write_8(134) == EOF) exit(1);
@@ -729,7 +891,7 @@ static void wait_for_extruder(unsigned extruder_id, unsigned timeout)
  
 // 136 - extruder action command
 
-// Action 03 - Set toolhead target temperature
+// Action 03 - Set extruder target temperature
 
 static void set_nozzle_temperature(unsigned extruder_id, unsigned temperature)
 {
@@ -1087,7 +1249,7 @@ static void display_message(char *message, unsigned vPos, unsigned hPos, unsigne
                 bitfield |= 0x04;
             }
         }
-        if(bytesSent > 0 || vPos || hPos) {
+        if(bytesSent > 0) {
             bitfield |= 0x01; //do not clear flag
         }
         
@@ -1173,7 +1335,6 @@ static void queue_ext_point(double feedrate)
 {
     Point5d deltaMM;
     Point5d deltaSteps;
-    Point5d target = targetPosition;
 
     // Because we don't know our previous position, we can't calculate the feedrate or
     // distance correctly, so we use an unaccelerated command with a fixed DDA
@@ -1231,6 +1392,7 @@ static void queue_ext_point(double feedrate)
     // check that we have actually moved
     if(magnitude(command.flag, &deltaSteps) > 0) {
         double distance = magnitude(command.flag & XYZ_BIT_MASK, &deltaMM);
+        Point5d target = targetPosition;
         
         target.a = -deltaMM.a;
         target.b = -deltaMM.b;
@@ -1430,30 +1592,27 @@ static char *normalize_comment(char *p) {
 
 /* format
  
- ;@<MACRO> <STRING> <DOUBLE> <DIAMETER>mm <TEMP>c #<COLOUR> (MESSAGE)
+ ;@<STRING> <STRING> <FLOAT> <FLOAT>mm <INTEGER>c #<HEX> (<STRING>)
 
- ;@printer <TYPE-STRING> <HBP-TEMP>c
- ;@printer r2x 110c
- 
- ;@enable ditto
- ;@enable progress
+ MACRO:= ';' '@' COMMAND COMMENT EOL
+ COMMAND:= PRINTER | ENABLE | FILAMENT | EXTRUDER | SLICER | START| PAUSE
+ COMMENT:= S+ '(' [^)]* ')' S+
+ PRINTER:= ('printer' | 'machine') (TYPE | DIAMETER | TEMP | RGB)+
+ TYPE:=  S+ ('r1' | 'r1d' | 'r2' | 'r2x')
+ DIAMETER:= S+ DIGIT+ ('.' DIGIT+)? 'm' 'm'?
+ TEMP:= S+ DIGIT+ 'c'
+ RGB:= S+ '#' HEX HEX HEX HEX HEX HEX                   ; LED colour
+ ENABLE:= 'enable' (DITTO | PROGRESS)
+ DITTO:= S+ 'ditto'                                     ; Simulated ditto printing
+ PROGRESS:= S+ 'progress'                               ; Override build progress
+ FILAMENT:= 'filament' FILAMENT_ID (DIAMETER | TEMP | RGB)+
+ FILAMENT_ID:= S+ ALPHA+ ALPHA_NUMERIC*
+ EXTRUDER:= ('right' | 'left')  (FILAMENT_ID | DIAMETER | TEMP)+
+ SLICER:= 'slicer' DIAMETER                             ; Nominal filament diameter
+ START:= 'start' FILAMENT_ID
+ PAUSE:= 'pause' (ZPOS | FILAMENT_ID)+
+ ZPOS:= S+ DIGIT+ ('.' DIGIT+)?
 
- ;@left <TEMP>c <DIAMETER>mm
- ;@right <TEMP>c <DIAMETER>mm
- ;@right 230c 1.96mm
-
- ;@slicer <DIAMETER>mm
- ;@slicer 1.75mm
-
- ;@filament <NAME-STRING> <DIAMETER>mm <TEMP>c #<LED-COLOUR> (MESSAGE)
- ;@filament white 1.69mm 220c #FFFFFF (white filament)
- 
- ;@pause <Z-DOUBLE> <NAME-STRING>
- ;@pause 10.0 red
- 
- ;@start <NAME-STRING>
- ;@start white
- 
  */
 
 #define MACRO_IS(token) strcmp(token, macro) == 0
@@ -1517,14 +1676,14 @@ static void parse_macro(char *p)
         }
     }
     // ;@printer <TYPE> <DIAMETER>mm <HBP-TEMP>c #<LED-COLOUR>
-    if(MACRO_IS("printer") || MACRO_IS("printer")) {
+    if(MACRO_IS("machine") || MACRO_IS("printer") || MACRO_IS("slicer")) {
         if(name) {
             if(NAME_IS("r1")) machine = replicator_1;
             else if(NAME_IS("r1d")) machine = replicator_1D;
             else if(NAME_IS("r2")) machine = replicator_2;
             else if(NAME_IS("r2x")) machine = replicator_2X;
             else {
-                fprintf(stderr, "(line %u) Semantic warning: @printer unrecognised type '%s'" EOL, lineNumber, name);
+                fprintf(stderr, "(line %u) Semantic error: @printer macro with unrecognised type '%s'" EOL, lineNumber, name);
             }
         }
         if(diameter > 0.0001) machine.nominal_filament_diameter = diameter;
@@ -1541,23 +1700,23 @@ static void parse_macro(char *p)
     // ;@enable progress
     else if(MACRO_IS("enable")) {
         if(name) {
-            if(NAME_IS("ditto")) dittoPrinting = 1;
+            if(NAME_IS("ditto")) {
+                if(machine.extruder_count == 1) {
+                    fputs("Configuration error: ditto printing cannot access non-existant second extruder" EOL, stderr);
+                    dittoPrinting = 0;
+                }
+                else {
+                    dittoPrinting = 1;
+                }
+            }
             else if(NAME_IS("progress")) buildProgress = 1;
+            else {
+                fprintf(stderr, "(line %u) Semantic error: @enable macro with unrecognised parameter '%s'" EOL, lineNumber, name);
+            }
         }
-    }
-    // ;@right <DIAMETER>mm <TEMP>c
-    else if(MACRO_IS("right")) {
-        if(diameter > 0.0001) set_filament_scale(A, diameter);
-        if(temperature) override[A].nozzle_temperature = temperature;
-    }
-    // ;@left <DIAMETER>mm <TEMP>c
-    else if(MACRO_IS("left")) {
-        if(diameter > 0.0001) set_filament_scale(B, diameter);
-        if(temperature) override[B].nozzle_temperature = temperature;
-    }
-    // ;@slicer <DIAMETER>mm
-    else if(MACRO_IS("slicer")) {
-        if(diameter > 0.0001) machine.nominal_filament_diameter = diameter;
+        else {
+            fprintf(stderr, "(line %u) Syntax error: @enable macro with missing parameter" EOL, lineNumber);
+        }
     }
     // ;@filament <NAME> <DIAMETER>mm <TEMP>c #<LED-COLOUR> (MESSAGE)
     else if(MACRO_IS("filament")) {
@@ -1565,24 +1724,60 @@ static void parse_macro(char *p)
             add_filament(name, diameter, temperature, LED);
         }
         else {
-            fprintf(stderr, "(line %u) Semantic warning: @filament macro has no colour name" EOL, lineNumber);
+            fprintf(stderr, "(line %u) Semantic error: @filament macro with missing name" EOL, lineNumber);
         }
     }
-    // ;@pause <Z-DOUBLE> <NAME>
+    // ;@right <NAME> <DIAMETER>mm <TEMP>c
+    else if(MACRO_IS("right")) {
+        if(name) {
+            int index = find_filament(name);
+            if(index > 0) {
+                if(filament[index].diameter > 0.0001) set_filament_scale(A, filament[index].diameter);
+                if(filament[index].temperature) override[A].active_temperature = filament[index].temperature;
+                return;
+            }
+        }
+        if(diameter > 0.0001) set_filament_scale(A, diameter);
+        if(temperature) override[A].active_temperature = temperature;
+    }
+    // ;@left <NAME> <DIAMETER>mm <TEMP>c
+    else if(MACRO_IS("left")) {
+        if(name) {
+            int index = find_filament(name);
+            if(index > 0) {
+                if(filament[index].diameter > 0.0001) set_filament_scale(B, filament[index].diameter);
+                if(filament[index].temperature) override[B].active_temperature = filament[index].temperature;
+                return;
+            }
+        }
+        if(diameter > 0.0001) set_filament_scale(B, diameter);
+        if(temperature) override[B].active_temperature = temperature;
+    }
+    // ;@pause <ZPOS> <NAME>
     else if(MACRO_IS("pause")) {
         add_pause_at(z, name);
     }
     else if(MACRO_IS("start")) {
         int index = find_filament(name);
         if(index > 0) {
-            // override filament diameter
-            if(filament[index].diameter > 0.0001) {
-                set_filament_scale(currentExtruder, filament[index].diameter);
+            if(dittoPrinting) {
+                if(filament[index].diameter > 0.0001) {
+                    set_filament_scale(A, filament[index].diameter);
+                    set_filament_scale(B, filament[index].diameter);
+                }
+                if(filament[index].temperature)  {
+                    override[A].active_temperature = override[B].active_temperature = filament[index].temperature;
+                }
             }
-            // override nozzle temperature
-            if(filament[index].temperature) {
-                override[currentExtruder].nozzle_temperature = filament[index].temperature;
+            else {
+                if(filament[index].diameter > 0.0001) set_filament_scale(currentExtruder, filament[index].diameter);
+                if(filament[index].temperature) override[currentExtruder].active_temperature = filament[index].temperature;
+                if(filament[index].LED) set_LED_RGB(filament[index].LED, 0);
             }
+        }
+        else {
+            fprintf(stderr, "(line %u) Semantic error: @start with undefined filament name '%s', use a @filament macro to define it" EOL, lineNumber, name ? name : "");
+            index = 0;
         }
     }
 }
@@ -1701,12 +1896,13 @@ int main(int argc, char * argv[])
             fprintf(stderr, "(line %u) Condifuration syntax error in gpx.ini: unrecognised paremeters" EOL, i);
             usage();
         }
-
-        if(dittoPrinting && machine.extruder_count == 1) {
-            fputs("Configuration error: ditto printing cannot access non-existant extruder" EOL, stderr);
-            dittoPrinting = 0;
-        }
     }
+
+    if(dittoPrinting && machine.extruder_count == 1) {
+        fputs("Configuration error: ditto printing cannot access non-existant second extruder" EOL, stderr);
+        dittoPrinting = 0;
+    }
+
 
     // CALCULATE FILAMENT SCALING
     
@@ -1839,9 +2035,6 @@ int main(int argc, char * argv[])
                     case 'B':
                         command.b = strtod(digits, NULL);
                         command.flag |= B_IS_SET;
-                        if(machine.extruder_count < 2) {
-                            fprintf(stderr, "(line %u) Semantic warning: Bn cannot access non-existant extruder" EOL, lineNumber);
-                        }
                         break;
                                                 
                         // Ennn	 Length of extrudate in mm.
@@ -1857,26 +2050,12 @@ int main(int argc, char * argv[])
                         command.f = strtod(digits, NULL);
                         command.flag |= F_IS_SET;
                         break;
-                        
-                        // Lnnn	 Parameter - not currently used
-                    case 'l':
-                    case 'L':
-                        command.l = strtod(digits, NULL);
-                        command.flag |= L_IS_SET;
-                        break;
                                                 
                         // Pnnn	 Command parameter, such as a time in milliseconds
                     case 'p':
                     case 'P':
                         command.p = strtod(digits, NULL);
                         command.flag |= P_IS_SET;
-                        break;
-                        
-                        // Qnnn	 Parameter - not currently used
-                    case 'q':
-                    case 'Q':
-                        command.q = strtod(digits, NULL);
-                        command.flag |= Q_IS_SET;
                         break;
                         
                         // Rnnn	 Command Parameter, such as RPM
@@ -1964,149 +2143,45 @@ int main(int argc, char * argv[])
                 break;
             }
         }
-        
-        // CALCULATE TARGET POSITION
-        
-        // x
-        if(command.flag & X_IS_SET) {
-            targetPosition.x = isRelative ? (currentPosition.x + command.x) : command.x;
-        }
-        else {
-            targetPosition.x = currentPosition.x;
-        }
-        
-        // y
-        if(command.flag & Y_IS_SET) {
-            targetPosition.y = isRelative ? (currentPosition.y + command.y) : command.y;
-        }
-        else {
-            targetPosition.y = currentPosition.y;
-        }
-        
-        // z
-        if(command.flag & Z_IS_SET) {
-            targetPosition.z = isRelative ? (currentPosition.z + command.z) : command.z;
-        }
-        else {
-            targetPosition.z = currentPosition.z;
-        }
-        
-        // we treat e as short hand for a or b being set, depending on the state of the currentExtruder
-        
-        if(command.flag & E_IS_SET) {
-            if(currentExtruder == 0) {
-                // a = e
-                targetPosition.a = isRelative ? (currentPosition.a + command.e) : command.e;
-                command.flag |= A_IS_SET;
-                command.a = command.e;
-                
-                // b
-                if(command.flag & B_IS_SET) {
-                    targetPosition.b = isRelative ? (currentPosition.b + command.b) : command.b;
-                }
-                else {
-                    targetPosition.b = currentPosition.b;
-                }
-            }
-            else {                
-                // a
-                if(command.flag & A_IS_SET) {
-                    targetPosition.a = isRelative ? (currentPosition.a + command.a) : command.a;
-                }
-                else {
-                    targetPosition.a = currentPosition.a;
-                }
-                
-                // b = e
-                targetPosition.b = isRelative ? (currentPosition.b + command.e) : command.e;
-                command.flag |= B_IS_SET;
-                command.b = command.e;
-            }
-        }
-        else {        
-            // a
-            if(command.flag & A_IS_SET) {
-                targetPosition.a = isRelative ? (currentPosition.a + command.a) : command.a;
-            }
-            else {
-                targetPosition.a = currentPosition.a;
-            }
-            // b
-            if(command.flag & B_IS_SET) {
-                targetPosition.b = isRelative ? (currentPosition.b + command.b) : command.b;
-            }
-            else {
-                targetPosition.b = currentPosition.b;
-            }
-        }
-        
-        // update current feedrate
-        if(command.flag & F_IS_SET) {
-            currentFeedrate = command.f;
-        }
-        
-        // ADD ANY G10 OFFSETS
-        
-        if(command.flag & X_IS_SET) targetPosition.x += offset[currentOffset].x;
-        if(command.flag & Y_IS_SET) targetPosition.y += offset[currentOffset].y;
-        if(command.flag & Z_IS_SET) targetPosition.z += offset[currentOffset].z;
-        
-        // DITTO PRINTING
-        
-        if(dittoPrinting) {
-            if(command.flag & A_IS_SET) {
-                targetPosition.b = targetPosition.a;
-                command.flag |= B_IS_SET;
-            }
-            else if(command.flag & B_IS_SET) {
-                targetPosition.a = targetPosition.b;
-                command.flag |= A_IS_SET;
-            }
-        }
-        
-        // CHECK FOR PAUSE @ Z
-        
-        if(pauseAtIndex < pauseAtLength) {
-            // check if the next command will cross the threshold
-            if(pauseAt[pauseAtIndex].z <= targetPosition.z) {
-                int pause_pending = 0;
-                if(command.flag & G_IS_SET) {
-                    if(command.g == 0 || command.g == 1) {
-                        pause_pending = 1;
-                    }
-                }
-                else if(!(command.flag & M_IS_SET) && command.flag & AXES_BIT_MASK) {
-                    pause_pending = 1;
-                }
-                if(pause_pending) {
-                    int index = pauseAt[pauseAtIndex].filament_index;
-                    // override filament diameter
-                    if(filament[index].diameter > 0.0001) {
-                        set_filament_scale(currentExtruder, filament[index].diameter);
-                    }
-                    // override nozzle temperature
-                    if(filament[index].temperature
-                       && tool[currentExtruder].nozzle_temperature != filament[index].temperature) {
-                        set_nozzle_temperature(currentExtruder, filament[index].temperature);
-                        tool[currentExtruder].nozzle_temperature = filament[index].temperature;
-                    }
-                    // override LED colour
-                    if(filament[index].LED) {
-                        set_LED_RGB(filament[index].LED, 0);
-                    }
-                    pauseAtIndex++;
-                    if(pauseAtIndex < pauseAtLength) {
-                        do_pause_at_zpos = 1;
-                    }
-                }
-            }
-        }
-        
-        // SCALE FILAMENT INDEPENDENTLY
-        
-        if(command.flag & A_IS_SET && override[A].filament_scale != 1.0) targetPosition.a *= override[A].filament_scale;
-        if(command.flag & B_IS_SET && override[B].filament_scale != 1.0) targetPosition.b *= override[B].filament_scale;
 
+        // APPLY ANY TOOL CHANGES
+        
+        if(command.flag & T_IS_SET && !dittoPrinting) {
+            unsigned extruder_id = (unsigned)command.t;
+            int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
+            if(extruder_id < machine.extruder_count) {
+                if(currentExtruder != extruder_id) {
+                    // set the temperature of current tool to standby (if standby is different to active)
+                    if(override[currentExtruder].standby_temperature
+                       && override[currentExtruder].standby_temperature != tool[currentExtruder].nozzle_temperature) {
+                        unsigned temperature = override[currentExtruder].standby_temperature;
+                        set_nozzle_temperature(currentExtruder, temperature);
+                        tool[currentExtruder].nozzle_temperature = temperature;
+                    }
+                    // set the temperature of new tool to active (if active is different to standby)
+                    if(override[extruder_id].active_temperature
+                       && override[extruder_id].active_temperature != tool[extruder_id].nozzle_temperature) {
+                        unsigned temperature = override[extruder_id].active_temperature;
+                        set_nozzle_temperature(extruder_id, temperature);
+                        tool[extruder_id].nozzle_temperature = temperature;
+                        wait_for_extruder(extruder_id, timeout);
+                    }
+                    // switch any active G10 offset (G54 or G55)
+                    if(currentOffset == currentExtruder + 1) {
+                        currentOffset = extruder_id + 1;
+                    }
+                    // change current toolhead in order to apply the calibration offset
+                    change_extruder_offset(extruder_id);
+                    command_emitted++;
+                    // set current extruder so changes in E are expressed as changes to A or B
+                    currentExtruder = extruder_id;
+                }
+            }
+            else {
+                fprintf(stderr, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, lineNumber, extruder_id);
+            }
+        }
+        
         // INTERPRET COMMAND
         
         if(command.flag & G_IS_SET) {
@@ -2114,6 +2189,7 @@ int main(int argc, char * argv[])
                     // G0 - Rapid Positioning
                 case 0:
                     if(command.flag & F_IS_SET) {
+                        do_pause_at_zpos = calculate_target_position();
                         queue_ext_point(currentFeedrate);
                         command_emitted++;
                         currentPosition = targetPosition;
@@ -2121,6 +2197,7 @@ int main(int argc, char * argv[])
                     }
                     else {
                         Point3d delta;
+                        do_pause_at_zpos = calculate_target_position();
                         if(command.flag & X_IS_SET) delta.x = fabs(targetPosition.x - currentPosition.x);
                         if(command.flag & Y_IS_SET) delta.y = fabs(targetPosition.y - currentPosition.y);
                         if(command.flag & Z_IS_SET) delta.z = fabs(targetPosition.z - currentPosition.z);
@@ -2153,6 +2230,7 @@ int main(int argc, char * argv[])
                     
                     // G1 - Coordinated Motion
                 case 1:
+                    do_pause_at_zpos = calculate_target_position();
                     queue_ext_point(currentFeedrate);
                     command_emitted++;
                     currentPosition = targetPosition;
@@ -2167,6 +2245,7 @@ int main(int argc, char * argv[])
                     if(command.flag & P_IS_SET) {
 #if ENABLE_RPM
                         if(tool[currentExtruder].motor_enabled && tool[currentExtruder].rpm) {
+                            do_pause_at_zpos = calculate_target_position();
                             queue_new_point(command.p);
                             command_emitted++;
                         }
@@ -2190,6 +2269,17 @@ int main(int argc, char * argv[])
                         if(command.flag & X_IS_SET) offset[i].x = command.x;
                         if(command.flag & Y_IS_SET) offset[i].y = command.y;
                         if(command.flag & Z_IS_SET) offset[i].z = command.z;
+                        // set standby temperature
+                        if(command.flag & R_IS_SET) {
+                            switch(i) {
+                                case 1:
+                                    override[A].standby_temperature = (unsigned)command.r;
+                                    break;
+                                case 2:
+                                    override[B].standby_temperature = (unsigned)command.r;
+                                    break;
+                            }
+                        }
                     }
                     else {
                         fprintf(stderr, "(line %u) Syntax error: G10 is missing coordiante system, use Pn where n is 1-6" EOL, lineNumber);
@@ -2313,29 +2403,19 @@ int main(int argc, char * argv[])
             
                     // M6 - Wait for extruder to reach (or exceed) temperature
                 case 6: {
-                    unsigned extruder_id = currentExtruder;
                     int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                    if(command.flag & T_IS_SET) {
-                        extruder_id = (unsigned)command.t;
-                    }
-                    if(extruder_id < machine.extruder_count) {
-                        if(currentExtruder != extruder_id) {
-                            // check for active G10 offset
-                            if(currentOffset == currentExtruder + 1) {
-                                currentOffset = extruder_id + 1;
-                            }
-                            currentExtruder = extruder_id;
-                            change_extruder(extruder_id);
-                            command_emitted++;
-                        }
+                    // changing the 
+                    if(dittoPrinting) {
+                        wait_for_extruder(A, timeout);
+                        wait_for_extruder(B, timeout);
+                        command_emitted++;
                     }
                     else {
-                        fprintf(stderr, "(line %u) Semantic warning: M6 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
-                        extruder_id = currentExtruder;
-                    }
-                    if(tool[currentExtruder].nozzle_temperature > 0) {
-                        wait_for_extruder(currentExtruder, timeout);
-                        command_emitted++;
+                        // any tool changes have already occured
+                        if(tool[currentExtruder].nozzle_temperature > 0) {
+                            wait_for_extruder(currentExtruder, timeout);
+                            command_emitted++;
+                        }
                     }
                     // if we have a HBP wait for that too
                     if(machine.a.has_heated_build_platform && tool[A].build_platform_temperature > 0) {
@@ -2384,9 +2464,9 @@ int main(int argc, char * argv[])
                     // M70 - Display message on LCD
                 case 70:
                     if(command.flag & COMMENT_IS_SET) {
-                        unsigned vPos = command.flag & L_IS_SET ? (unsigned)command.l : 0;
+                        unsigned vPos = command.flag & Y_IS_SET ? (unsigned)command.y : 0;
                         if(vPos > 3) vPos = 3;
-                        unsigned hPos = command.flag & Q_IS_SET ? (unsigned)command.q : 0;
+                        unsigned hPos = command.flag & X_IS_SET ? (unsigned)command.x : 0;
                         if(hPos > 19) hPos = 19;
                         if(command.flag & P_IS_SET) {
                             display_message(command.comment, vPos, hPos, command.p, 0);
@@ -2403,9 +2483,9 @@ int main(int argc, char * argv[])
 
                     // M71 - Display message and wait for button press
                 case 71: {
-                    unsigned vPos = command.flag & L_IS_SET ? (unsigned)command.l : 0;
+                    unsigned vPos = command.flag & Y_IS_SET ? (unsigned)command.y : 0;
                     if(vPos > 3) vPos = 3;
-                    unsigned hPos = command.flag & Q_IS_SET ? (unsigned)command.q : 0;
+                    unsigned hPos = command.flag & X_IS_SET ? (unsigned)command.x : 0;
                     if(hPos > 19) hPos = 19;
                     if(command.flag & COMMENT_IS_SET) {
                         if(command.flag & P_IS_SET) {
@@ -2449,6 +2529,8 @@ int main(int argc, char * argv[])
                             start_program();
                             start_build();
                             set_build_progress(0);
+                            // start extruder in a known state
+                            change_extruder_offset(currentExtruder);
                         }
                         else if(program_is_running()) {
                             if(percent == 100) {
@@ -2470,7 +2552,12 @@ int main(int argc, char * argv[])
                     // M102 - Turn extruder on, reverse
                 case 101:
                 case 102:
-                    if(command.flag & T_IS_SET) {
+                    if(dittoPrinting) {
+                        set_steppers(A_IS_SET|B_IS_SET, 1);
+                        command_emitted++;
+                        tool[A].motor_enabled = tool[B].motor_enabled = command.m == 101 ? 1 : -1;
+                    }
+                    else if(command.flag & T_IS_SET) {
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_steppers(extruder_id == 0 ? A_IS_SET : B_IS_SET, 1);
@@ -2480,7 +2567,6 @@ int main(int argc, char * argv[])
                         else {
                             fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant extruder T%u" EOL, lineNumber, command.m, extruder_id);
                         }
-
                     }
                     else {
                         set_steppers(currentExtruder == 0 ? A_IS_SET : B_IS_SET, 1);
@@ -2491,7 +2577,12 @@ int main(int argc, char * argv[])
                     
                     // M103 - Turn extruder off
                 case 103:
-                    if(command.flag & T_IS_SET) {
+                    if(dittoPrinting) {
+                        set_steppers(A_IS_SET|B_IS_SET, 1);
+                        command_emitted++;
+                        tool[A].motor_enabled = tool[B].motor_enabled = command.m == 101 ? 1 : -1;
+                    }
+                    else if(command.flag & T_IS_SET) {
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_steppers(extruder_id == 0 ? A_IS_SET : B_IS_SET, 0);
@@ -2515,11 +2606,20 @@ int main(int argc, char * argv[])
                     if(command.flag & S_IS_SET) {
                         unsigned temperature = (unsigned)command.s;
                         if(temperature > 260) temperature = 260;
-                        if(command.flag & T_IS_SET) {
+                        if(dittoPrinting) {
+                            if(temperature && override[currentExtruder].active_temperature) {
+                                temperature = override[currentExtruder].active_temperature;
+                            }
+                            set_nozzle_temperature(A, temperature);
+                            set_nozzle_temperature(B, temperature);
+                            command_emitted++;
+                            tool[A].nozzle_temperature = tool[B].nozzle_temperature = temperature;
+                        }
+                        else if(command.flag & T_IS_SET) {
                             unsigned extruder_id = (unsigned)command.t;
                             if(extruder_id < machine.extruder_count) {
-                                if(temperature && override[extruder_id].nozzle_temperature) {
-                                    temperature = override[extruder_id].nozzle_temperature;
+                                if(temperature && override[extruder_id].active_temperature) {
+                                    temperature = override[extruder_id].active_temperature;
                                 }
                                 set_nozzle_temperature(extruder_id, temperature);
                                 command_emitted++;
@@ -2530,8 +2630,8 @@ int main(int argc, char * argv[])
                             }
                         }
                         else {
-                            if(temperature && override[currentExtruder].nozzle_temperature) {
-                                temperature = override[currentExtruder].nozzle_temperature;
+                            if(temperature && override[currentExtruder].active_temperature) {
+                                temperature = override[currentExtruder].active_temperature;
                             }
                             set_nozzle_temperature(currentExtruder, temperature);
                             command_emitted++;
@@ -2545,7 +2645,12 @@ int main(int argc, char * argv[])
                     
                     // M106 - Turn cooling fan on
                 case 106:
-                    if(command.flag & T_IS_SET) {
+                    if(dittoPrinting) {
+                        set_fan(A, 1);
+                        set_fan(B, 1);
+                        command_emitted++;
+                    }
+                    else if(command.flag & T_IS_SET) {
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_fan(extruder_id, 1);
@@ -2562,7 +2667,12 @@ int main(int argc, char * argv[])
                     
                     // M107 - Turn cooling fan off
                 case 107:
-                    if(command.flag & T_IS_SET) {
+                    if(dittoPrinting) {
+                        set_fan(A, 0);
+                        set_fan(B, 0);
+                        command_emitted++;
+                    }
+                    else if(command.flag & T_IS_SET) {
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_fan(extruder_id, 0);
@@ -2581,7 +2691,10 @@ int main(int argc, char * argv[])
                 case 108:
 #if ENABLE_RPM
                     if(command.flag & R_IS_SET) {
-                        if(command.flag & T_IS_SET) {
+                        if(dittoPrinting) {
+                            tool[A].rpm = tool[B].rpm = command.r;
+                        }
+                        else if(command.flag & T_IS_SET) {
                             unsigned extruder_id = (unsigned)command.t;
                             if(extruder_id < machine.extruder_count) {
                                 tool[extruder_id].rpm = command.r;
@@ -2609,7 +2722,7 @@ int main(int argc, char * argv[])
                             unsigned extruder_id = machine.a.has_heated_build_platform ? A : B;
                             unsigned temperature = (unsigned)command.s;
                             if(temperature > 160) temperature = 160;
-                            if(command.flag & T_IS_SET) {
+                            if(!dittoPrinting && command.flag & T_IS_SET) {
                                 extruder_id = (unsigned)command.t;
                             }
                             if(extruder_id < machine.extruder_count
@@ -2636,7 +2749,12 @@ int main(int argc, char * argv[])
                     
                     // M126 - Turn blower fan on (valve open)
                 case 126:
-                    if(command.flag & T_IS_SET) {
+                    if(dittoPrinting) {
+                        set_valve(A, 1);
+                        set_valve(B, 1);
+                        command_emitted++;
+                    }
+                    else if(command.flag & T_IS_SET) {
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_valve(extruder_id, 1);
@@ -2652,9 +2770,14 @@ int main(int argc, char * argv[])
                     }
                     break;
 
-                    // M127 - Turn blower fan on (valve close)
+                    // M127 - Turn blower fan off (valve close)
                 case 127:
-                    if(command.flag & T_IS_SET) {
+                    if(dittoPrinting) {
+                        set_valve(A, 0);
+                        set_valve(B, 0);
+                        command_emitted++;
+                    }
+                    else if(command.flag & T_IS_SET) {
                         unsigned extruder_id = (unsigned)command.t;
                         if(extruder_id < machine.extruder_count) {
                             set_valve(extruder_id, 0);
@@ -2695,33 +2818,17 @@ int main(int argc, char * argv[])
                     }
                     break;
 
-#if EXPERIMENTAL_GCODES
-                    // M146 - Set RGB LED value (RLS - P)
-                case 146: {
-                    unsigned red = 0;
-                    if(command.flag & R_IS_SET) red = (unsigned)command.r & 0xFF;
-                    unsigned green = 0;
-                    if(command.flag & L_IS_SET) green = (unsigned)command.l & 0xFF;
-                    unsigned blue = 0;
-                    if(command.flag & S_IS_SET) blue = (unsigned)command.s & 0xFF;
-                    unsigned blink = 0;
-                    if(command.flag & P_IS_SET) blink = (unsigned)command.p & 0xFF;
-                    set_LED(red, green, blue, blink);
-                    command_emitted++;
-                    break;
-                }
-
-                    // M147 - Set Beep (SP)
-                case 147: {
-                    unsigned frequency = 6000;
+                    // M300 - Set Beep (SP)
+                case 300: {
+                    unsigned frequency = 300;
                     if(command.flag & S_IS_SET) frequency = (unsigned)command.s & 0xFFFF;
-                    unsigned milliseconds = 100;
+                    unsigned milliseconds = 1000;
                     if(command.flag & P_IS_SET) milliseconds = (unsigned)command.p & 0xFFFF;
                     set_beep(frequency, milliseconds);
                     command_emitted++;
                     break;
                 }
-#endif
+                    
                     // M320 - Acceleration on for subsequent instructions
                 case 320:
                     set_acceleration(1);
@@ -2737,7 +2844,8 @@ int main(int argc, char * argv[])
                     // M322 - Pause @ zPos
                 case 322:
                     if(command.flag & Z_IS_SET) {
-                        pause_at_zpos(targetPosition.z);
+                        double z = (isRelative ? (currentPosition.z + command.z) : command.z) + offset[currentOffset].z;
+                        pause_at_zpos(z);
                     }
                     else {
                         fprintf(stderr, "(line %u) Syntax warning: M322 is missing Z axes, assuming zero (0)" EOL, lineNumber);
@@ -2746,29 +2854,28 @@ int main(int argc, char * argv[])
                     command_emitted++;
                     break;
                     
+                    // M420 - Set RGB LED value (REB - P)
+                case 420: {
+                    unsigned red = 0;
+                    if(command.flag & R_IS_SET) red = (unsigned)command.r & 0xFF;
+                    unsigned green = 0;
+                    if(command.flag & E_IS_SET) green = (unsigned)command.e & 0xFF;
+                    unsigned blue = 0;
+                    if(command.flag & B_IS_SET) blue = (unsigned)command.b & 0xFF;
+                    unsigned blink = 0;
+                    if(command.flag & P_IS_SET) blink = (unsigned)command.p & 0xFF;
+                    set_LED(red, green, blue, blink);
+                    command_emitted++;
+                    break;
+                }
+                    
                 default:
                     fprintf(stderr, "(line %u) Syntax warning: unsupported mcode command 'M%u'" EOL, lineNumber, command.m);
             }
         }
         else {
-            if(command.flag & T_IS_SET) {
-                unsigned extruder_id = (unsigned)command.t;
-                if(extruder_id < machine.extruder_count) {
-                    if(currentExtruder != extruder_id) {
-                        // check for active G10 offset
-                        if(currentOffset == currentExtruder + 1) {
-                            currentOffset = extruder_id + 1;
-                        }
-                        change_extruder(extruder_id);
-                        command_emitted++;
-                        currentExtruder = extruder_id;
-                    }
-                }
-                else {
-                    fprintf(stderr, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, lineNumber, extruder_id);
-                }
-            }
             if(command.flag & AXES_BIT_MASK) {
+                do_pause_at_zpos = calculate_target_position();
                 queue_ext_point(currentFeedrate);
                 command_emitted++;
                 currentPosition = targetPosition;
@@ -2788,6 +2895,8 @@ int main(int argc, char * argv[])
                     start_program();
                     start_build();
                     set_build_progress(0);
+                    // start extruder in a known state
+                    change_extruder_offset(currentExtruder);
                 }
                 else if(percent < 100 && program_is_running()) {
                     set_build_progress(percent);

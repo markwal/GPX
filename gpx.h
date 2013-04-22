@@ -29,15 +29,11 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "0.6 (beta)"
+#define GPX_VERSION "0.7 (beta)"
 
 /* Nonzero to 'simulate' RPM using 5D, zero to disable */
 
 #define ENABLE_RPM 1
-
-/* Nonzero to enable G146 and G147, zero to disable */
-
-#define EXPERIMENTAL_GCODE 1
 
 #ifdef _WIN32
 #   define EOL "\r\n"
@@ -58,9 +54,7 @@
 
 #define E_IS_SET 0x20
 #define F_IS_SET 0x40
-#define L_IS_SET 0x80
 #define P_IS_SET 0x100
-#define Q_IS_SET 0x200
 #define R_IS_SET 0x400
 #define S_IS_SET 0x800
 
@@ -102,9 +96,7 @@ typedef struct tCommand {
     double e;
     double f;
 
-    double l;
     double p;
-    double q;
     double r;
     double s;
     
@@ -173,7 +165,8 @@ typedef struct tTool {
 typedef struct tOverride {
     double actual_filament_diameter;
     double filament_scale;
-    unsigned nozzle_temperature;
+    unsigned standby_temperature;
+    unsigned active_temperature;
     unsigned build_platform_temperature;
 } Override;
 
