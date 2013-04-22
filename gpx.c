@@ -664,53 +664,19 @@ static int calculate_target_position(void)
         targetPosition.z = currentPosition.z;
     }
     
-    // we treat E as short hand for A or B being set, depending on the state of the currentExtruder
-    
-    if(command.flag & E_IS_SET) {
-        if(currentExtruder == 0) {
-            // a = e
-            targetPosition.a = isRelative ? (currentPosition.a + command.e) : command.e;
-            command.flag |= A_IS_SET;
-            command.a = command.e;
-            
-            // b
-            if(command.flag & B_IS_SET) {
-                targetPosition.b = isRelative ? (currentPosition.b + command.b) : command.b;
-            }
-            else {
-                targetPosition.b = currentPosition.b;
-            }
-        }
-        else {
-            // a
-            if(command.flag & A_IS_SET) {
-                targetPosition.a = isRelative ? (currentPosition.a + command.a) : command.a;
-            }
-            else {
-                targetPosition.a = currentPosition.a;
-            }
-            
-            // b = e
-            targetPosition.b = isRelative ? (currentPosition.b + command.e) : command.e;
-            command.flag |= B_IS_SET;
-            command.b = command.e;
-        }
+    // a
+    if(command.flag & A_IS_SET) {
+        targetPosition.a = isRelative ? (currentPosition.a + command.a) : command.a;
     }
     else {
-        // a
-        if(command.flag & A_IS_SET) {
-            targetPosition.a = isRelative ? (currentPosition.a + command.a) : command.a;
-        }
-        else {
-            targetPosition.a = currentPosition.a;
-        }
-        // b
-        if(command.flag & B_IS_SET) {
-            targetPosition.b = isRelative ? (currentPosition.b + command.b) : command.b;
-        }
-        else {
-            targetPosition.b = currentPosition.b;
-        }
+        targetPosition.a = currentPosition.a;
+    }
+    // b
+    if(command.flag & B_IS_SET) {
+        targetPosition.b = isRelative ? (currentPosition.b + command.b) : command.b;
+    }
+    else {
+        targetPosition.b = currentPosition.b;
     }
     
     // update current feedrate
@@ -2144,6 +2110,21 @@ int main(int argc, char * argv[])
             }
         }
 
+        // we treat E as short hand for A or B being set, depending on the state of the currentExtruder
+        
+        if(command.flag & E_IS_SET) {
+            if(currentExtruder == 0) {
+                // a = e
+                command.flag |= A_IS_SET;
+                command.a = command.e;
+            }
+            else {
+                // b = e
+                command.flag |= B_IS_SET;
+                command.b = command.e;
+            }
+        }
+
         // APPLY ANY TOOL CHANGES
         
         if(command.flag & T_IS_SET && !dittoPrinting) {
@@ -2369,6 +2350,7 @@ int main(int argc, char * argv[])
                     
                     // G161 - Home given axes to minimum
                 case 161:
+                    if(command.flag & F_IS_SET) currentFeedrate = command.f;
                     home_axes(ENDSTOP_IS_MIN);
                     command_emitted++;
                     positionKnown = 0;
@@ -2379,6 +2361,7 @@ int main(int argc, char * argv[])
                     // G162 - Home given axes to maximum
                 case 28:
                 case 162:
+                    if(command.flag & F_IS_SET) currentFeedrate = command.f;
                     home_axes(ENDSTOP_IS_MAX);
                     command_emitted++;
                     positionKnown = 0;

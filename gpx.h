@@ -29,7 +29,7 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "0.7 (beta)"
+#define GPX_VERSION "0.8 (beta)"
 
 /* Nonzero to 'simulate' RPM using 5D, zero to disable */
 
