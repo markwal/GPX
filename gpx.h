@@ -29,15 +29,17 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "0.8 (beta)"
+#define GPX_VERSION "0.9 (beta)"
 
 /* Nonzero to 'simulate' RPM using 5D, zero to disable */
 
 #define ENABLE_RPM 1
 
 #ifdef _WIN32
+#   define DELIM '\\'
 #   define EOL "\r\n"
 #else
+#   define DELIM '/'
 #   define EOL "\n"
 #endif
 

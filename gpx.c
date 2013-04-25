@@ -143,6 +143,8 @@ int pauseAtLength;
 
 FILE *in;                   // the gcode input file stream
 FILE *out;                  // the x3g output file stream
+FILE *out2;                 // secondary output path
+char *sdCardPath;
 
 // cleanup code in case we encounter an error that causes the program to exit
 
@@ -157,6 +159,9 @@ static void on_exit(void)
             }
             fclose(out);
         }
+        if(out2) {
+            fclose(out2);
+        }
     }
 }
 
@@ -169,6 +174,8 @@ static void initialize_globals(void)
     // we default to using pipes
     in = stdin;
     out = stdout;
+    out2 = NULL;
+    sdCardPath = NULL;
     
     // register cleanup function
     atexit(on_exit);
@@ -251,9 +258,16 @@ static void initialize_globals(void)
 
 // IO FUNCTIONS
 
-#define write_8(VALUE) fputc(VALUE, out)
+static void write_8(unsigned char value)
+{
+    if(fputc(value, out) == EOF) exit(1);
+    
+    if(out2) {
+        if(fputc(value, out2) == EOF) exit(1);
+    }
+}
 
-static int write_16(unsigned short value)
+static void write_16(unsigned short value)
 {
     union {
         unsigned short s;
@@ -261,12 +275,16 @@ static int write_16(unsigned short value)
     } u;
     u.s = value;
     
-    if(fputc(u.b[0], out) == EOF) return EOF;
-    if(fputc(u.b[1], out) == EOF) return EOF;
-    return 0;
+    if(fputc(u.b[0], out) == EOF) exit(1);
+    if(fputc(u.b[1], out) == EOF) exit(1);
+    
+    if(out2) {
+        if(fputc(u.b[0], out2) == EOF) exit(1);
+        if(fputc(u.b[1], out2) == EOF) exit(1);
+    }
 }
 
-static int write_32(unsigned int value)
+static void write_32(unsigned int value)
 {
     union {
         unsigned int i;
@@ -274,27 +292,50 @@ static int write_32(unsigned int value)
     } u;
     u.i = value;
     
-    if(fputc(u.b[0], out) == EOF) return EOF;
-    if(fputc(u.b[1], out) == EOF) return EOF;
-    if(fputc(u.b[2], out) == EOF) return EOF;
-    if(fputc(u.b[3], out) == EOF) return EOF;
+    if(fputc(u.b[0], out) == EOF) exit(1);
+    if(fputc(u.b[1], out) == EOF) exit(1);
+    if(fputc(u.b[2], out) == EOF) exit(1);
+    if(fputc(u.b[3], out) == EOF) exit(1);
     
-    return 0;
+    if(out2) {
+        if(fputc(u.b[0], out2) == EOF) exit(1);
+        if(fputc(u.b[1], out2) == EOF) exit(1);
+        if(fputc(u.b[2], out2) == EOF) exit(1);
+        if(fputc(u.b[3], out2) == EOF) exit(1);
+    }
 }
 
-static int write_float(float value) {
+static void write_float(float value)
+{
     union {
         float f;
         unsigned char b[4];
     } u;
     u.f = value;
     
-    if(fputc(u.b[0], out) == EOF) return EOF;
-    if(fputc(u.b[1], out) == EOF) return EOF;
-    if(fputc(u.b[2], out) == EOF) return EOF;
-    if(fputc(u.b[3], out) == EOF) return EOF;
+    if(fputc(u.b[0], out) == EOF) exit(1);
+    if(fputc(u.b[1], out) == EOF) exit(1);
+    if(fputc(u.b[2], out) == EOF) exit(1);
+    if(fputc(u.b[3], out) == EOF) exit(1);
+    
+    if(out2) {
+        if(fputc(u.b[0], out2) == EOF) exit(1);
+        if(fputc(u.b[1], out2) == EOF) exit(1);
+        if(fputc(u.b[2], out2) == EOF) exit(1);
+        if(fputc(u.b[3], out2) == EOF) exit(1);
+    }
+}
 
-    return 0;
+static size_t write_string(char *string, long length)
+{
+    size_t bytes_sent = fwrite(string, 1, length, out);
+    if(fputc('\0', out) == EOF) exit(1);
+    
+    if(out2) {
+        bytes_sent = fwrite(string, 1, length, out2);
+        if(fputc('\0', out2) == EOF) exit(1);
+    }
+    return bytes_sent;
 }
 
 // Custom machine definition ini handler
@@ -323,6 +364,9 @@ static int config_handler(void* user, const char* section, const char* name, con
         else if(NAME_IS("build_platform_temperature")) {
             if(machine.a.has_heated_build_platform) override[A].build_platform_temperature = atoi(value);
             else if(machine.b.has_heated_build_platform) override[B].build_platform_temperature = atoi(value);
+        }
+        else if(NAME_IS("sd_card_path")) {
+            sdCardPath = strdup(value);
         }
         else return 0;
     }
@@ -802,26 +846,26 @@ static void home_axes(unsigned direction)
     // time between steps for longest axis = microseconds / longestStep
     unsigned step_delay = (unsigned)round(microseconds / longestAxis);
     
-    if(write_8(direction == ENDSTOP_IS_MIN ? 131 :132) == EOF) exit(1);
+    write_8(direction == ENDSTOP_IS_MIN ? 131 :132);
     
     // uint8: Axes bitfield. Axes whose bits are set will be moved.
-    if(write_8(xyz_flag) == EOF) exit(1);
+    write_8(xyz_flag);
     
     // uint32: Feedrate, in microseconds between steps on the max delta. (DDA)
-    if(write_32(step_delay) == EOF) exit(1);
+    write_32(step_delay);
     
     // uint16: Timeout, in seconds.
-    if(write_16(machine.timeout) == EOF) exit(1);
+    write_16(machine.timeout);
 }
 
 // 133 - delay
 
 static void delay(unsigned milliseconds)
 {
-    if(write_8(133) == EOF) exit(1);
+    write_8(133);
     
     // uint32: delay, in milliseconds
-    if(write_32(milliseconds) == EOF) exit(1);
+    write_32(milliseconds);
 }
 
 // 134 - Change extruder offset
@@ -832,10 +876,10 @@ static void delay(unsigned milliseconds)
 static void change_extruder_offset(unsigned extruder_id)
 {
     assert(extruder_id < machine.extruder_count);
-    if(write_8(134) == EOF) exit(1);
+    write_8(134);
     
     // uint8: ID of the extruder to switch to
-    if(write_8(extruder_id) == EOF) exit(1);
+    write_8(extruder_id);
 }
 
 // 135 - Wait for extruder ready
@@ -843,16 +887,16 @@ static void change_extruder_offset(unsigned extruder_id)
 static void wait_for_extruder(unsigned extruder_id, unsigned timeout)
 {
     assert(extruder_id < machine.extruder_count);
-    if(write_8(135) == EOF) exit(1);
+    write_8(135);
     
     // uint8: ID of the extruder to wait for
-    if(write_8(extruder_id) == EOF) exit(1);
+    write_8(extruder_id);
     
     // uint16: delay between query packets sent to the extruder, in ms (nominally 100 ms)
-    if(write_16(100) == EOF) exit(1);
+    write_16(100);
     
     // uint16: Timeout before continuing without extruder ready, in seconds (nominally 1 minute)
-    if(write_16(timeout) == EOF) exit(1);
+    write_16(timeout);
 }
  
 // 136 - extruder action command
@@ -862,19 +906,19 @@ static void wait_for_extruder(unsigned extruder_id, unsigned timeout)
 static void set_nozzle_temperature(unsigned extruder_id, unsigned temperature)
 {
     assert(extruder_id < machine.extruder_count);
-    if(write_8(136) == EOF) exit(1);
+    write_8(136);
     
     // uint8: ID of the extruder to query
-    if(write_8(extruder_id) == EOF) exit(1);
+    write_8(extruder_id);
     
     // uint8: Action command to send to the extruder
-    if(write_8(3) == EOF) exit(1);
+    write_8(3);
     
     // uint8: Length of the extruder command payload (N)
-    if(write_8(2) == EOF) exit(1);
+    write_8(2);
     
     // int16: Desired target temperature, in Celsius
-    if(write_16(temperature) == EOF) exit(1);
+    write_16(temperature);
 }
 
 // Action 12 - Enable / Disable fan
@@ -882,19 +926,19 @@ static void set_nozzle_temperature(unsigned extruder_id, unsigned temperature)
 static void set_fan(unsigned extruder_id, unsigned state)
 {
     assert(extruder_id < machine.extruder_count);
-    if(write_8(136) == EOF) exit(1);
+    write_8(136);
     
     // uint8: ID of the extruder to query
-    if(write_8(extruder_id) == EOF) exit(1);
+    write_8(extruder_id);
     
     // uint8: Action command to send to the extruder
-    if(write_8(12) == EOF) exit(1);
+    write_8(12);
     
     // uint8: Length of the extruder command payload (N)
-    if(write_8(1) == EOF) exit(1);
+    write_8(1);
     
     // uint8: 1 to enable, 0 to disable
-    if(write_8(state) == EOF) exit(1);
+    write_8(state);
 }
 
 // Action 13 - Enable / Disable extra output (blower fan)
@@ -902,19 +946,19 @@ static void set_fan(unsigned extruder_id, unsigned state)
 static void set_valve(unsigned extruder_id, unsigned state)
 {
     assert(extruder_id < machine.extruder_count);
-    if(write_8(136) == EOF) exit(1);
+    write_8(136);
     
     // uint8: ID of the extruder to query
-    if(write_8(extruder_id) == EOF) exit(1);
+    write_8(extruder_id);
     
     // uint8: Action command to send to the extruder
-    if(write_8(13) == EOF) exit(1);
+    write_8(13);
     
     // uint8: Length of the extruder command payload (N)
-    if(write_8(1) == EOF) exit(1);
+    write_8(1);
     
     // uint8: 1 to enable, 0 to disable
-    if(write_8(state) == EOF) exit(1);
+    write_8(state);
 }
 
 // Action 31 - Set build platform target temperature
@@ -922,19 +966,19 @@ static void set_valve(unsigned extruder_id, unsigned state)
 static void set_build_platform_temperature(unsigned extruder_id, unsigned temperature)
 {
     assert(extruder_id < machine.extruder_count);
-    if(write_8(136) == EOF) exit(1);
+    write_8(136);
     
     // uint8: ID of the extruder to query
-    if(write_8(extruder_id) == EOF) exit(1);
+    write_8(extruder_id);
     
     // uint8: Action command to send to the extruder
-    if(write_8(31) == EOF) exit(1);
+    write_8(31);
     
     // uint8: Length of the extruder command payload (N)
-    if(write_8(2) == EOF) exit(1);
+    write_8(2);
     
     // int16: Desired target temperature, in Celsius
-    if(write_16(temperature) == EOF) exit(1);
+    write_16(temperature);
 }
 
 // 137 - Enable / Disable axes steppers
@@ -945,10 +989,10 @@ static void set_steppers(unsigned axes, unsigned state)
     if(state) {
         bitfield |= 0x80;
     }
-    if(write_8(137) == EOF) exit(1);
+    write_8(137);
     
     // uint8: Bitfield codifying the command (see below)
-    if(write_8(bitfield) == EOF) exit(1);
+    write_8(bitfield);
 }
  
 // 139 - Queue absolute point
@@ -958,25 +1002,25 @@ static void queue_absolute_point()
     long longestDDA = get_longest_dda();
     Point5d steps = mm_to_steps(&targetPosition, &excess);
     
-    if(write_8(139) == EOF) exit(1);
+    write_8(139);
     
     // int32: X coordinate, in steps
-    if(write_32((int)steps.x) == EOF) exit(1);
+    write_32((int)steps.x);
     
     // int32: Y coordinate, in steps
-    if(write_32((int)steps.y) == EOF) exit(1);
+    write_32((int)steps.y);
     
     // int32: Z coordinate, in steps
-    if(write_32((int)steps.z) == EOF) exit(1);
+    write_32((int)steps.z);
     
     // int32: A coordinate, in steps
-    if(write_32(-(int)steps.a) == EOF) exit(1);
+    write_32(-(int)steps.a);
     
     // int32: B coordinate, in steps
-    if(write_32(-(int)steps.b) == EOF) exit(1);
+    write_32(-(int)steps.b);
     
     // uint32: Feedrate, in microseconds between steps on the max delta. (DDA)
-    if(write_32((int)longestDDA) == EOF) exit(1);
+    write_32((int)longestDDA);
 }
 
 // 140 - Set extended position
@@ -984,22 +1028,22 @@ static void queue_absolute_point()
 static void set_position()
 {
     Point5d steps = mm_to_steps(&currentPosition, NULL);
-    if(write_8(140) == EOF) exit(1);
+    write_8(140);
     
     // int32: X position, in steps
-    if(write_32((int)steps.x) == EOF) exit(1);
+    write_32((int)steps.x);
     
     // int32: Y position, in steps
-    if(write_32((int)steps.y) == EOF) exit(1);
+    write_32((int)steps.y);
     
     // int32: Z position, in steps
-    if(write_32((int)steps.z) == EOF) exit(1);
+    write_32((int)steps.z);
     
     // int32: A position, in steps
-    if(write_32((int)steps.a) == EOF) exit(1);
+    write_32((int)steps.a);
     
     // int32: B position, in steps
-    if(write_32((int)steps.b) == EOF) exit(1);
+    write_32((int)steps.b);
 }
 
 // 141 - Wait for build platform ready
@@ -1007,16 +1051,16 @@ static void set_position()
 static void wait_for_build_platform(unsigned extruder_id, int timeout)
 {
     assert(extruder_id < machine.extruder_count);
-    if(write_8(141) == EOF) exit(1);
+    write_8(141);
     
     // uint8: ID of the extruder platform to wait for
-    if(write_8(extruder_id) == EOF) exit(1);
+    write_8(extruder_id);
     
     // uint16: delay between query packets sent to the extruder, in ms (nominally 100 ms)
-    if(write_16(100) == EOF) exit(1);
+    write_16(100);
     
     // uint16: Timeout before continuing without extruder ready, in seconds (nominally 1 minute)
-    if(write_16(timeout) == EOF) exit(1);
+    write_16(timeout);
 }
 
 // 142 - Queue extended point, new style
@@ -1062,28 +1106,28 @@ static void queue_new_point(unsigned milliseconds)
 
     Point5d steps = mm_to_steps(&target, &excess);
 
-    if(write_8(142) == EOF) exit(1);
+    write_8(142);
     
     // int32: X coordinate, in steps
-    if(write_32((int)steps.x) == EOF) exit(1);
+    write_32((int)steps.x);
     
     // int32: Y coordinate, in steps
-    if(write_32((int)steps.y) == EOF) exit(1);
+    write_32((int)steps.y);
     
     // int32: Z coordinate, in steps
-    if(write_32((int)steps.z) == EOF) exit(1);
+    write_32((int)steps.z);
     
     // int32: A coordinate, in steps
-    if(write_32((int)steps.a) == EOF) exit(1);
+    write_32((int)steps.a);
     
     // int32: B coordinate, in steps
-    if(write_32((int)steps.b) == EOF) exit(1);
+    write_32((int)steps.b);
     
     // uint32: Duration of the movement, in microseconds
-    if(write_32(milliseconds * 1000) == EOF) exit(1);
+    write_32(milliseconds * 1000);
     
     // uint8: Axes bitfield to specify which axes are relative. Any axis with a bit set should make a relative movement.
-    if(write_8(AXES_BIT_MASK) == EOF) exit(1);
+    write_8(AXES_BIT_MASK);
 }
 #endif
 
@@ -1091,22 +1135,22 @@ static void queue_new_point(unsigned milliseconds)
 
 static void store_home_positions(void)
 {
-    if(write_8(143) == EOF) exit(1);
+    write_8(143);
     
     // uint8: Axes bitfield to specify which axes' positions to store.
     // Any axis with a bit set should have its position stored.
-    if(write_8(command.flag & AXES_BIT_MASK) == EOF) exit(1);
+    write_8(command.flag & AXES_BIT_MASK);
 }
 
 // 144 - Recall home positions
 
 static void recall_home_positions(void)
 {
-    if(write_8(144) == EOF) exit(1);
+    write_8(144);
     
     // uint8: Axes bitfield to specify which axes' positions to recall.
     // Any axis with a bit set should have its position recalled.
-    if(write_8(command.flag & AXES_BIT_MASK) == EOF) exit(1);
+    write_8(command.flag & AXES_BIT_MASK);
 }
 
 // 145 - Set digital potentiometer value
@@ -1115,55 +1159,55 @@ static void set_pot_value(unsigned axis, unsigned value)
 {
     assert(axis <= 4);
     assert(value <= 127);
-    if(write_8(145) == EOF) exit(1);
+    write_8(145);
     
     // uint8: axis value (valid range 0-4) which axis pot to set
-    if(write_8(axis) == EOF) exit(1);
+    write_8(axis);
     
     // uint8: value (valid range 0-127), values over max will be capped at max
-    if(write_8(value) == EOF) exit(1);
+    write_8(value);
 }
  
 // 146 - Set RGB LED value
 
 static void set_LED(unsigned red, unsigned green, unsigned blue, unsigned blink)
 {
-    if(write_8(146) == EOF) exit(1);
+    write_8(146);
     
     // uint8: red value (all pix are 0-255)
-    if(write_8(red) == EOF) exit(1);
+    write_8(red);
     
     // uint8: green
-    if(write_8(green) == EOF) exit(1);
+    write_8(green);
     
     // uint8: blue
-    if(write_8(blue) == EOF) exit(1);
+    write_8(blue);
     
     // uint8: blink rate (0-255 valid)
-    if(write_8(blink) == EOF) exit(1);
+    write_8(blink);
     
     // uint8: 0 (reserved for future use)
-    if(write_8(0) == EOF) exit(1);
+    write_8(0);
 }
 
 static void set_LED_RGB(unsigned rgb, unsigned blink)
 {
-    if(write_8(146) == EOF) exit(1);
+    write_8(146);
     
     // uint8: red value (all pix are 0-255)
-    if(write_8((rgb >> 16) & 0xFF) == EOF) exit(1);
+    write_8((rgb >> 16) & 0xFF);
     
     // uint8: green
-    if(write_8((rgb >> 8) & 0xFF) == EOF) exit(1);
+    write_8((rgb >> 8) & 0xFF);
     
     // uint8: blue
-    if(write_8(rgb & 0xFF) == EOF) exit(1);
+    write_8(rgb & 0xFF);
     
     // uint8: blink rate (0-255 valid)
-    if(write_8(blink) == EOF) exit(1);
+    write_8(blink);
     
     // uint8: 0 (reserved for future use)
-    if(write_8(0) == EOF) exit(1);
+    write_8(0);
 
 }
 
@@ -1171,16 +1215,16 @@ static void set_LED_RGB(unsigned rgb, unsigned blink)
 
 static void set_beep(unsigned frequency, unsigned milliseconds)
 {
-    if(write_8(147) == EOF) exit(1);
+    write_8(147);
     
     // uint16: frequency
-    if(write_16(frequency) == EOF) exit(1);
+    write_16(frequency);
 
     // uint16: buzz length in ms
-    if(write_16(milliseconds) == EOF) exit(1);
+    write_16(milliseconds);
 
     // uint8: 0 (reserved for future use)
-    if(write_8(0) == EOF) exit(1);
+    write_8(0);
 }
 
 // 148 - Pause for button
@@ -1219,20 +1263,19 @@ static void display_message(char *message, unsigned vPos, unsigned hPos, unsigne
             bitfield |= 0x01; //do not clear flag
         }
         
-        if(write_8(149) == EOF) exit(1);
+        write_8(149);
         
         // uint8: Options bitfield (see below)
-        if(write_8(bitfield) == EOF) exit(1);
+        write_8(bitfield);
         // uint8: Horizontal position to display the message at (commonly 0-19)
-        if(write_8(hPos) == EOF) exit(1);
+        write_8(hPos);
         // uint8: Vertical position to display the message at (commonly 0-3)
-        if(write_8(vPos) == EOF) exit(1);
+        write_8(vPos);
         // uint8: Timeout, in seconds. If 0, this message will left on the screen
-        if(write_8(seconds) == EOF) exit(1);
+        write_8(seconds);
         // 1+N bytes: Message to write to the screen, in ASCII, terminated with a null character.
         long rowLength = length - bytesSent;
-        bytesSent += fwrite(message + bytesSent, 1, rowLength < maxLength ? rowLength : maxLength, out);
-        if(write_8('\0') == EOF) exit(1);
+        bytesSent += write_string(message + bytesSent, rowLength < maxLength ? rowLength : maxLength);
     }
 }
 
@@ -1242,13 +1285,13 @@ static void set_build_progress(unsigned percent)
 {
     if(percent > 100) percent = 100;
     
-    if(write_8(150) == EOF) exit(1);
+    write_8(150);
     
     // uint8: percent (0-100)
-    if(write_8(percent) == EOF) exit(1);
+    write_8(percent);
     
     // uint8: 0 (reserved for future use) (reserved for future use)
-    if(write_8(0) == EOF) exit(1);
+    write_8(0);
 }
 
 // 151 - Queue Song
@@ -1260,10 +1303,10 @@ static void queue_song(unsigned song_id)
     // song ID 2: error tone with 2 cycles
     
     assert(song_id <= 2);
-    if(write_8(151) == EOF) exit(1);
+    write_8(151);
     
     // uint8: songID: select from a predefined list of songs
-    if(write_8(song_id) == EOF) exit(1);
+    write_8(song_id);
 }
 
 // 152 - Restore to factory settings
@@ -1272,25 +1315,23 @@ static void queue_song(unsigned song_id)
 
 static void start_build()
 {
-    char name_of_build[] = "GPX";
-
-    if(write_8(153) == EOF) exit(1);
+    write_8(153);
     
     // uint32: 0 (reserved for future use)
-    if(write_32(0) == EOF) exit(1);
+    write_32(0);
 
     // 1+N bytes: Name of the build, in ASCII, null terminated
-    fwrite(name_of_build, 1, 4, out);
+    write_string("GPX", 3);
 }
 
 // 154 - Build end notification
 
 static void end_build()
 {
-    if(write_8(154) == EOF) exit(1);
+    write_8(154);
 
     // uint8: 0 (reserved for future use)
-    if(write_8(0) == EOF) exit(1);
+    write_8(0);
 }
  
 // 155 - Queue extended point x3g
@@ -1431,34 +1472,34 @@ static void queue_ext_point(double feedrate)
         // Convert dda_interval into dda_rate (dda steps per second on the longest axis)
         double dda_rate = 1000000.0 / dda_interval;
 
-        if(write_8(155) == EOF) exit(1);
+        write_8(155);
         
         // int32: X coordinate, in steps
-        if(write_32((int)steps.x) == EOF) exit(1);
+        write_32((int)steps.x);
         
         // int32: Y coordinate, in steps
-        if(write_32((int)steps.y) == EOF) exit(1);
+        write_32((int)steps.y);
         
         // int32: Z coordinate, in steps
-        if(write_32((int)steps.z) == EOF) exit(1);
+        write_32((int)steps.z);
         
         // int32: A coordinate, in steps
-        if(write_32((int)steps.a) == EOF) exit(1);
+        write_32((int)steps.a);
         
         // int32: B coordinate, in steps
-        if(write_32((int)steps.b) == EOF) exit(1);
+        write_32((int)steps.b);
 
         // uint32: DDA Feedrate, in steps/s
-        if(write_32((unsigned)dda_rate) == EOF) exit(1);
+        write_32((unsigned)dda_rate);
         
         // uint8: Axes bitfield to specify which axes are relative. Any axis with a bit set should make a relative movement.
-        if(write_8(A_IS_SET|B_IS_SET) == EOF) exit(1);
+        write_8(A_IS_SET|B_IS_SET);
 
         // float (single precision, 32 bit): mm distance for this move.  normal of XYZ if any of these axes are active, and AB for extruder only moves
-        if(write_float((float)distance) == EOF) exit(1);
+        write_float((float)distance);
         
         // uint16: feedrate in mm/s, multiplied by 64 to assist fixed point calculation on the bot
-        if(write_16((unsigned)(feedrate * 64.0)) == EOF) exit(1);
+        write_16((unsigned)(feedrate * 64.0));
 	}
 }
 
@@ -1466,10 +1507,10 @@ static void queue_ext_point(double feedrate)
 
 static void set_acceleration(int state)
 {
-    if(write_8(156) == EOF) exit(1);
+    write_8(156);
     
     // uint8: 1 to enable, 0 to disable
-    if(write_8(state) == EOF) exit(1);
+    write_8(state);
 }
 
 
@@ -1479,10 +1520,10 @@ static void set_acceleration(int state)
 
 static void pause_at_zpos(float z_positon)
 {
-    if(write_8(158) == EOF) exit(1);
+    write_8(158);
     
     // uint8: pause at Z coordinate or 0.0 to disable
-    if(write_float(z_positon) == EOF) exit(1);
+    write_float(z_positon);
 }
 
 // PARSER PRE-PROCESSOR
@@ -1926,6 +1967,20 @@ int main(int argc, char * argv[])
             perror("Error creating output");
             out = stdout;
             exit(1);
+        }
+        if(sdCardPath) {
+            long sl = strlen(sdCardPath);
+            if(sdCardPath[sl - 1] == DELIM) {
+                sdCardPath[--sl] = 0;
+            }
+            char *delim = strrchr(filename, DELIM);
+            if(delim) {
+                memcpy(buffer, sdCardPath, sl);
+                long l = strlen(delim);
+                memcpy(buffer + sl, delim, l);
+                buffer[sl + l] = 0;
+                out2 = fopen(buffer, "wb");
+            }
         }
     }
     else if(!standard_io) {
