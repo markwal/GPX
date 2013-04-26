@@ -120,7 +120,8 @@ Command command;            // the gcode command line
 Point5d currentPosition;    // the current position of the extruder in 5D space
 Point5d targetPosition;     // the target poaition the extruder will move to (including G10 offsets)
 Point2d excess;             // the accumulated rounding error in mm to step conversion
-int currentExtruder;        // the currently selectd extruder using Tn
+int selectedExtruder;       // the current extruder selection (on the virtual tool carosel)
+int currentExtruder;        // the currently selectd extruder being used by the bot
 double currentFeedrate;     // the current feed rate
 int currentOffset;          // current G10 offset
 Point3d offset[7];          // G10 offsets
@@ -212,6 +213,7 @@ static void initialize_globals(void)
         offset[i].z = 0.0;
     }
     
+    selectedExtruder = 0;
     currentExtruder = 0;
     
     for(i = 0; i < 2; i++) {
@@ -1789,6 +1791,33 @@ static void parse_macro(char *p)
     }
 }
 
+void do_tool_change(int timeout) {
+    // set the temperature of current tool to standby (if standby is different to active)
+    if(override[currentExtruder].standby_temperature
+       && override[currentExtruder].standby_temperature != tool[currentExtruder].nozzle_temperature) {
+        unsigned temperature = override[currentExtruder].standby_temperature;
+        set_nozzle_temperature(currentExtruder, temperature);
+        tool[currentExtruder].nozzle_temperature = temperature;
+    }
+    // set the temperature of selected tool to active (if active is different to standby)
+    if(override[selectedExtruder].active_temperature
+       && override[selectedExtruder].active_temperature != tool[selectedExtruder].nozzle_temperature) {
+        unsigned temperature = override[selectedExtruder].active_temperature;
+        set_nozzle_temperature(selectedExtruder, temperature);
+        tool[selectedExtruder].nozzle_temperature = temperature;
+        // wait for nozzle to head up
+        wait_for_extruder(selectedExtruder, timeout);
+    }
+    // switch any active G10 offset (G54 or G55)
+    if(currentOffset == currentExtruder + 1) {
+        currentOffset = selectedExtruder + 1;
+    }
+    // change current toolhead in order to apply the calibration offset
+    change_extruder_offset(selectedExtruder);
+    // set current extruder so changes in E are expressed as changes to A or B
+    currentExtruder = selectedExtruder;
+}
+
 // display usage and exit
 
 static void usage()
@@ -1909,7 +1938,6 @@ int main(int argc, char * argv[])
         fputs("Configuration error: ditto printing cannot access non-existant second extruder" EOL, stderr);
         dittoPrinting = 0;
     }
-
 
     // CALCULATE FILAMENT SCALING
     
@@ -2165,6 +2193,18 @@ int main(int argc, char * argv[])
             }
         }
 
+        // change the extruder selection (in virtual tool carosel)
+        
+        if(command.flag & T_IS_SET && !dittoPrinting) {
+            unsigned extruder_id = (unsigned)command.t;
+            if(extruder_id < machine.extruder_count) {
+                selectedExtruder = extruder_id;
+            }
+            else {
+                fprintf(stderr, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, lineNumber, extruder_id);
+            }
+        }
+
         // we treat E as short hand for A or B being set, depending on the state of the currentExtruder
         
         if(command.flag & E_IS_SET) {
@@ -2177,44 +2217,6 @@ int main(int argc, char * argv[])
                 // b = e
                 command.flag |= B_IS_SET;
                 command.b = command.e;
-            }
-        }
-
-        // APPLY ANY TOOL CHANGES
-        
-        if(command.flag & T_IS_SET && !dittoPrinting) {
-            unsigned extruder_id = (unsigned)command.t;
-            int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-            if(extruder_id < machine.extruder_count) {
-                if(currentExtruder != extruder_id) {
-                    // set the temperature of current tool to standby (if standby is different to active)
-                    if(override[currentExtruder].standby_temperature
-                       && override[currentExtruder].standby_temperature != tool[currentExtruder].nozzle_temperature) {
-                        unsigned temperature = override[currentExtruder].standby_temperature;
-                        set_nozzle_temperature(currentExtruder, temperature);
-                        tool[currentExtruder].nozzle_temperature = temperature;
-                    }
-                    // set the temperature of new tool to active (if active is different to standby)
-                    if(override[extruder_id].active_temperature
-                       && override[extruder_id].active_temperature != tool[extruder_id].nozzle_temperature) {
-                        unsigned temperature = override[extruder_id].active_temperature;
-                        set_nozzle_temperature(extruder_id, temperature);
-                        tool[extruder_id].nozzle_temperature = temperature;
-                        wait_for_extruder(extruder_id, timeout);
-                    }
-                    // switch any active G10 offset (G54 or G55)
-                    if(currentOffset == currentExtruder + 1) {
-                        currentOffset = extruder_id + 1;
-                    }
-                    // change current toolhead in order to apply the calibration offset
-                    change_extruder_offset(extruder_id);
-                    command_emitted++;
-                    // set current extruder so changes in E are expressed as changes to A or B
-                    currentExtruder = extruder_id;
-                }
-            }
-            else {
-                fprintf(stderr, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, lineNumber, extruder_id);
             }
         }
         
@@ -2444,11 +2446,20 @@ int main(int argc, char * argv[])
                     int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
                     // changing the 
                     if(dittoPrinting) {
-                        wait_for_extruder(A, timeout);
-                        wait_for_extruder(B, timeout);
+                        if(tool[A].nozzle_temperature > 0) {
+                            wait_for_extruder(A, timeout);
+                        }
+                        if(tool[B].nozzle_temperature > 0) {
+                            wait_for_extruder(B, timeout);
+                        }
                         command_emitted++;
                     }
                     else {
+                        if(command.flag & T_IS_SET
+                           && selectedExtruder != currentExtruder) {
+                            do_tool_change(timeout);
+                            command_emitted++;
+                        }
                         // any tool changes have already occured
                         if(tool[currentExtruder].nozzle_temperature > 0) {
                             wait_for_extruder(currentExtruder, timeout);
@@ -2595,21 +2606,10 @@ int main(int argc, char * argv[])
                         command_emitted++;
                         tool[A].motor_enabled = tool[B].motor_enabled = command.m == 101 ? 1 : -1;
                     }
-                    else if(command.flag & T_IS_SET) {
-                        unsigned extruder_id = (unsigned)command.t;
-                        if(extruder_id < machine.extruder_count) {
-                            set_steppers(extruder_id == 0 ? A_IS_SET : B_IS_SET, 1);
-                            command_emitted++;
-                            tool[extruder_id].motor_enabled = command.m == 101 ? 1 : -1;
-                        }
-                        else {
-                            fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant extruder T%u" EOL, lineNumber, command.m, extruder_id);
-                        }
-                    }
                     else {
-                        set_steppers(currentExtruder == 0 ? A_IS_SET : B_IS_SET, 1);
+                        set_steppers(selectedExtruder == 0 ? A_IS_SET : B_IS_SET, 1);
                         command_emitted++;
-                        tool[currentExtruder].motor_enabled = command.m == 101 ? 1 : -1;
+                        tool[selectedExtruder].motor_enabled = command.m == 101 ? 1 : -1;
                     }
                     break;
                     
@@ -2620,22 +2620,10 @@ int main(int argc, char * argv[])
                         command_emitted++;
                         tool[A].motor_enabled = tool[B].motor_enabled = command.m == 101 ? 1 : -1;
                     }
-                    else if(command.flag & T_IS_SET) {
-                        unsigned extruder_id = (unsigned)command.t;
-                        if(extruder_id < machine.extruder_count) {
-                            set_steppers(extruder_id == 0 ? A_IS_SET : B_IS_SET, 0);
-                            command_emitted++;
-                            tool[extruder_id].motor_enabled = 0;
-                        }
-                        else {
-                            fprintf(stderr, "(line %u) Semantic warning: M103 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
-                        }
-                        
-                    }
                     else {
-                        set_steppers(currentExtruder == 0 ? A_IS_SET : B_IS_SET, 0);
+                        set_steppers(selectedExtruder == 0 ? A_IS_SET : B_IS_SET, 0);
                         command_emitted++;
-                        tool[currentExtruder].motor_enabled = 0;
+                        tool[selectedExtruder].motor_enabled = 0;
                     }
                     break;
                     
@@ -2653,27 +2641,13 @@ int main(int argc, char * argv[])
                             command_emitted++;
                             tool[A].nozzle_temperature = tool[B].nozzle_temperature = temperature;
                         }
-                        else if(command.flag & T_IS_SET) {
-                            unsigned extruder_id = (unsigned)command.t;
-                            if(extruder_id < machine.extruder_count) {
-                                if(temperature && override[extruder_id].active_temperature) {
-                                    temperature = override[extruder_id].active_temperature;
-                                }
-                                set_nozzle_temperature(extruder_id, temperature);
-                                command_emitted++;
-                                tool[extruder_id].nozzle_temperature = temperature;
-                            }
-                            else {
-                                fprintf(stderr, "(line %u) Semantic warning: M104 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
-                            }
-                        }
                         else {
-                            if(temperature && override[currentExtruder].active_temperature) {
-                                temperature = override[currentExtruder].active_temperature;
+                            if(temperature && override[selectedExtruder].active_temperature) {
+                                temperature = override[selectedExtruder].active_temperature;
                             }
-                            set_nozzle_temperature(currentExtruder, temperature);
+                            set_nozzle_temperature(selectedExtruder, temperature);
                             command_emitted++;
-                            tool[currentExtruder].nozzle_temperature = temperature;
+                            tool[selectedExtruder].nozzle_temperature = temperature;
                         }
                     }
                     else {
@@ -2688,18 +2662,9 @@ int main(int argc, char * argv[])
                         set_fan(B, 1);
                         command_emitted++;
                     }
-                    else if(command.flag & T_IS_SET) {
-                        unsigned extruder_id = (unsigned)command.t;
-                        if(extruder_id < machine.extruder_count) {
-                            set_fan(extruder_id, 1);
-                            command_emitted++;
-                        }
-                        else {
-                            fprintf(stderr, "(line %u) Semantic warning: M106 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
-                        }
-                    }
                     else {
-                        set_fan(currentExtruder, 1);
+                        set_fan(selectedExtruder, 1);
+                        command_emitted++;
                     }
                     break;
                     
@@ -2710,18 +2675,9 @@ int main(int argc, char * argv[])
                         set_fan(B, 0);
                         command_emitted++;
                     }
-                    else if(command.flag & T_IS_SET) {
-                        unsigned extruder_id = (unsigned)command.t;
-                        if(extruder_id < machine.extruder_count) {
-                            set_fan(extruder_id, 0);
-                            command_emitted++;
-                        }
-                        else {
-                            fprintf(stderr, "(line %u) Semantic warning: M107 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
-                        }
-                    }
                     else {
-                        set_fan(currentExtruder, 0);
+                        set_fan(selectedExtruder, 0);
+                        command_emitted++;
                     }
                     break;
                     
@@ -2732,17 +2688,8 @@ int main(int argc, char * argv[])
                         if(dittoPrinting) {
                             tool[A].rpm = tool[B].rpm = command.r;
                         }
-                        else if(command.flag & T_IS_SET) {
-                            unsigned extruder_id = (unsigned)command.t;
-                            if(extruder_id < machine.extruder_count) {
-                                tool[extruder_id].rpm = command.r;
-                            }
-                            else {
-                                fprintf(stderr, "(line %u) Semantic warning: M108 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
-                            }
-                        }
                         else {
-                            tool[currentExtruder].rpm = command.r;
+                            tool[selectedExtruder].rpm = command.r;
                         }
                     }
                     else {
@@ -2757,20 +2704,19 @@ int main(int argc, char * argv[])
                 case 140:
                     if(machine.a.has_heated_build_platform || machine.b.has_heated_build_platform) {
                         if(command.flag & S_IS_SET) {
-                            unsigned extruder_id = machine.a.has_heated_build_platform ? A : B;
                             unsigned temperature = (unsigned)command.s;
                             if(temperature > 160) temperature = 160;
-                            if(!dittoPrinting && command.flag & T_IS_SET) {
-                                extruder_id = (unsigned)command.t;
+                            unsigned extruder_id = machine.a.has_heated_build_platform ? A : B;
+                            if(command.flag & T_IS_SET) {
+                                extruder_id = selectedExtruder;
                             }
-                            if(extruder_id < machine.extruder_count
-                               && (extruder_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform)) {
+                            if(extruder_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform) {
                                 if(temperature && override[extruder_id].build_platform_temperature) {
                                     temperature = override[extruder_id].build_platform_temperature;
                                 }
                                 set_build_platform_temperature(extruder_id, temperature);
                                 command_emitted++;
-                                tool[currentExtruder].build_platform_temperature = temperature;
+                                tool[extruder_id].build_platform_temperature = temperature;
                             }
                             else {
                                 fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, lineNumber, command.m, extruder_id);
@@ -2792,18 +2738,8 @@ int main(int argc, char * argv[])
                         set_valve(B, 1);
                         command_emitted++;
                     }
-                    else if(command.flag & T_IS_SET) {
-                        unsigned extruder_id = (unsigned)command.t;
-                        if(extruder_id < machine.extruder_count) {
-                            set_valve(extruder_id, 1);
-                            command_emitted++;
-                        }
-                        else {
-                            fprintf(stderr, "(line %u) Semantic warning: M126 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
-                        }
-                    }
                     else {
-                        set_valve(currentExtruder, 1);
+                        set_valve(selectedExtruder, 1);
                         command_emitted++;
                     }
                     break;
@@ -2815,18 +2751,8 @@ int main(int argc, char * argv[])
                         set_valve(B, 0);
                         command_emitted++;
                     }
-                    else if(command.flag & T_IS_SET) {
-                        unsigned extruder_id = (unsigned)command.t;
-                        if(extruder_id < machine.extruder_count) {
-                            set_valve(extruder_id, 0);
-                            command_emitted++;
-                        }
-                        else {
-                            fprintf(stderr, "(line %u) Semantic warning: M127 cannot select non-existant extruder T%u" EOL, lineNumber, extruder_id);
-                        }
-                    }
                     else {
-                        set_valve(currentExtruder, 0);
+                        set_valve(selectedExtruder, 0);
                         command_emitted++;
                     }
                     break;
@@ -2918,6 +2844,13 @@ int main(int argc, char * argv[])
                 command_emitted++;
                 currentPosition = targetPosition;
                 positionKnown = 1;
+            }
+            else if(command.flag & T_IS_SET
+                    && !dittoPrinting
+                    && selectedExtruder != currentExtruder) {
+                int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
+                do_tool_change(timeout);
+                command_emitted++;
             }
         }
         // check for pending pause @ zPos
