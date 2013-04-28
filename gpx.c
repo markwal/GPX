@@ -50,6 +50,73 @@
 //  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
 //  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
 
+static Machine cupcake_G3 = {
+    {9600, 500, 11.767463, ENDSTOP_IS_MIN}, // x axis
+    {9600, 500, 11.767463, ENDSTOP_IS_MIN}, // y axis
+    {450, 450, 320, ENDSTOP_IS_MIN},        // z axis
+    {7200, 50.235478806907409, 400, 1}, // a extruder
+    {7200, 50.235478806907409, 400, 0}, // b extruder
+    1.75, // nominal filament diameter
+    1,  // extruder count
+    20, // timeout
+};
+
+static Machine cupcake_G4 = {
+    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // x axis
+    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
+    {450, 450, 1280, ENDSTOP_IS_MIN},        // z axis
+    {7200, 50.235478806907409, 400, 1}, // a extruder
+    {7200, 50.235478806907409, 400, 0}, // b extruder
+    1.75, // nominal filament diameter
+    1,  // extruder count
+    20, // timeout
+};
+
+static Machine cupcake_P4 = {
+    {9600, 500, 94.13970462, ENDSTOP_IS_MIN}, // x axis
+    {9600, 500, 94.13970462, ENDSTOP_IS_MIN}, // y axis
+    {450, 450, 2560, ENDSTOP_IS_MIN},        // z axis
+    {7200, 50.235478806907409, 400, 1}, // a extruder
+    {7200, 50.235478806907409, 400, 0}, // b extruder
+    1.75, // nominal filament diameter
+    1,  // extruder count
+    20, // timeout
+};
+
+static Machine cupcake_PP = {
+    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // x axis
+    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
+    {450, 450, 1280, ENDSTOP_IS_MIN},        // z axis
+    {7200, 100.470957613814818, 400, 1}, // a extruder
+    {7200, 100.470957613814818, 400, 0}, // b extruder
+    1.75, // nominal filament diameter
+    1,  // extruder count
+    20, // timeout
+};
+
+static Machine thing_o_matic_7 = {
+    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // x axis
+    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
+    {1000, 500, 200, ENDSTOP_IS_MAX},        // z axis
+    {1600, 50.235478806907409, 1600, 1}, // a extruder
+    {1600, 50.235478806907409, 1600, 0}, // b extruder
+    1.75, // nominal filament diameter
+    1,  // extruder count
+    20, // timeout
+};
+
+static Machine thing_o_matic_7D = {
+    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // x axis
+    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
+    {1000, 500, 200, ENDSTOP_IS_MAX},        // z axis
+    {1600, 50.235478806907409, 1600, 0}, // a extruder
+    {1600, 50.235478806907409, 1600, 1}, // b extruder
+    1.75, // nominal filament diameter
+    2,  // extruder count
+    20, // timeout
+};
+
+
 static Machine replicator_1 = {
     {18000, 2500, 94.139704, ENDSTOP_IS_MAX}, // x axis
     {18000, 2500, 94.139704, ENDSTOP_IS_MAX}, // y axis
@@ -88,7 +155,7 @@ static Machine replicator_2X = {
     {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // y axis
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
     1.75, // nominal filament diameter
     2,  // extruder count
     20, // timeout
@@ -128,6 +195,7 @@ Point3d offset[7];          // G10 offsets
 Tool tool[2];               // tool state
 Override override[2];       // gcode override
 int isRelative;             // signals relitive or absolute coordinates
+int extruderIsRelative;     // signals relitive or absolute coordinates for extruder
 int positionKnown;          // is the current extruder position known
 int programState;           // gcode program state used to trigger start and end code sequences
 int dittoPrinting;          // enable ditto printing
@@ -232,6 +300,7 @@ static void initialize_globals(void)
     }
 
     isRelative = 0;
+    extruderIsRelative = 0;
     positionKnown = 0;
     programState = 0;
 
@@ -355,7 +424,15 @@ static int config_handler(void* user, const char* section, const char* name, con
                 || NAME_IS("slicer_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
         else if(NAME_IS("machine_type")) {
             // use on-board machine definition
-            if(VALUE_IS("r1")) machine = replicator_1;
+            if(VALUE_IS("c3")) machine = cupcake_G3;
+            else if(VALUE_IS("c4")) machine = cupcake_G4;
+            else if(VALUE_IS("cp4")) machine = cupcake_P4;
+            else if(VALUE_IS("cpp")) machine = cupcake_PP;
+            else if(VALUE_IS("t7")) machine = thing_o_matic_7;
+            else if(VALUE_IS("t6")) machine = thing_o_matic_7;
+            else if(VALUE_IS("t7")) machine = thing_o_matic_7;
+            else if(VALUE_IS("t7d")) machine = thing_o_matic_7D;
+            else if(VALUE_IS("r1")) machine = replicator_1;
             else if(VALUE_IS("r1d")) machine = replicator_1D;
             else if(VALUE_IS("r2")) machine = replicator_2;
             else if(VALUE_IS("r2x")) machine = replicator_2X;
@@ -712,14 +789,14 @@ static int calculate_target_position(void)
     
     // a
     if(command.flag & A_IS_SET) {
-        targetPosition.a = isRelative ? (currentPosition.a + command.a) : command.a;
+        targetPosition.a = (isRelative || extruderIsRelative) ? (currentPosition.a + command.a) : command.a;
     }
     else {
         targetPosition.a = currentPosition.a;
     }
     // b
     if(command.flag & B_IS_SET) {
-        targetPosition.b = isRelative ? (currentPosition.b + command.b) : command.b;
+        targetPosition.b = (isRelative || extruderIsRelative) ? (currentPosition.b + command.b) : command.b;
     }
     else {
         targetPosition.b = currentPosition.b;
@@ -1398,7 +1475,8 @@ static void queue_ext_point(double feedrate)
         deltaSteps.b = 0;
     }
     
-    // check that we have actually moved
+    // check that we have actually moved on at least one axis when the move is
+    // rounded down to the nearest step
     if(magnitude(command.flag, &deltaSteps) > 0) {
         double distance = magnitude(command.flag & XYZ_BIT_MASK, &deltaMM);
         Point5d target = targetPosition;
@@ -1514,7 +1592,6 @@ static void set_acceleration(int state)
     // uint8: 1 to enable, 0 to disable
     write_8(state);
 }
-
 
 // 157 - Stream Version
 
@@ -1687,7 +1764,15 @@ static void parse_macro(char *p)
     // ;@printer <TYPE> <DIAMETER>mm <HBP-TEMP>c #<LED-COLOUR>
     if(MACRO_IS("machine") || MACRO_IS("printer") || MACRO_IS("slicer")) {
         if(name) {
-            if(NAME_IS("r1")) machine = replicator_1;
+            if(NAME_IS("c3")) machine = cupcake_G3;
+            else if(NAME_IS("c4")) machine = cupcake_G4;
+            else if(NAME_IS("cp4")) machine = cupcake_P4;
+            else if(NAME_IS("cpp")) machine = cupcake_PP;
+            else if(NAME_IS("t7")) machine = thing_o_matic_7;
+            else if(NAME_IS("t6")) machine = thing_o_matic_7;
+            else if(NAME_IS("t7")) machine = thing_o_matic_7;
+            else if(NAME_IS("t7d")) machine = thing_o_matic_7D;
+            else if(NAME_IS("r1")) machine = replicator_1;
             else if(NAME_IS("r1d")) machine = replicator_1D;
             else if(NAME_IS("r2")) machine = replicator_2;
             else if(NAME_IS("r2x")) machine = replicator_2X;
@@ -1828,6 +1913,13 @@ static void usage()
     fputs("\t-p\toverride build percentage" EOL, stderr);
     fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
     fputs(EOL "MACHINE is the predefined machine type" EOL EOL, stderr);
+    fputs("\tc3  = Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+    fputs("\tc4  = Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+    fputs("\tcp4 = Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+    fputs("\tcpp = Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, stderr);
+    fputs("\tt6  = TOM Mk6 - single extruder" EOL, stderr);
+    fputs("\tt7  = TOM Mk7 - single extruder" EOL, stderr);
+    fputs("\tt7d = TOM Mk7 - dual extruder" EOL, stderr);
     fputs("\tr1  = Replicator 1 - single extruder" EOL, stderr);
     fputs("\tr1d = Replicator 1 - dual extruder" EOL, stderr);
     fputs("\tr2  = Replicator 2 (default config)" EOL, stderr);
@@ -1875,21 +1967,18 @@ int main(int argc, char * argv[])
                 }
                 break;
             case 'm':
-                if(strcasecmp(optarg, "r1") == 0) {
-                    machine = replicator_1;
-                }
-                else if(strcasecmp(optarg, "r1d") == 0) {
-                    machine = replicator_1D;
-                }
-                else if(strcasecmp(optarg, "r2") == 0) {
-                    machine = replicator_2;                    
-                }
-                else if(strcasecmp(optarg, "r2x") == 0) {
-                    machine = replicator_2X;
-                }
-                else {
-                    usage();
-                }
+                if(strcasecmp(optarg, "c3") == 0) machine = cupcake_G3;
+                else if(strcasecmp(optarg, "c4") == 0) machine = cupcake_G4;
+                else if(strcasecmp(optarg, "cp4") == 0) machine = cupcake_P4;
+                else if(strcasecmp(optarg, "cpp") == 0) machine = cupcake_PP;
+                else if(strcasecmp(optarg, "t6") == 0) machine = thing_o_matic_7;
+                else if(strcasecmp(optarg, "t7") == 0) machine = thing_o_matic_7;
+                else if(strcasecmp(optarg, "t7d") == 0) machine = thing_o_matic_7D;
+                else if(strcasecmp(optarg, "r1") == 0) machine = replicator_1;
+                else if(strcasecmp(optarg, "r1d") == 0) machine = replicator_1D;
+                else if(strcasecmp(optarg, "r2") == 0) machine = replicator_2;
+                else if(strcasecmp(optarg, "r2x") == 0) machine = replicator_2X;
+                else usage();
                 break;
             case 'p':
                 buildProgress = 1;
@@ -2440,11 +2529,24 @@ int main(int argc, char * argv[])
                         set_steppers(AXES_BIT_MASK, 0);
                     }
                     exit(0);
-            
-                    // M6 - Wait for extruder to reach (or exceed) temperature
-                case 6: {
+                    
+                    
+                    // M6 - Tool change
+                case 6:
+#if M6_TOOL_CHANGE            
+                    if(command.flag & T_IS_SET
+                       && !dittoPrinting
+                       && selectedExtruder != currentExtruder) {
+                        int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
+                        do_tool_change(timeout);
+                        command_emitted++;
+                    }
+                    break;
+#endif
+                    // M116 - Wait for extruder to reach (or exceed) temperature
+                case 116: {
                     int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                    // changing the 
+                    // changing the
                     if(dittoPrinting) {
                         if(tool[A].nozzle_temperature > 0) {
                             wait_for_extruder(A, timeout);
@@ -2477,6 +2579,7 @@ int main(int argc, char * argv[])
                     }
                     break;
                 }
+
 
                     // M17 - Enable axes steppers
                 case 17:
@@ -2597,6 +2700,24 @@ int main(int argc, char * argv[])
                     }
                     break;
                     
+                    // M82 - set extruder to absolute mode
+                case 82:
+                    extruderIsRelative = 0;
+                    break;
+                    
+                    // M83 - set extruder to relative mode
+                case 83:
+                    extruderIsRelative = 1;
+                    break;
+                    
+                    // M84 - Stop idle hold
+                case 84:
+                    set_steppers(machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 0);
+                    command_emitted++;
+                    tool[A].motor_enabled = 0;
+                    if(machine.extruder_count == 2) tool[B].motor_enabled = 0;
+                    break;
+                    
                     // M101 - Turn extruder on, forward
                     // M102 - Turn extruder on, reverse
                 case 101:
@@ -2618,7 +2739,7 @@ int main(int argc, char * argv[])
                     if(dittoPrinting) {
                         set_steppers(A_IS_SET|B_IS_SET, 1);
                         command_emitted++;
-                        tool[A].motor_enabled = tool[B].motor_enabled = command.m == 101 ? 1 : -1;
+                        tool[A].motor_enabled = tool[B].motor_enabled = 0;
                     }
                     else {
                         set_steppers(selectedExtruder == 0 ? A_IS_SET : B_IS_SET, 0);
@@ -2730,7 +2851,7 @@ int main(int argc, char * argv[])
                         fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, lineNumber, command.m);
                     }
                     break;
-                    
+
                     // M126 - Turn blower fan on (valve open)
                 case 126:
                     if(dittoPrinting) {

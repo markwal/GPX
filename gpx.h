@@ -29,11 +29,15 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "0.9 (beta)"
+#define GPX_VERSION "1.0 (RC1)"
 
 /* Nonzero to 'simulate' RPM using 5D, zero to disable */
 
 #define ENABLE_RPM 1
+
+/* Nonzero to use M6 for tool changes and M116 to wait for temperature, zero to disable */
+
+//#define M6_TOOL_CHANGE 1
 
 #ifdef _WIN32
 #   define DELIM '\\'
