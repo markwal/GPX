@@ -19,12 +19,11 @@ unix/linux platforms.
 
 */
 
+#if defined(_MSC_VER)
 #include "getopt.h"
 
 #include <string.h>
-#if defined(_MSC_VER)
-#   include <io.h>
-#endif
+#include <io.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -81,3 +80,6 @@ int getopt(int argc, char **argv, char *opts)
     }
 	return(c);
 }
+
+#endif
+

@@ -3,7 +3,7 @@ CC = cc
 CC_FLAGS = -w
 
 # File names
-VERSION = 1.0
+VERSION = 1.0-rc2
 PLATFORM=osx
 ARCHIVE = gpx-$(PLATFORM)-$(VERSION)
 PREFIX = /usr/local
@@ -23,6 +23,9 @@ gpx: $(OBJECTS)
 # To remove generated files
 clean:
 	rm -f gpx $(OBJECTS)
+	rm -f $(ARCHIVE).tar.gz
+	rm -f $(ARCHIVE).zip
+	rm -f $(ARCHIVE).dmg
 
 # To install program and supporting files
 install: gpx
@@ -45,7 +48,7 @@ release: gpx
 	cp gpx *.ini *.gcode *.py $(ARCHIVE)
 	tar cf - $(ARCHIVE) | gzip -9c > $(ARCHIVE).tar.gz
 	zip -r $(ARCHIVE).zip $(ARCHIVE)
-	hdiutil create -format UDZO -srcfolder $(ARCHIVE) $(ARCHIVE).dmg
+	test -f /usr/bin/hdiutil && hdiutil create -format UDZO -srcfolder $(ARCHIVE) $(ARCHIVE).dmg
 	rm -rf $(ARCHIVE)
 
 

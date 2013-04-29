@@ -29,7 +29,7 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "1.0 (RC1)"
+#define GPX_VERSION "1.0 (RC2)"
 
 /* Nonzero to 'simulate' RPM using 5D, zero to disable */
 
@@ -185,11 +185,12 @@ typedef struct tFilament {
 
 #define FILAMENT_MAX 32
 
-typedef struct tPauseAt {
+typedef struct tCommandAt {
     double z;
     unsigned filament_index;
-} PauseAt;
+    unsigned temperature;
+} CommandAt;
 
-#define PAUSE_AT_MAX 64
+#define COMMAND_AT_MAX 128
 
 #endif
