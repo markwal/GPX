@@ -227,7 +227,7 @@ char *sdCardPath;
 
 // cleanup code in case we encounter an error that causes the program to exit
 
-static void on_exit(void)
+static void exit_handler(void)
 {
     // close open files
     if(in != stdin) {
@@ -257,7 +257,7 @@ static void initialize_globals(void)
     sdCardPath = NULL;
     
     // register cleanup function
-    atexit(on_exit);
+    atexit(exit_handler);
     
     command.flag = 0;
     
@@ -427,9 +427,9 @@ static size_t write_string(char *string, long length)
 
 static int find_filament(char *filament_id)
 {
-    int index = -1;
+    int i, index = -1;
     // a brute force search is generally fastest for low n
-    for(int i = 0; i < filamentLength; i++) {
+    for(i = 0; i < filamentLength; i++) {
         if(strcmp(filament_id, filament[i].colour) == 0) {
             index = i;
             break;
