@@ -207,8 +207,9 @@ int positionKnown;          // is the current extruder position known
 int programState;           // gcode program state used to trigger start and end code sequences
 int dittoPrinting;          // enable ditto printing
 int buildProgress;          // override build percent
+int verboseMode;
 unsigned lineNumber;        // the current line number in the gcode file
-static char buffer[300];    // the statically allocated parse-in-place buffer
+static char buffer[BUFFER_MAX + 1];    // the statically allocated parse-in-place buffer
 
 Filament filament[FILAMENT_MAX];
 int filamentLength;
@@ -217,8 +218,8 @@ CommandAt commandAt[COMMAND_AT_MAX];
 int commandAtIndex;
 int commandAtLength;
 
-int atTemperature;          // are we at temperature - hopefully signals homing is over
-int pausePending;           // 
+int macroStarted;           // ;@body macro encountered
+int pausePending;           // signals a pause is pending before the macro script has started
 
 FILE *in;                   // the gcode input file stream
 FILE *out;                  // the x3g output file stream
@@ -296,7 +297,7 @@ static void initialize_globals(void)
     
     for(i = 0; i < 2; i++) {
         tool[i].motor_enabled = 0;
-#if ENABLE_RPM
+#if ENABLE_SIMULATED_RPM
         tool[i].rpm = 0;
 #endif
         tool[i].nozzle_temperature = 0;
@@ -316,6 +317,7 @@ static void initialize_globals(void)
 
     dittoPrinting = 0;
     buildProgress = 0;
+    verboseMode = 0;
     
     lineNumber = 1;
     
@@ -327,7 +329,7 @@ static void initialize_globals(void)
 
     commandAtIndex = 0;
     commandAtLength = 0;
-    atTemperature = 0;
+    macroStarted = 0;
     pausePending = 0;
 }
 
@@ -492,7 +494,7 @@ static void add_command_at(double z, char *filament_id, unsigned temperature)
         }
         // nonzero temperature signals a tmperature change, not a pause @ zPos
         if(temperature == 0 && commandAtLength == 0) {
-            if(atTemperature) {
+            if(macroStarted) {
                 pause_at_zpos(z);
             }
             else {
@@ -958,7 +960,7 @@ static void wait_for_build_platform(unsigned extruder_id, int timeout)
 
 // 142 - Queue extended point, new style
 
-#if ENABLE_RPM
+#if ENABLE_SIMULATED_RPM
 static void queue_new_point(unsigned milliseconds)
 {
     Point5d target;
@@ -1321,8 +1323,8 @@ static void queue_ext_point(double feedrate)
         //convert feedrate to mm/sec
         feedrate /= 60.0;
 
-#if ENABLE_RPM
-        // if either a or b is 0, but their motor is on, 'simulate' a 5D extrusion distance
+#if ENABLE_SIMULATED_RPM
+        // if either a or b is 0, but their motor is on and turning, 'simulate' a 5D extrusion distance
         if(deltaMM.a == 0.0 && tool[A].motor_enabled && tool[A].rpm) {
             double maxrpm = machine.a.max_feedrate * machine.a.steps_per_mm / machine.a.motor_steps;
             double rpm = tool[A].rpm > maxrpm ? maxrpm : tool[A].rpm;
@@ -1489,7 +1491,7 @@ static int calculate_target_position(void)
     // CHECK FOR COMMAND @ Z POS
     
     // check if there are more commands on the stack
-    if(atTemperature && commandAtIndex < commandAtLength) {
+    if(macroStarted && commandAtIndex < commandAtLength) {
         // check if the next command will cross the z threshold
         if(commandAt[commandAtIndex].z <= targetPosition.z) {
             // is this a temperature change macro?
@@ -1878,6 +1880,14 @@ static void parse_macro(const char* macro, char *p)
             }
         }
     }
+    // ;@body
+    else if(MACRO_IS("body")) {
+        if(pausePending) {
+            pause_at_zpos(commandAt[0].z);
+            pausePending = 0;
+        }
+        macroStarted = 1;
+    }
 }
 
 // INI FILE HANDLER
@@ -1893,11 +1903,14 @@ static int config_handler(unsigned lineno, const char* section, const char* prop
     if(SECTION_IS("") || SECTION_IS("macro")) {
         if(PROPERTY_IS("slicer")
            || PROPERTY_IS("filament")
-           || PROPERTY_IS("start")
            || PROPERTY_IS("pause")
+           || PROPERTY_IS("start")
            || PROPERTY_IS("temp")
            || PROPERTY_IS("temperature")) {
             parse_macro(property, value);
+        }
+        else if(PROPERTY_IS("verbose")) {
+            verboseMode = atoi(value);
         }
         else goto SECTION_ERROR;
     }
@@ -1931,6 +1944,9 @@ static int config_handler(unsigned lineno, const char* section, const char* prop
         }
         else if(PROPERTY_IS("sd_card_path")) {
             sdCardPath = strdup(value);
+        }
+        else if(PROPERTY_IS("verbose")) {
+            verboseMode = atoi(value);
         }
         else goto SECTION_ERROR;
     }
@@ -2049,12 +2065,45 @@ int main(int argc, char * argv[])
     char *config = NULL;
 
     initialize_globals();
+    
+    // READ GPX.INI
+    
+    // if no command line arguments then read gpx.ini file from program directory
+    {
+        char *filename = argv[0];
+        // check for .exe extension
+        char *dot = strrchr(filename, '.');
+        if(dot) {
+            long l = dot - filename;
+            memcpy(buffer, filename, l);
+            filename = buffer + l;
+        }
+        // or just append .ini if no extension is present
+        else {
+            size_t sl = strlen(filename);
+            memcpy(buffer, filename, sl);
+            filename = buffer + sl;
+        }
+        *filename++ = '.';
+        *filename++ = 'i';
+        *filename++ = 'n';
+        *filename++ = 'i';
+        *filename++ = '\0';
+        filename = buffer;
+        i = ini_parse(filename, config_handler);
+        if(i == 0) {
+            if(verboseMode) fprintf(stderr, "Loaded config: %s" EOL, filename);
+        }
+        else if (i > 0) {
+            fprintf(stderr, "(ini line %u) Configuration syntax error in gpx.ini: unrecognised paremeters" EOL, i);
+            usage();
+        }
+    }
 
     // READ COMMAND LINE
     
     // get the command line options
-    while ((c = getopt(argc, argv, "psm:c:")) != -1) {
-        command_emitted++;
+    while ((c = getopt(argc, argv, "psm:c:v")) != -1) {
         switch (c) {
             case 'c':
                 config = optarg;
@@ -2079,39 +2128,28 @@ int main(int argc, char * argv[])
             case 's':
                 standard_io = 1;
                 break;
+            case 'v':
+                verboseMode = 1;
+                break;
             case '?':
             default:
                 usage();
         }
     }
     
-    // READ GPX.INI
+    // READ CONFIGURATION
     
-    // if no command line arguments then read gpx.ini file from program directory
-    if(command_emitted == 0) {
-        char *filename = argv[0];
-        // check for .exe extension
-        char *dot = strrchr(filename, '.');
-        if(dot) {
-            long l = dot - filename;
-            memcpy(buffer, filename, l);
-            filename = buffer + l;
+    if(config) {
+        i = ini_parse(config, config_handler);
+        if(i == 0) {
+            if(verboseMode) fprintf(stderr, "Loaded config: %s" EOL, config);
         }
-        // or just append .ini if no extension is present
-        else {
-            size_t sl = strlen(filename);
-            memcpy(buffer, filename, sl);
-            filename = buffer + sl;
+        else if (i < 0) {
+            fprintf(stderr, "Command line error: cannot load configuration file '%s'" EOL, config);
+            usage();
         }
-        *filename++ = '.';
-        *filename++ = 'i';
-        *filename++ = 'n';
-        *filename++ = 'i';
-        *filename++ = '\0';
-        filename = buffer;
-        i = ini_parse(filename, config_handler);
-        if (i > 0) {
-            fprintf(stderr, "(line %u) Configuration syntax error in gpx.ini: unrecognised paremeters" EOL, i);
+        else if (i > 0) {
+            fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, config);
             usage();
         }
     }
@@ -2156,42 +2194,43 @@ int main(int argc, char * argv[])
             *filename++ = '\0';
             filename = buffer;
         }
-        if((out = fopen(filename, "wb")) == NULL) {
+        out = fopen(filename, "wb");
+        if(out) {
+            if(verboseMode) fprintf(stderr, "Writing to: %s" EOL, filename);
+        }
+        else {
             perror("Error creating output");
             out = stdout;
             exit(1);
         }
         if(sdCardPath) {
+            char sd_filename[300];
             long sl = strlen(sdCardPath);
             if(sdCardPath[sl - 1] == DELIM) {
                 sdCardPath[--sl] = 0;
             }
             char *delim = strrchr(filename, DELIM);
             if(delim) {
-                memcpy(buffer, sdCardPath, sl);
+                memcpy(sd_filename, sdCardPath, sl);
                 long l = strlen(delim);
-                memcpy(buffer + sl, delim, l);
-                buffer[sl + l] = 0;
-                out2 = fopen(buffer, "wb");
+                memcpy(sd_filename + sl, delim, l);
+                sd_filename[sl + l] = 0;
+            }
+            else {
+                memcpy(sd_filename, sdCardPath, sl);
+                sd_filename[sl++] = DELIM;
+                long l = strlen(filename);
+                memcpy(sd_filename + sl, filename, l);
+                sd_filename[sl + l] = 0;                
+            }
+            out2 = fopen(sd_filename, "wb");
+            if(out2) {
+                if(verboseMode) fprintf(stderr, "Writing to: %s" EOL, sd_filename);
             }
         }
     }
     else if(!standard_io) {
         usage();
-    }
-    
-    // READ CONFIGURATION
-
-    if(config) {
-        i = ini_parse(config, config_handler);
-        if (i < 0) {
-            fprintf(stderr, "Command line error: cannot load configuration file '%s'" EOL, config);
-            usage();
-        }
-        else if (i > 0) {
-            fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, config);
-            usage();
-        }
     }
     
     if(dittoPrinting && machine.extruder_count == 1) {
@@ -2216,7 +2255,7 @@ int main(int argc, char * argv[])
     // at this point we have read the command line, set the machine definition
     // and both the input and output files are open, so its time to parse the
     // gcode input and convert it to x3g output
-    while(fgets(buffer, 256, in) != NULL) {
+    while(fgets(buffer, BUFFER_MAX, in) != NULL) {
         // reset flag state
         command.flag = 0;
         char *digits;
@@ -2397,8 +2436,10 @@ int main(int argc, char * argv[])
             }
         }
 
+        // revert to tool selection to current extruder
+        selectedExtruder = currentExtruder;
+
         // change the extruder selection (in virtual tool carosel)
-        
         if(command.flag & T_IS_SET && !dittoPrinting) {
             unsigned extruder_id = (unsigned)command.t;
             if(extruder_id < machine.extruder_count) {
@@ -2485,7 +2526,7 @@ int main(int argc, char * argv[])
                     // G4 - Dwell
                 case 4:
                     if(command.flag & P_IS_SET) {
-#if ENABLE_RPM
+#if ENABLE_SIMULATED_RPM
                         if(tool[currentExtruder].motor_enabled && tool[currentExtruder].rpm) {
                             do_pause_at_zpos = calculate_target_position();
                             queue_new_point(command.p);
@@ -2646,19 +2687,17 @@ int main(int argc, char * argv[])
                     exit(0);
                     
                     
-                    // M6 - Tool change
+                    // M6 - Tool change AND wait for extruder AND build platfrom to reach (or exceed) temperature
                 case 6:
-#if M6_TOOL_CHANGE            
-                    if(command.flag & T_IS_SET
-                       && !dittoPrinting
-                       && selectedExtruder != currentExtruder) {
+                    if(!dittoPrinting && selectedExtruder != currentExtruder) {
                         int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
                         do_tool_change(timeout);
                         command_emitted++;
                     }
+#if M6_TOOL_CHANGE_ONLY
                     break;
 #endif
-                    // M116 - Wait for extruder to reach (or exceed) temperature
+                    // M116 - WAIT: for extruder AND build platfrom to reach (or exceed) temperature
                 case 116: {
                     int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
                     // changing the
@@ -2672,11 +2711,6 @@ int main(int argc, char * argv[])
                         command_emitted++;
                     }
                     else {
-                        if(command.flag & T_IS_SET
-                           && selectedExtruder != currentExtruder) {
-                            do_tool_change(timeout);
-                            command_emitted++;
-                        }
                         // any tool changes have already occured
                         if(tool[currentExtruder].nozzle_temperature > 0) {
                             wait_for_extruder(currentExtruder, timeout);
@@ -2692,13 +2726,8 @@ int main(int argc, char * argv[])
                         wait_for_build_platform(B, timeout);
                         command_emitted++;
                     }
-                    if(pausePending) {
-                        pause_at_zpos(commandAt[0].z);
-                    }
-                    atTemperature = 1;
                     break;
                 }
-
 
                     // M17 - Enable axes steppers
                 case 17:
@@ -2896,17 +2925,19 @@ int main(int argc, char * argv[])
                     break;
                     
                     // M106 - Turn cooling fan on
-                case 106:
+                case 106: {
+                    int state = (command.flag & S_IS_SET) ? ((unsigned)command.s ? 1 : 0) : 1;
                     if(dittoPrinting) {
-                        set_fan(A, 1);
-                        set_fan(B, 1);
+                        set_fan(A, state);
+                        set_fan(B, state);
                         command_emitted++;
                     }
                     else {
-                        set_fan(selectedExtruder, 1);
+                        set_fan(selectedExtruder, state);
                         command_emitted++;
                     }
                     break;
+                }
                     
                     // M107 - Turn cooling fan off
                 case 107:
@@ -2923,7 +2954,7 @@ int main(int argc, char * argv[])
                     
                     // M108 - set extruder motor 5D 'simulated' RPM
                 case 108:
-#if ENABLE_RPM
+#if ENABLE_SIMULATED_RPM
                     if(command.flag & R_IS_SET) {
                         if(dittoPrinting) {
                             tool[A].rpm = tool[B].rpm = command.r;
@@ -2938,9 +2969,56 @@ int main(int argc, char * argv[])
 #endif
                     break;
                     
-                    // M109 - Set Build Platform Temperature
-                    // M140 - Set Build Platform Temperature (skeinforge)
+                    
+                    // M109 - Set Extruder Temperature and Wait
                 case 109:
+                    if(command.flag & S_IS_SET) {
+                        int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
+                        unsigned temperature = (unsigned)command.s;
+                        if(temperature > 260) temperature = 260;
+                        if(dittoPrinting) {
+                            unsigned tempB = temperature;
+                            // set extruder temperatures
+                            if(temperature) {
+                                if(override[A].active_temperature) {
+                                    temperature = override[A].active_temperature;
+                                }
+                                if(override[B].active_temperature) {
+                                    tempB = override[B].active_temperature;
+                                }
+                            }
+                            set_nozzle_temperature(A, temperature);
+                            set_nozzle_temperature(B, tempB);
+                            tool[A].nozzle_temperature = temperature;
+                            tool[B].nozzle_temperature = tempB;
+                            // wait for extruders to reach (or exceed) temperature
+                            if(tool[A].nozzle_temperature > 0) {
+                                wait_for_extruder(A, timeout);
+                            }
+                            if(tool[B].nozzle_temperature > 0) {
+                                wait_for_extruder(B, timeout);
+                            }
+                            command_emitted++;
+                        }
+                        else {
+                            // set extruder temperature
+                            if(temperature && override[selectedExtruder].active_temperature) {
+                                temperature = override[selectedExtruder].active_temperature;
+                            }
+                            set_nozzle_temperature(selectedExtruder, temperature);
+                            tool[selectedExtruder].nozzle_temperature = temperature;
+                            // wait for extruder to reach (or exceed) temperature
+                            if(tool[selectedExtruder].nozzle_temperature > 0) {
+                                wait_for_extruder(selectedExtruder, timeout);
+                            }
+                            command_emitted++;
+                        }
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Syntax error: M109 is missing temperature, use Sn where n is 0-260" EOL, lineNumber);
+                    }
+
+                    // M140 - Set Build Platform Temperature (skeinforge)
                 case 140:
                     if(machine.a.has_heated_build_platform || machine.b.has_heated_build_platform) {
                         if(command.flag & S_IS_SET) {
@@ -2972,17 +3050,19 @@ int main(int argc, char * argv[])
                     break;
 
                     // M126 - Turn blower fan on (valve open)
-                case 126:
+                case 126: {
+                    int state = (command.flag & S_IS_SET) ? ((unsigned)command.s ? 1 : 0) : 1;
                     if(dittoPrinting) {
-                        set_valve(A, 1);
-                        set_valve(B, 1);
+                        set_valve(A, state);
+                        set_valve(B, state);
                         command_emitted++;
                     }
                     else {
-                        set_valve(selectedExtruder, 1);
+                        set_valve(selectedExtruder, state);
                         command_emitted++;
                     }
                     break;
+                }
 
                     // M127 - Turn blower fan off (valve close)
                 case 127:
@@ -3021,6 +3101,28 @@ int main(int argc, char * argv[])
                         fprintf(stderr, "(line %u) Syntax error: M132 is missing axes, use X Y Z A B" EOL, lineNumber);
                     }
                     break;
+                    
+                    // M190 - Wait for build platform to reach (or exceed) temperature
+                case 190: {
+                    if(machine.a.has_heated_build_platform || machine.b.has_heated_build_platform) {
+                        int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
+                        unsigned extruder_id = machine.a.has_heated_build_platform ? A : B;
+                        if(command.flag & T_IS_SET) {
+                            extruder_id = selectedExtruder;
+                        }
+                        if(extruder_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform) {
+                            wait_for_build_platform(extruder_id, timeout);
+                            command_emitted++;
+                        }
+                        else {
+                            fprintf(stderr, "(line %u) Semantic warning: M190 cannot select non-existant heated build platform T%u" EOL, lineNumber, extruder_id);
+                        }                        
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Semantic warning: M190 cannot select non-existant heated build platform" EOL, lineNumber);
+                    }
+                    break;
+                }
 
                     // M300 - Set Beep (SP)
                 case 300: {
@@ -3084,9 +3186,7 @@ int main(int argc, char * argv[])
                 currentPosition = targetPosition;
                 positionKnown = 1;
             }
-            else if(command.flag & T_IS_SET
-                    && !dittoPrinting
-                    && selectedExtruder != currentExtruder) {
+            else if(!dittoPrinting && selectedExtruder != currentExtruder) {
                 int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
                 do_tool_change(timeout);
                 command_emitted++;

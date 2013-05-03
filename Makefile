@@ -4,7 +4,7 @@ CC_FLAGS = -w
 L_FLAGS = -lm
 
 # File names
-VERSION = 1.0-rc2
+VERSION = 1.0-rc3
 PLATFORM=osx
 ARCHIVE = gpx-$(PLATFORM)-$(VERSION)
 PREFIX = /usr/local

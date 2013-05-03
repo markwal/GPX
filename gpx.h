@@ -29,15 +29,15 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "1.0 (RC2)"
+#define GPX_VERSION "1.0 (RC3)"
 
 /* Nonzero to 'simulate' RPM using 5D, zero to disable */
 
-#define ENABLE_RPM 1
+#define ENABLE_SIMULATED_RPM 1
 
 /* Nonzero to use M6 for tool changes and M116 to wait for temperature, zero to disable */
 
-//#define M6_TOOL_CHANGE 1
+#define M6_TOOL_CHANGE_ONLY 0
 
 #ifdef _WIN32
 #   define DELIM '\\'
@@ -161,7 +161,7 @@ typedef struct tMachine {
 
 typedef struct tTool {
     unsigned motor_enabled;
-#if ENABLE_RPM
+#if ENABLE_SIMULATED_RPM
     unsigned rpm;
 #endif
     unsigned nozzle_temperature;
@@ -192,5 +192,7 @@ typedef struct tCommandAt {
 } CommandAt;
 
 #define COMMAND_AT_MAX 128
+
+#define BUFFER_MAX 1024
 
 #endif
