@@ -2029,15 +2029,15 @@ SECTION_ERROR:
 static void usage()
 {
     fputs("GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
-    fputs(EOL "Usage: gpx [-ps] [-xyz <OFFSET>] [-m <MACHINE>] [-c <CONFIG>] <INPUT> [<OUTPUT>]" EOL, stderr);
+    fputs(EOL "Usage: gpx [-ps] [-x <X>] [-y <Y>] [-z <Z>] [-m <M>] [-c <C>] <IN> [<OUT>]" EOL, stderr);
     fputs(EOL "Switches:" EOL EOL, stderr);
     fputs("\t-p\toverride build percentage" EOL, stderr);
     fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
-    fputs(EOL "OFFSET is the coordinate system offset for the conversion" EOL EOL, stderr);
-    fputs("\t-x\t<X> axis offset" EOL, stderr);
-    fputs("\t-y\t<Y> axis offset" EOL, stderr);
-    fputs("\t-z\t<Z> axis offset" EOL, stderr);
-    fputs(EOL "MACHINE is the predefined machine type" EOL EOL, stderr);
+    fputs(EOL "X,Y & Z are the coordinate system offsets for the conversion" EOL EOL, stderr);
+    fputs("\tX = the x axis offset" EOL, stderr);
+    fputs("\tY = the y axis offset" EOL, stderr);
+    fputs("\tZ = the z axis offset" EOL, stderr);
+    fputs(EOL "M is the predefined machine type" EOL EOL, stderr);
     fputs("\tc3  = Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
     fputs("\tc4  = Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
     fputs("\tcp4 = Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
@@ -2049,10 +2049,14 @@ static void usage()
     fputs("\tr1d = Replicator 1 - dual extruder" EOL, stderr);
     fputs("\tr2  = Replicator 2 (default config)" EOL, stderr);
     fputs("\tr2x = Replicator 2X" EOL, stderr);
-    fputs(EOL "CONFIG is the filename of a custom machine definition (ini)" EOL, stderr);
-    fputs(EOL "INPUT is the name of the sliced gcode input filename" EOL, stderr);
-    fputs(EOL "OUTPUT is the name of the x3g output filename" EOL EOL, stderr);
-    fputs("This program is free software; you can redistribute it and/or modify" EOL, stderr);
+    fputs(EOL "C is the filename of a custom machine definition (ini)" EOL, stderr);
+    fputs(EOL "IN is the name of the sliced gcode input filename" EOL, stderr);
+    fputs(EOL "OUT is the name of the x3g output filename" EOL, stderr);
+    fputs(EOL "Examples:" EOL, stderr);
+    fputs("\tgpx -p -m r2 my-sliced-model.gcode" EOL, stderr);
+    fputs("\tgpx -c custom-tom.ini example.gcode /volumes/things/example.x3g" EOL, stderr);
+    fputs("\tgpx -x 3 -y -3 offset-model.gcode" EOL, stderr);
+    fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, stderr);
     fputs("it under the terms of the GNU General Public License as published by" EOL, stderr);
     fputs("the Free Software Foundation; either version 2 of the License, or" EOL, stderr);
     fputs("(at your option) any later version." EOL EOL, stderr);
