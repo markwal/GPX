@@ -199,6 +199,7 @@ int currentExtruder;        // the currently selectd extruder being used by the 
 double currentFeedrate;     // the current feed rate
 int currentOffset;          // current G10 offset
 Point3d offset[7];          // G10 offsets
+Point3d userOffset;         // command line offset
 Tool tool[2];               // tool state
 Override override[2];       // gcode override
 int isRelative;             // signals relitive or absolute coordinates
@@ -291,6 +292,10 @@ static void initialize_globals(void)
         offset[i].y = 0.0;
         offset[i].z = 0.0;
     }
+
+    userOffset.x = 0.0;
+    userOffset.y = 0.0;
+    userOffset.z = 0.0;
     
     selectedExtruder = 0;
     currentExtruder = 0;
@@ -1433,7 +1438,7 @@ static int calculate_target_position(void)
     
     // x
     if(command.flag & X_IS_SET) {
-        targetPosition.x = isRelative ? (currentPosition.x + command.x) : (command.x + offset[currentOffset].x);
+        targetPosition.x = isRelative ? (currentPosition.x + command.x) : (command.x + offset[currentOffset].x + userOffset.x);
     }
     else {
         targetPosition.x = currentPosition.x;
@@ -1441,7 +1446,7 @@ static int calculate_target_position(void)
     
     // y
     if(command.flag & Y_IS_SET) {
-        targetPosition.y = isRelative ? (currentPosition.y + command.y) : (command.y + offset[currentOffset].y);
+        targetPosition.y = isRelative ? (currentPosition.y + command.y) : (command.y + offset[currentOffset].y + userOffset.y);
     }
     else {
         targetPosition.y = currentPosition.y;
@@ -1449,7 +1454,7 @@ static int calculate_target_position(void)
     
     // z
     if(command.flag & Z_IS_SET) {
-        targetPosition.z = isRelative ? (currentPosition.z + command.z) : (command.z + offset[currentOffset].z);
+        targetPosition.z = isRelative ? (currentPosition.z + command.z) : (command.z + offset[currentOffset].z + userOffset.z);
     }
     else {
         targetPosition.z = currentPosition.z;
@@ -2024,10 +2029,14 @@ SECTION_ERROR:
 static void usage()
 {
     fputs("GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
-    fputs(EOL "Usage: gpx [-ps] [-m <MACHINE>] [-c <CONFIG>] <INPUT> [<OUTPUT>]" EOL, stderr);
+    fputs(EOL "Usage: gpx [-ps] [-xyz <OFFSET>] [-m <MACHINE>] [-c <CONFIG>] <INPUT> [<OUTPUT>]" EOL, stderr);
     fputs(EOL "Switches:" EOL EOL, stderr);
     fputs("\t-p\toverride build percentage" EOL, stderr);
     fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
+    fputs(EOL "OFFSET is the coordinate system offset for the conversion" EOL EOL, stderr);
+    fputs("\t-x\t<X> axis offset" EOL, stderr);
+    fputs("\t-y\t<Y> axis offset" EOL, stderr);
+    fputs("\t-z\t<Z> axis offset" EOL, stderr);
     fputs(EOL "MACHINE is the predefined machine type" EOL EOL, stderr);
     fputs("\tc3  = Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
     fputs("\tc4  = Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
@@ -2068,7 +2077,7 @@ int main(int argc, char * argv[])
     
     // READ GPX.INI
     
-    // if no command line arguments then read gpx.ini file from program directory
+    // if present, read the gpx.ini file from the program directory
     {
         char *filename = argv[0];
         // check for .exe extension
@@ -2103,7 +2112,7 @@ int main(int argc, char * argv[])
     // READ COMMAND LINE
     
     // get the command line options
-    while ((c = getopt(argc, argv, "psm:c:v")) != -1) {
+    while ((c = getopt(argc, argv, "psm:c:vx:y:z:")) != -1) {
         switch (c) {
             case 'c':
                 config = optarg;
@@ -2130,6 +2139,15 @@ int main(int argc, char * argv[])
                 break;
             case 'v':
                 verboseMode = 1;
+                break;
+            case 'x':
+                userOffset.x = strtod(optarg, NULL);
+                break;
+            case 'y':
+                userOffset.y = strtod(optarg, NULL);
+                break;
+            case 'z':
+                userOffset.z = strtod(optarg, NULL);
                 break;
             case '?':
             default:
@@ -3150,7 +3168,7 @@ int main(int argc, char * argv[])
                     // M322 - Pause @ zPos
                 case 322:
                     if(command.flag & Z_IS_SET) {
-                        double z = (isRelative ? (currentPosition.z + command.z) : command.z) + offset[currentOffset].z;
+                        double z = isRelative ? (currentPosition.z + command.z) : (command.z + offset[currentOffset].z + userOffset.z);
                         pause_at_zpos(z);
                     }
                     else {
