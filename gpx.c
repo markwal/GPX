@@ -3039,6 +3039,7 @@ int main(int argc, char * argv[])
                     else {
                         fprintf(stderr, "(line %u) Syntax error: M109 is missing temperature, use Sn where n is 0-260" EOL, lineNumber);
                     }
+                    break;
 
                     // M140 - Set Build Platform Temperature (skeinforge)
                 case 140:
