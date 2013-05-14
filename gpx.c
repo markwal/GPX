@@ -219,7 +219,7 @@ CommandAt commandAt[COMMAND_AT_MAX];
 int commandAtIndex;
 int commandAtLength;
 
-int macroStarted;           // ;@body macro encountered
+int macrosEnabled;          // M73 P1 or ;@body encountered signalling body start
 int pausePending;           // signals a pause is pending before the macro script has started
 
 FILE *in;                   // the gcode input file stream
@@ -334,7 +334,7 @@ static void initialize_globals(void)
 
     commandAtIndex = 0;
     commandAtLength = 0;
-    macroStarted = 0;
+    macrosEnabled = 0;
     pausePending = 0;
 }
 
@@ -499,7 +499,7 @@ static void add_command_at(double z, char *filament_id, unsigned temperature)
         }
         // nonzero temperature signals a tmperature change, not a pause @ zPos
         if(temperature == 0 && commandAtLength == 0) {
-            if(macroStarted) {
+            if(macrosEnabled) {
                 pause_at_zpos(z);
             }
             else {
@@ -1433,12 +1433,19 @@ static void pause_at_zpos(float z_positon)
 static int calculate_target_position(void)
 {
     int do_pause_at_zpos = 0;
+    Point3d conditionalOffset = offset[currentOffset];
+    
+    if(macrosEnabled) {
+        conditionalOffset.x += userOffset.x;
+        conditionalOffset.y += userOffset.y;
+        conditionalOffset.z += userOffset.z;
+    }
     
     // CALCULATE TARGET POSITION
     
     // x
     if(command.flag & X_IS_SET) {
-        targetPosition.x = isRelative ? (currentPosition.x + command.x) : (command.x + offset[currentOffset].x + userOffset.x);
+        targetPosition.x = isRelative ? (currentPosition.x + command.x) : (command.x + conditionalOffset.x);
     }
     else {
         targetPosition.x = currentPosition.x;
@@ -1446,7 +1453,7 @@ static int calculate_target_position(void)
     
     // y
     if(command.flag & Y_IS_SET) {
-        targetPosition.y = isRelative ? (currentPosition.y + command.y) : (command.y + offset[currentOffset].y + userOffset.y);
+        targetPosition.y = isRelative ? (currentPosition.y + command.y) : (command.y + conditionalOffset.y);
     }
     else {
         targetPosition.y = currentPosition.y;
@@ -1454,7 +1461,7 @@ static int calculate_target_position(void)
     
     // z
     if(command.flag & Z_IS_SET) {
-        targetPosition.z = isRelative ? (currentPosition.z + command.z) : (command.z + offset[currentOffset].z + userOffset.z);
+        targetPosition.z = isRelative ? (currentPosition.z + command.z) : (command.z + conditionalOffset.z);
     }
     else {
         targetPosition.z = currentPosition.z;
@@ -1496,7 +1503,7 @@ static int calculate_target_position(void)
     // CHECK FOR COMMAND @ Z POS
     
     // check if there are more commands on the stack
-    if(macroStarted && commandAtIndex < commandAtLength) {
+    if(macrosEnabled && commandAtIndex < commandAtLength) {
         // check if the next command will cross the z threshold
         if(commandAt[commandAtIndex].z <= targetPosition.z) {
             // is this a temperature change macro?
@@ -1891,7 +1898,12 @@ static void parse_macro(const char* macro, char *p)
             pause_at_zpos(commandAt[0].z);
             pausePending = 0;
         }
-        macroStarted = 1;
+        macrosEnabled = 1;
+    }
+    // ;@header
+    // ;@footer
+    else if(MACRO_IS("header") && MACRO_IS("footer")) {
+        macrosEnabled = 0;
     }
 }
 
@@ -2029,6 +2041,17 @@ SECTION_ERROR:
 static void usage()
 {
     fputs("GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
+
+    fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, stderr);
+    fputs("it under the terms of the GNU General Public License as published by" EOL, stderr);
+    fputs("the Free Software Foundation; either version 2 of the License, or" EOL, stderr);
+    fputs("(at your option) any later version." EOL, stderr);
+    
+    fputs(EOL "This program is distributed in the hope that it will be useful," EOL, stderr);
+    fputs("but WITHOUT ANY WARRANTY; without even the implied warranty of" EOL, stderr);
+    fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, stderr);
+    fputs("GNU General Public License for more details." EOL, stderr);
+    
     fputs(EOL "Usage: gpx [-ps] [-x <X>] [-y <Y>] [-z <Z>] [-m <M>] [-c <C>] <IN> [<OUT>]" EOL, stderr);
     fputs(EOL "Switches:" EOL EOL, stderr);
     fputs("\t-p\toverride build percentage" EOL, stderr);
@@ -2055,11 +2078,7 @@ static void usage()
     fputs(EOL "Examples:" EOL, stderr);
     fputs("\tgpx -p -m r2 my-sliced-model.gcode" EOL, stderr);
     fputs("\tgpx -c custom-tom.ini example.gcode /volumes/things/example.x3g" EOL, stderr);
-    fputs("\tgpx -x 3 -y -3 offset-model.gcode" EOL, stderr);
-    fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, stderr);
-    fputs("it under the terms of the GNU General Public License as published by" EOL, stderr);
-    fputs("the Free Software Foundation; either version 2 of the License, or" EOL, stderr);
-    fputs("(at your option) any later version." EOL EOL, stderr);
+    fputs("\tgpx -x 3 -y -3 offset-model.gcode" EOL EOL, stderr);
 
     exit(1);
 }
@@ -2856,12 +2875,24 @@ int main(int argc, char * argv[])
                         }
                         else if(program_is_running()) {
                             if(percent == 100) {
+                                // disable macros in footer
+                                macrosEnabled = 0;
                                 end_program();
                                 set_build_progress(100);
                                 end_build();
                             }
-                            else if(filesize == 0 || buildProgress == 0) {
-                                set_build_progress(percent);
+                            else {
+                                // enable macros in object body
+                                if(!macrosEnabled) {
+                                    if(pausePending) {
+                                        pause_at_zpos(commandAt[0].z);
+                                        pausePending = 0;
+                                    }
+                                    macrosEnabled = 1;
+                                }
+                                if(filesize == 0 || buildProgress == 0) {
+                                    set_build_progress(percent);
+                                }
                             }
                         }
                     }

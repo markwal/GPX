@@ -173,11 +173,11 @@ M6
 ;M70 (M11 - open clamp)
 ;M11
 
-; M137 - Enable axes steppers
+; M17 - Enable axes steppers
 M70 (M17 - steppers on)
 M17 X Y Z A B
 
-; M138 - Disable axes steppers
+; M18 - Disable axes steppers
 M70 (M18 - steppers off)
 M18 X Y Z A B
 
