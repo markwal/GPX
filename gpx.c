@@ -1433,8 +1433,9 @@ static void pause_at_zpos(float z_positon)
 static int calculate_target_position(void)
 {
     int do_pause_at_zpos = 0;
-    Point3d conditionalOffset = offset[currentOffset];
     
+    Point3d conditionalOffset = offset[currentOffset];
+
     if(macrosEnabled) {
         conditionalOffset.x += userOffset.x;
         conditionalOffset.y += userOffset.y;
@@ -1466,17 +1467,20 @@ static int calculate_target_position(void)
     else {
         targetPosition.z = currentPosition.z;
     }
-    
+
     // a
     if(command.flag & A_IS_SET) {
-        targetPosition.a = (isRelative || extruderIsRelative) ? (currentPosition.a + command.a) : command.a;
+        double a = (override[A].filament_scale == 1.0) ? command.a : (command.a * override[A].filament_scale);
+        targetPosition.a = (isRelative || extruderIsRelative) ? (currentPosition.a + a) : a;
     }
     else {
         targetPosition.a = currentPosition.a;
     }
+
     // b
     if(command.flag & B_IS_SET) {
-        targetPosition.b = (isRelative || extruderIsRelative) ? (currentPosition.b + command.b) : command.b;
+        double b = (override[B].filament_scale == 1.0) ? command.b : (command.b * override[B].filament_scale);
+        targetPosition.b = (isRelative || extruderIsRelative) ? (currentPosition.b + b) : b;
     }
     else {
         targetPosition.b = currentPosition.b;
@@ -1562,12 +1566,7 @@ static int calculate_target_position(void)
             }
         }
     }
-    
-    // SCALE FILAMENT INDEPENDENTLY
-    
-    if(command.flag & A_IS_SET && override[A].filament_scale != 1.0) targetPosition.a *= override[A].filament_scale;
-    if(command.flag & B_IS_SET && override[B].filament_scale != 1.0) targetPosition.b *= override[B].filament_scale;
-    
+
     return do_pause_at_zpos;
 }
 
@@ -2052,10 +2051,12 @@ static void usage()
     fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, stderr);
     fputs("GNU General Public License for more details." EOL, stderr);
     
-    fputs(EOL "Usage: gpx [-ps] [-x <X>] [-y <Y>] [-z <Z>] [-m <M>] [-c <C>] <IN> [<OUT>]" EOL, stderr);
-    fputs(EOL "Switches:" EOL EOL, stderr);
+    fputs(EOL "Usage: gpx [-psv] [-x <X>] [-y <Y>] [-z <Z>] [-m <M>] [-c <C>] <IN> [<OUT>]" EOL, stderr);
+    fputs(EOL "Options:" EOL EOL, stderr);
+    fputs("\t-d\tditto printing" EOL, stderr);
     fputs("\t-p\toverride build percentage" EOL, stderr);
     fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
+    fputs("\t-v\tverose mode" EOL, stderr);
     fputs(EOL "X,Y & Z are the coordinate system offsets for the conversion" EOL EOL, stderr);
     fputs("\tX = the x axis offset" EOL, stderr);
     fputs("\tY = the y axis offset" EOL, stderr);
@@ -2135,10 +2136,13 @@ int main(int argc, char * argv[])
     // READ COMMAND LINE
     
     // get the command line options
-    while ((c = getopt(argc, argv, "psm:c:vx:y:z:")) != -1) {
+    while ((c = getopt(argc, argv, "c:dm:psvx:y:z:")) != -1) {
         switch (c) {
             case 'c':
                 config = optarg;
+                break;
+            case 'd':
+                dittoPrinting = 1;
                 break;
             case 'm':
                 if(strcasecmp(optarg, "c3") == 0) machine = cupcake_G3;
@@ -2595,12 +2599,27 @@ int main(int argc, char * argv[])
                         if(command.flag & Z_IS_SET) offset[i].z = command.z;
                         // set standby temperature
                         if(command.flag & R_IS_SET) {
+                            unsigned temperature = (unsigned)command.r;
+                            if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
                             switch(i) {
                                 case 1:
-                                    override[A].standby_temperature = (unsigned)command.r;
+                                    override[A].standby_temperature = temperature;
                                     break;
                                 case 2:
-                                    override[B].standby_temperature = (unsigned)command.r;
+                                    override[B].standby_temperature = temperature;
+                                    break;
+                            }
+                        }
+                        // set tool temperature
+                        if(command.flag & S_IS_SET) {
+                            unsigned temperature = (unsigned)command.s;
+                            if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
+                            switch(i) {
+                                case 1:
+                                    override[A].active_temperature = temperature;
+                                    break;
+                                case 2:
+                                    override[B].active_temperature = temperature;
                                     break;
                             }
                         }
@@ -2953,7 +2972,7 @@ int main(int argc, char * argv[])
                 case 104:
                     if(command.flag & S_IS_SET) {
                         unsigned temperature = (unsigned)command.s;
-                        if(temperature > 260) temperature = 260;
+                        if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
                         if(dittoPrinting) {
                             if(temperature && override[currentExtruder].active_temperature) {
                                 temperature = override[currentExtruder].active_temperature;
@@ -3028,7 +3047,7 @@ int main(int argc, char * argv[])
                     if(command.flag & S_IS_SET) {
                         int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
                         unsigned temperature = (unsigned)command.s;
-                        if(temperature > 260) temperature = 260;
+                        if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
                         if(dittoPrinting) {
                             unsigned tempB = temperature;
                             // set extruder temperatures
@@ -3233,7 +3252,7 @@ int main(int argc, char * argv[])
             }
         }
         else {
-            if(command.flag & AXES_BIT_MASK) {
+            if(command.flag & (AXES_BIT_MASK | F_IS_SET)) {
                 do_pause_at_zpos = calculate_target_position();
                 queue_ext_point(currentFeedrate);
                 command_emitted++;
