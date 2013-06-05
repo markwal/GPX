@@ -29,7 +29,7 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "1.0 RC7"
+#define GPX_VERSION "1.1"
 
 /* Nonzero to 'simulate' RPM using 5D, zero to disable */
 
@@ -41,14 +41,14 @@
 
 // BOUNDS CHECKING VARIABLES
 
-#define TEMPERATURE_MAX 260
+#define TEMPERATURE_MAX 280
 
 
 #ifdef _WIN32
-#   define DELIM '\\'
+#   define PATH_DELIM '\\'
 #   define EOL "\r\n"
 #else
-#   define DELIM '/'
+#   define PATH_DELIM '/'
 #   define EOL "\n"
 #endif
 
@@ -160,6 +160,8 @@ typedef struct tMachine {
     Extruder a;
     Extruder b;
     double nominal_filament_diameter;
+    double nominal_packing_density;
+    double nozzle_diameter;
     unsigned extruder_count;
     unsigned timeout;
 } Machine;
@@ -176,6 +178,7 @@ typedef struct tTool {
 typedef struct tOverride {
     double actual_filament_diameter;
     double filament_scale;
+    double packing_density;
     unsigned standby_temperature;
     unsigned active_temperature;
     unsigned build_platform_temperature;

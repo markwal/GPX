@@ -57,6 +57,8 @@ static Machine cupcake_G3 = {
     {7200, 50.235478806907409, 400, 1}, // a extruder
     {7200, 50.235478806907409, 400, 0}, // b extruder
     1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
 };
@@ -68,6 +70,8 @@ static Machine cupcake_G4 = {
     {7200, 50.235478806907409, 400, 1}, // a extruder
     {7200, 50.235478806907409, 400, 0}, // b extruder
     1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
 };
@@ -79,6 +83,8 @@ static Machine cupcake_P4 = {
     {7200, 50.235478806907409, 400, 1}, // a extruder
     {7200, 50.235478806907409, 400, 0}, // b extruder
     1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
 };
@@ -90,6 +96,8 @@ static Machine cupcake_PP = {
     {7200, 100.470957613814818, 400, 1}, // a extruder
     {7200, 100.470957613814818, 400, 0}, // b extruder
     1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
 };
@@ -104,6 +112,8 @@ static Machine thing_o_matic_7 = {
     {1600, 50.235478806907409, 1600, 1}, // a extruder
     {1600, 50.235478806907409, 1600, 0}, // b extruder
     1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
 };
@@ -115,10 +125,11 @@ static Machine thing_o_matic_7D = {
     {1600, 50.235478806907409, 1600, 0}, // a extruder
     {1600, 50.235478806907409, 1600, 1}, // b extruder
     1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
     2,  // extruder count
     20, // timeout
 };
-
 
 //  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
 //  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
@@ -130,6 +141,8 @@ static Machine replicator_1 = {
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
     1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
 };
@@ -141,6 +154,8 @@ static Machine replicator_1D = {
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
     1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
     2,  // extruder count
     20, // timeout
 };
@@ -155,6 +170,8 @@ static Machine replicator_2 = {
     {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
     1.75, // nominal filament diameter
+    0.97, // nominal packing density
+    0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
 };
@@ -166,6 +183,8 @@ static Machine replicator_2X = {
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
     1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
     2,  // extruder count
     20, // timeout
 };
@@ -179,6 +198,8 @@ Machine machine = {
     {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
     1.75, // nominal filament diameter
+    0.97, // nominal packing density
+    0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
 };
@@ -221,6 +242,9 @@ int commandAtLength;
 
 int macrosEnabled;          // M73 P1 or ;@body encountered signalling body start
 int pausePending;           // signals a pause is pending before the macro script has started
+
+int recalculate5D;          // recalculate 5D E values rather than scaling them
+double layer_height;
 
 FILE *in;                   // the gcode input file stream
 FILE *out;                  // the x3g output file stream
@@ -310,6 +334,7 @@ static void initialize_globals(void)
         
         override[i].actual_filament_diameter = 0;
         override[i].filament_scale = 1.0;
+        override[i].packing_density = 1.0;
         override[i].standby_temperature = 0;
         override[i].active_temperature = 0;
         override[i].build_platform_temperature = 0;
@@ -336,6 +361,9 @@ static void initialize_globals(void)
     commandAtLength = 0;
     macrosEnabled = 0;
     pausePending = 0;
+    
+    recalculate5D = 0;
+    layer_height = 0.34;
 }
 
 // STATE
@@ -1213,7 +1241,7 @@ static void queue_song(unsigned song_id)
 
 // 153 - Build start notification
 
-static void start_build()
+static void start_build(char * filename)
 {
     write_8(153);
     
@@ -1221,7 +1249,7 @@ static void start_build()
     write_32(0);
 
     // 1+N bytes: Name of the build, in ASCII, null terminated
-    write_string("GPX", 3);
+    write_string(filename, strlen(filename));
 }
 
 // 154 - Build end notification
@@ -1300,6 +1328,48 @@ static void queue_ext_point(double feedrate)
     // rounded down to the nearest step
     if(magnitude(command.flag, &deltaSteps) > 0) {
         double distance = magnitude(command.flag & XYZ_BIT_MASK, &deltaMM);
+        // are we moving and extruding?
+        if(recalculate5D && (command.flag & (A_IS_SET|B_IS_SET)) && distance > 0.0001) {
+            double filament_radius, packing_area, packing_scale;
+            if(A_IS_SET && deltaMM.a > 0.0001) {
+                if(override[A].actual_filament_diameter > 0.0001) {
+                    filament_radius = override[A].actual_filament_diameter / 2;
+                    packing_area = M_PI * filament_radius * filament_radius * override[A].packing_density;
+                }
+                else {
+                    filament_radius = machine.nominal_filament_diameter / 2;
+                    packing_area = M_PI * filament_radius * filament_radius * machine.nominal_packing_density;
+                }
+                packing_scale = machine.nozzle_diameter * layer_height / packing_area;
+                if(deltaMM.a > 0) {
+                    deltaMM.a = distance * packing_scale;
+                }
+                else {
+                    deltaMM.a = -(distance * packing_scale);
+                }
+                targetPosition.a = currentPosition.a + deltaMM.a;
+                deltaSteps.a = round(fabs(deltaMM.a) * machine.a.steps_per_mm);
+            }
+            if(B_IS_SET && deltaMM.b > 0.0001) {
+                if(override[B].actual_filament_diameter > 0.0001) {
+                    filament_radius = override[B].actual_filament_diameter / 2;
+                    packing_area = M_PI * filament_radius * filament_radius * override[A].packing_density;
+                }
+                else {
+                    filament_radius = machine.nominal_filament_diameter / 2;
+                    packing_area = M_PI * filament_radius * filament_radius * machine.nominal_packing_density;
+                }
+                packing_scale = machine.nozzle_diameter * layer_height / packing_area;
+                if(deltaMM.b > 0) {
+                    deltaMM.b = distance * packing_scale;
+                }
+                else {
+                    deltaMM.b = -(distance * packing_scale);
+                }
+                targetPosition.b = currentPosition.b + deltaMM.b;
+                deltaSteps.b = round(fabs(deltaMM.b) * machine.b.steps_per_mm);
+            }
+        }
         Point5d target = targetPosition;
         
         target.a = -deltaMM.a;
@@ -1570,6 +1640,20 @@ static int calculate_target_position(void)
     return do_pause_at_zpos;
 }
 
+static void update_target_position(void)
+{
+    if(targetPosition.z != currentPosition.z) {
+        // calculate layer height
+        layer_height = fabs(targetPosition.z - currentPosition.z);
+        // check upper bounds
+        if(layer_height > (machine.nozzle_diameter * 0.85)) {
+            layer_height = machine.nozzle_diameter * 0.85;
+        }
+    }
+    currentPosition = targetPosition;
+    positionKnown = 1;
+}
+
 // TOOL CHANGE
 
 void do_tool_change(int timeout) {
@@ -1677,8 +1761,9 @@ static char *normalize_comment(char *p) {
  MACRO:= ';' '@' COMMAND COMMENT EOL
  COMMAND:= PRINTER | ENABLE | FILAMENT | EXTRUDER | SLICER | START| PAUSE
  COMMENT:= S+ '(' [^)]* ')' S+
- PRINTER:= ('printer' | 'machine') (TYPE | DIAMETER | TEMP | RGB)+
+ PRINTER:= ('printer' | 'machine' | 'slicer') (TYPE | PACKING_DENSITY | DIAMETER | TEMP | RGB)+
  TYPE:=  S+ ('c3' | 'c4' | 'cp4' | 'cpp' | 't6' | 't7' | 't7d' | 'r1' | 'r1d' | 'r2' | 'r2x')
+ PACKING_DENSITY:= S+ DIGIT+ ('.' DIGIT+)?
  DIAMETER:= S+ DIGIT+ ('.' DIGIT+)? 'm' 'm'?
  TEMP:= S+ DIGIT+ 'c'
  RGB:= S+ '#' HEX HEX HEX HEX HEX HEX                   ; LED colour
@@ -1749,7 +1834,7 @@ static void parse_macro(const char* macro, char *p)
             break;
         }
     }
-    // ;@printer <TYPE> <DIAMETER>mm <HBP-TEMP>c #<LED-COLOUR>
+    // ;@printer <TYPE> <PACKING_DENSITY> <DIAMETER>mm <HBP-TEMP>c #<LED-COLOUR>
     if(MACRO_IS("machine") || MACRO_IS("printer") || MACRO_IS("slicer")) {
         if(name) {
             if(NAME_IS("c3")) machine = cupcake_G3;
@@ -1766,6 +1851,11 @@ static void parse_macro(const char* macro, char *p)
             else {
                 fprintf(stderr, "(line %u) Semantic error: @printer macro with unrecognised type '%s'" EOL, lineNumber, name);
             }
+            override[A].packing_density = machine.nominal_packing_density;
+            override[B].packing_density = machine.nominal_packing_density;
+        }
+        if(z > 0.0001) {
+            machine.nominal_packing_density = z;
         }
         if(diameter > 0.0001) machine.nominal_filament_diameter = diameter;
         if(temperature) {
@@ -1808,7 +1898,7 @@ static void parse_macro(const char* macro, char *p)
             fprintf(stderr, "(line %u) Semantic error: @filament macro with missing name" EOL, lineNumber);
         }
     }
-    // ;@right <NAME> <DIAMETER>mm <TEMP>c
+    // ;@right <NAME> <PACKING_DENSITY> <DIAMETER>mm <TEMP>c
     else if(MACRO_IS("right")) {
         if(name) {
             int index = find_filament(name);
@@ -1818,10 +1908,11 @@ static void parse_macro(const char* macro, char *p)
                 return;
             }
         }
+        if(z > 0.0001) override[A].packing_density = z;
         if(diameter > 0.0001) set_filament_scale(A, diameter);
         if(temperature) override[A].active_temperature = temperature;
     }
-    // ;@left <NAME> <DIAMETER>mm <TEMP>c
+    // ;@left <NAME> <PACKING_DENSITY> <DIAMETER>mm <TEMP>c
     else if(MACRO_IS("left")) {
         if(name) {
             int index = find_filament(name);
@@ -1831,6 +1922,7 @@ static void parse_macro(const char* macro, char *p)
                 return;
             }
         }
+        if(z > 0.0001) override[A].packing_density = z;
         if(diameter > 0.0001) set_filament_scale(B, diameter);
         if(temperature) override[B].active_temperature = temperature;
     }
@@ -1930,11 +2022,16 @@ static int config_handler(unsigned lineno, const char* section, const char* prop
         }
         else goto SECTION_ERROR;
     }
-    else if(SECTION_IS("printer")) {
+    else if(SECTION_IS("printer") || SECTION_IS("slicer")) {
         if(PROPERTY_IS("ditto_printing")) dittoPrinting = atoi(value);
         else if(PROPERTY_IS("build_progress")) buildProgress = atoi(value);
+        else if(PROPERTY_IS("packing_density")) machine.nominal_packing_density = strtod(value, NULL);
+        else if(PROPERTY_IS("recalculate_5d")) recalculate5D = atoi(value);
         else if(PROPERTY_IS("nominal_filament_diameter")
-                || PROPERTY_IS("slicer_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
+                || PROPERTY_IS("slicer_filament_diameter")
+                || PROPERTY_IS("filament_diameter")) {
+            machine.nominal_filament_diameter = strtod(value, NULL);
+        }
         else if(PROPERTY_IS("machine_type")) {
             // use on-board machine definition
             if(VALUE_IS("c3")) machine = cupcake_G3;
@@ -1953,6 +2050,8 @@ static int config_handler(unsigned lineno, const char* section, const char* prop
                 fprintf(stderr, "(line %u) Configuration error: unrecognised machine type '%s'" EOL, lineno, value);
                 return 0;
             }
+            override[A].packing_density = machine.nominal_packing_density;
+            override[B].packing_density = machine.nominal_packing_density;
         }
         else if(PROPERTY_IS("build_platform_temperature")) {
             if(machine.a.has_heated_build_platform) override[A].build_platform_temperature = atoi(value);
@@ -2000,6 +2099,7 @@ static int config_handler(unsigned lineno, const char* section, const char* prop
         else if(PROPERTY_IS("standby_temperature")) override[A].standby_temperature = atoi(value);
         else if(PROPERTY_IS("build_platform_temperature")) override[A].build_platform_temperature = atoi(value);
         else if(PROPERTY_IS("actual_filament_diameter")) override[A].actual_filament_diameter = strtod(value, NULL);
+        else if(PROPERTY_IS("packing_density")) override[A].packing_density = strtod(value, NULL);
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("b")) {
@@ -2015,11 +2115,14 @@ static int config_handler(unsigned lineno, const char* section, const char* prop
         else if(PROPERTY_IS("standby_temperature")) override[B].standby_temperature = atoi(value);
         else if(PROPERTY_IS("build_platform_temperature")) override[B].build_platform_temperature = atoi(value);
         else if(PROPERTY_IS("actual_filament_diameter")) override[B].actual_filament_diameter = strtod(value, NULL);
+        else if(PROPERTY_IS("packing_density")) override[B].packing_density = strtod(value, NULL);
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("machine")) {
         if(PROPERTY_IS("nominal_filament_diameter")
            || PROPERTY_IS("slicer_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
+        else if(PROPERTY_IS("packing_density")) machine.nominal_packing_density = strtod(value, NULL);
+        else if(PROPERTY_IS("nozzle_diameter")) machine.nozzle_diameter = strtod(value, NULL);
         else if(PROPERTY_IS("extruder_count")) machine.extruder_count = atoi(value);
         else if(PROPERTY_IS("timeout")) machine.timeout = atoi(value);
         else goto SECTION_ERROR;
@@ -2051,12 +2154,14 @@ static void usage()
     fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, stderr);
     fputs("GNU General Public License for more details." EOL, stderr);
     
-    fputs(EOL "Usage: gpx [-psv] [-x <X>] [-y <Y>] [-z <Z>] [-m <M>] [-c <C>] <IN> [<OUT>]" EOL, stderr);
+    fputs(EOL "Usage: gpx [-dprsv] [-f F] [-x X] [-y Y] [-z Z] [-m M] [-c C] IN [OUT]" EOL, stderr);
     fputs(EOL "Options:" EOL EOL, stderr);
-    fputs("\t-d\tditto printing" EOL, stderr);
+    fputs("\t-d\tsimulated ditto printing" EOL, stderr);
     fputs("\t-p\toverride build percentage" EOL, stderr);
+    fputs("\t-r\trewrite 5d extrusion values" EOL, stderr);
     fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
     fputs("\t-v\tverose mode" EOL, stderr);
+    fputs(EOL "F is the filament diameter" EOL, stderr);
     fputs(EOL "X,Y & Z are the coordinate system offsets for the conversion" EOL EOL, stderr);
     fputs("\tX = the x axis offset" EOL, stderr);
     fputs("\tY = the y axis offset" EOL, stderr);
@@ -2096,6 +2201,8 @@ int main(int argc, char * argv[])
     int do_pause_at_zpos = 0;
     int standard_io = 0;
     char *config = NULL;
+    double filament_diameter = 0;
+    char *buildname = "GPX " GPX_VERSION;
 
     initialize_globals();
     
@@ -2103,29 +2210,29 @@ int main(int argc, char * argv[])
     
     // if present, read the gpx.ini file from the program directory
     {
-        char *filename = argv[0];
+        char *appname = argv[0];
         // check for .exe extension
-        char *dot = strrchr(filename, '.');
+        char *dot = strrchr(appname, '.');
         if(dot) {
-            long l = dot - filename;
-            memcpy(buffer, filename, l);
-            filename = buffer + l;
+            long l = dot - appname;
+            memcpy(buffer, appname, l);
+            appname = buffer + l;
         }
         // or just append .ini if no extension is present
         else {
-            size_t sl = strlen(filename);
-            memcpy(buffer, filename, sl);
-            filename = buffer + sl;
+            size_t sl = strlen(appname);
+            memcpy(buffer, appname, sl);
+            appname = buffer + sl;
         }
-        *filename++ = '.';
-        *filename++ = 'i';
-        *filename++ = 'n';
-        *filename++ = 'i';
-        *filename++ = '\0';
-        filename = buffer;
-        i = ini_parse(filename, config_handler);
+        *appname++ = '.';
+        *appname++ = 'i';
+        *appname++ = 'n';
+        *appname++ = 'i';
+        *appname++ = '\0';
+        appname = buffer;
+        i = ini_parse(appname, config_handler);
         if(i == 0) {
-            if(verboseMode) fprintf(stderr, "Loaded config: %s" EOL, filename);
+            if(verboseMode) fprintf(stderr, "Loaded config: %s" EOL, appname);
         }
         else if (i > 0) {
             fprintf(stderr, "(ini line %u) Configuration syntax error in gpx.ini: unrecognised paremeters" EOL, i);
@@ -2136,13 +2243,17 @@ int main(int argc, char * argv[])
     // READ COMMAND LINE
     
     // get the command line options
-    while ((c = getopt(argc, argv, "c:dm:psvx:y:z:")) != -1) {
+    while ((c = getopt(argc, argv, "c:d:f:m:prsvx:y:z:")) != -1) {
         switch (c) {
             case 'c':
                 config = optarg;
                 break;
             case 'd':
                 dittoPrinting = 1;
+                break;
+            case 'f':
+                filament_diameter = strtod(optarg, NULL);
+                recalculate5D = 1;
                 break;
             case 'm':
                 if(strcasecmp(optarg, "c3") == 0) machine = cupcake_G3;
@@ -2157,9 +2268,14 @@ int main(int argc, char * argv[])
                 else if(strcasecmp(optarg, "r2") == 0) machine = replicator_2;
                 else if(strcasecmp(optarg, "r2x") == 0) machine = replicator_2X;
                 else usage();
+                override[A].packing_density = machine.nominal_packing_density;
+                override[B].packing_density = machine.nominal_packing_density;
                 break;
             case 'p':
                 buildProgress = 1;
+                break;
+            case 'r':
+                recalculate5D = 1;
                 break;
             case 's':
                 standard_io = 1;
@@ -2209,7 +2325,16 @@ int main(int argc, char * argv[])
         char *filename = argv[0];
         if((in = fopen(filename, "rw")) == NULL) {
             perror("Error opening input");
+            in = stdin;
             exit(1);
+        }
+        // assign build name
+        buildname = strrchr(filename, PATH_DELIM);
+        if(buildname) {
+            buildname++;
+        }
+        else {
+            buildname = filename;
         }
         filesize = get_filesize(in);
         argc--;
@@ -2239,22 +2364,19 @@ int main(int argc, char * argv[])
             *filename++ = '\0';
             filename = buffer;
         }
-        out = fopen(filename, "wb");
-        if(out) {
-            if(verboseMode) fprintf(stderr, "Writing to: %s" EOL, filename);
-        }
-        else {
+        if((out = fopen(filename, "wb")) == NULL) {
             perror("Error creating output");
             out = stdout;
             exit(1);
         }
+        if(verboseMode) fprintf(stderr, "Writing to: %s" EOL, filename);
         if(sdCardPath) {
             char sd_filename[300];
             long sl = strlen(sdCardPath);
-            if(sdCardPath[sl - 1] == DELIM) {
+            if(sdCardPath[sl - 1] == PATH_DELIM) {
                 sdCardPath[--sl] = 0;
             }
-            char *delim = strrchr(filename, DELIM);
+            char *delim = strrchr(filename, PATH_DELIM);
             if(delim) {
                 memcpy(sd_filename, sdCardPath, sl);
                 long l = strlen(delim);
@@ -2263,7 +2385,7 @@ int main(int argc, char * argv[])
             }
             else {
                 memcpy(sd_filename, sdCardPath, sl);
-                sd_filename[sl++] = DELIM;
+                sd_filename[sl++] = PATH_DELIM;
                 long l = strlen(filename);
                 memcpy(sd_filename + sl, filename, l);
                 sd_filename[sl + l] = 0;                
@@ -2281,6 +2403,10 @@ int main(int argc, char * argv[])
     if(dittoPrinting && machine.extruder_count == 1) {
         fputs("Configuration error: ditto printing cannot access non-existant second extruder" EOL, stderr);
         dittoPrinting = 0;
+    }
+    
+    if(filament_diameter > 0.0001) {
+        machine.nominal_filament_diameter = filament_diameter;
     }
     
     // CALCULATE FILAMENT SCALING
@@ -2519,9 +2645,8 @@ int main(int argc, char * argv[])
                     if(command.flag & F_IS_SET) {
                         do_pause_at_zpos = calculate_target_position();
                         queue_ext_point(currentFeedrate);
+                        update_target_position();
                         command_emitted++;
-                        currentPosition = targetPosition;
-                        positionKnown = 1;
                     }
                     else {
                         Point3d delta;
@@ -2550,9 +2675,8 @@ int main(int argc, char * argv[])
                             feedrate = machine.x.max_feedrate;
                         }
                         queue_ext_point(feedrate);
+                        update_target_position();
                         command_emitted++;
-                        currentPosition = targetPosition;
-                        positionKnown = 1;
                     }
                     break;
                     
@@ -2560,9 +2684,8 @@ int main(int argc, char * argv[])
                 case 1:
                     do_pause_at_zpos = calculate_target_position();
                     queue_ext_point(currentFeedrate);
+                    update_target_position();
                     command_emitted++;
-                    currentPosition = targetPosition;
-                    positionKnown = 1;
                     break;
                     
                     // G2 - Clockwise Arc
@@ -2887,7 +3010,7 @@ int main(int argc, char * argv[])
                         if(percent > 100) percent = 100;
                         if(program_is_ready()) {
                             start_program();
-                            start_build();
+                            start_build(buildname);
                             set_build_progress(0);
                             // start extruder in a known state
                             change_extruder_offset(currentExtruder);
@@ -2902,7 +3025,7 @@ int main(int argc, char * argv[])
                             }
                             else {
                                 // enable macros in object body
-                                if(!macrosEnabled) {
+                                if(!macrosEnabled && percent > 0) {
                                     if(pausePending) {
                                         pause_at_zpos(commandAt[0].z);
                                         pausePending = 0;
@@ -2992,7 +3115,7 @@ int main(int argc, char * argv[])
                         }
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax error: M104 is missing temperature, use Sn where n is 0-260" EOL, lineNumber);
+                        fprintf(stderr, "(line %u) Syntax error: M104 is missing temperature, use Sn where n is 0-280" EOL, lineNumber);
                     }
                     break;
                     
@@ -3087,7 +3210,7 @@ int main(int argc, char * argv[])
                         }
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax error: M109 is missing temperature, use Sn where n is 0-260" EOL, lineNumber);
+                        fprintf(stderr, "(line %u) Syntax error: M109 is missing temperature, use Sn where n is 0-280" EOL, lineNumber);
                     }
                     break;
 
@@ -3223,7 +3346,13 @@ int main(int argc, char * argv[])
                     // M322 - Pause @ zPos
                 case 322:
                     if(command.flag & Z_IS_SET) {
-                        double z = isRelative ? (currentPosition.z + command.z) : (command.z + offset[currentOffset].z + userOffset.z);
+                        float conditional_z = offset[currentOffset].z;
+
+                        if(macrosEnabled) {
+                            conditional_z += userOffset.z;
+                        }
+                        
+                        double z = isRelative ? (currentPosition.z + command.z) : (command.z + conditional_z);
                         pause_at_zpos(z);
                     }
                     else {
@@ -3255,9 +3384,8 @@ int main(int argc, char * argv[])
             if(command.flag & (AXES_BIT_MASK | F_IS_SET)) {
                 do_pause_at_zpos = calculate_target_position();
                 queue_ext_point(currentFeedrate);
+                update_target_position();
                 command_emitted++;
-                currentPosition = targetPosition;
-                positionKnown = 1;
             }
             else if(!dittoPrinting && selectedExtruder != currentExtruder) {
                 int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
@@ -3276,7 +3404,7 @@ int main(int argc, char * argv[])
             if(percent > progress) {
                 if(program_is_ready()) {
                     start_program();
-                    start_build();
+                    start_build(buildname);
                     set_build_progress(0);
                     // start extruder in a known state
                     change_extruder_offset(currentExtruder);
