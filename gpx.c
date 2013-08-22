@@ -176,6 +176,19 @@ static Machine replicator_2 = {
     20, // timeout
 };
 
+static Machine replicator_2H = {
+    {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // x axis
+    {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // y axis
+    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
+    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
+    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1.75, // nominal filament diameter
+    0.97, // nominal packing density
+    0.4, // nozzle diameter
+    1,  // extruder count
+    20, // timeout
+};
+
 static Machine replicator_2X = {
     {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // x axis
     {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // y axis
@@ -227,6 +240,7 @@ int isRelative;             // signals relitive or absolute coordinates
 int extruderIsRelative;     // signals relitive or absolute coordinates for extruder
 int positionKnown;          // is the current extruder position known
 int programState;           // gcode program state used to trigger start and end code sequences
+int reprapFlavor;           // reprap gcode flavor
 int dittoPrinting;          // enable ditto printing
 int buildProgress;          // override build percent
 int verboseMode;
@@ -345,6 +359,7 @@ static void initialize_globals(void)
     positionKnown = 0;
     programState = 0;
 
+    reprapFlavor = 1; // default is reprap flavor
     dittoPrinting = 0;
     buildProgress = 0;
     verboseMode = 0;
@@ -1762,7 +1777,7 @@ static char *normalize_comment(char *p) {
  COMMAND:= PRINTER | ENABLE | FILAMENT | EXTRUDER | SLICER | START| PAUSE
  COMMENT:= S+ '(' [^)]* ')' S+
  PRINTER:= ('printer' | 'machine' | 'slicer') (TYPE | PACKING_DENSITY | DIAMETER | TEMP | RGB)+
- TYPE:=  S+ ('c3' | 'c4' | 'cp4' | 'cpp' | 't6' | 't7' | 't7d' | 'r1' | 'r1d' | 'r2' | 'r2x')
+ TYPE:=  S+ ('c3' | 'c4' | 'cp4' | 'cpp' | 't6' | 't7' | 't7d' | 'r1' | 'r1d' | 'r2' | 'r2h' | 'r2x')
  PACKING_DENSITY:= S+ DIGIT+ ('.' DIGIT+)?
  DIAMETER:= S+ DIGIT+ ('.' DIGIT+)? 'm' 'm'?
  TEMP:= S+ DIGIT+ 'c'
@@ -1847,6 +1862,7 @@ static void parse_macro(const char* macro, char *p)
             else if(NAME_IS("r1")) machine = replicator_1;
             else if(NAME_IS("r1d")) machine = replicator_1D;
             else if(NAME_IS("r2")) machine = replicator_2;
+            else if(NAME_IS("r2h")) machine = replicator_2H;
             else if(NAME_IS("r2x")) machine = replicator_2X;
             else {
                 fprintf(stderr, "(line %u) Semantic error: @printer macro with unrecognised type '%s'" EOL, lineNumber, name);
@@ -2045,6 +2061,7 @@ static int config_handler(unsigned lineno, const char* section, const char* prop
             else if(VALUE_IS("r1")) machine = replicator_1;
             else if(VALUE_IS("r1d")) machine = replicator_1D;
             else if(VALUE_IS("r2")) machine = replicator_2;
+            else if(VALUE_IS("r2h")) machine = replicator_2H;
             else if(VALUE_IS("r2x")) machine = replicator_2X;
             else {
                 fprintf(stderr, "(line %u) Configuration error: unrecognised machine type '%s'" EOL, lineno, value);
@@ -2052,6 +2069,15 @@ static int config_handler(unsigned lineno, const char* section, const char* prop
             }
             override[A].packing_density = machine.nominal_packing_density;
             override[B].packing_density = machine.nominal_packing_density;
+        }
+        else if(PROPERTY_IS("gcode_flavor")) {
+            // use on-board machine definition
+            if(VALUE_IS("reprap")) reprapFlavor = 1;
+            else if(VALUE_IS("makerbot")) reprapFlavor = 0;
+            else {
+                fprintf(stderr, "(line %u) Configuration error: unrecognised GCODE flavor '%s'" EOL, lineno, value);
+                return 0;
+            }
         }
         else if(PROPERTY_IS("build_platform_temperature")) {
             if(machine.a.has_heated_build_platform) override[A].build_platform_temperature = atoi(value);
@@ -2154,9 +2180,10 @@ static void usage()
     fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, stderr);
     fputs("GNU General Public License for more details." EOL, stderr);
     
-    fputs(EOL "Usage: gpx [-dprsv] [-f F] [-x X] [-y Y] [-z Z] [-m M] [-c C] IN [OUT]" EOL, stderr);
+    fputs(EOL "Usage: gpx [-dgprsv] [-f F] [-x X] [-y Y] [-z Z] [-m M] [-c C] IN [OUT]" EOL, stderr);
     fputs(EOL "Options:" EOL EOL, stderr);
     fputs("\t-d\tsimulated ditto printing" EOL, stderr);
+    fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, stderr);
     fputs("\t-p\toverride build percentage" EOL, stderr);
     fputs("\t-r\trewrite 5d extrusion values" EOL, stderr);
     fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
@@ -2177,6 +2204,7 @@ static void usage()
     fputs("\tr1  = Replicator 1 - single extruder" EOL, stderr);
     fputs("\tr1d = Replicator 1 - dual extruder" EOL, stderr);
     fputs("\tr2  = Replicator 2 (default config)" EOL, stderr);
+    fputs("\tr2h = Replicator 2 with HBP" EOL, stderr);
     fputs("\tr2x = Replicator 2X" EOL, stderr);
     fputs(EOL "C is the filename of a custom machine definition (ini)" EOL, stderr);
     fputs(EOL "IN is the name of the sliced gcode input filename" EOL, stderr);
@@ -2243,13 +2271,16 @@ int main(int argc, char * argv[])
     // READ COMMAND LINE
     
     // get the command line options
-    while ((c = getopt(argc, argv, "c:d:f:m:prsvx:y:z:")) != -1) {
+    while ((c = getopt(argc, argv, "c:dgf:m:prsvx:y:z:")) != -1) {
         switch (c) {
             case 'c':
                 config = optarg;
                 break;
             case 'd':
                 dittoPrinting = 1;
+                break;
+            case 'g':
+                reprapFlavor = 0;
                 break;
             case 'f':
                 filament_diameter = strtod(optarg, NULL);
@@ -2266,6 +2297,7 @@ int main(int argc, char * argv[])
                 else if(strcasecmp(optarg, "r1") == 0) machine = replicator_1;
                 else if(strcasecmp(optarg, "r1d") == 0) machine = replicator_1D;
                 else if(strcasecmp(optarg, "r2") == 0) machine = replicator_2;
+                else if(strcasecmp(optarg, "r2h") == 0) machine = replicator_2H;
                 else if(strcasecmp(optarg, "r2x") == 0) machine = replicator_2X;
                 else usage();
                 override[A].packing_density = machine.nominal_packing_density;
@@ -2406,7 +2438,8 @@ int main(int argc, char * argv[])
     }
     
     if(filament_diameter > 0.0001) {
-        machine.nominal_filament_diameter = filament_diameter;
+        override[A].actual_filament_diameter = filament_diameter;
+        override[B].actual_filament_diameter = filament_diameter;
     }
     
     // CALCULATE FILAMENT SCALING
@@ -2612,12 +2645,12 @@ int main(int argc, char * argv[])
 
         // change the extruder selection (in virtual tool carosel)
         if(command.flag & T_IS_SET && !dittoPrinting) {
-            unsigned extruder_id = (unsigned)command.t;
-            if(extruder_id < machine.extruder_count) {
-                selectedExtruder = extruder_id;
+            unsigned tool_id = (unsigned)command.t;
+            if(tool_id < machine.extruder_count) {
+                selectedExtruder = tool_id;
             }
             else {
-                fprintf(stderr, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, lineNumber, extruder_id);
+                fprintf(stderr, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, lineNumber, tool_id);
             }
         }
 
@@ -2869,18 +2902,18 @@ int main(int argc, char * argv[])
                     }
                     exit(0);
                     
-                    
-                    // M6 - Tool change AND wait for extruder AND build platfrom to reach (or exceed) temperature
+                    // M6 - Tool change
                 case 6:
                     if(!dittoPrinting && selectedExtruder != currentExtruder) {
                         int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
                         do_tool_change(timeout);
                         command_emitted++;
                     }
-#if M6_TOOL_CHANGE_ONLY
-                    break;
-#endif
-                    // M116 - WAIT: for extruder AND build platfrom to reach (or exceed) temperature
+                    // Reprap flavor - use M6 for tool changes and M116 to wait for temperature
+                    if(reprapFlavor) break;
+                    // fall through for Makerbot/ReplicatorG flavor
+
+                    // M116 - Wait for extruder AND build platfrom to reach (or exceed) temperature
                 case 116: {
                     int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
                     // changing the
@@ -2895,8 +2928,8 @@ int main(int argc, char * argv[])
                     }
                     else {
                         // any tool changes have already occured
-                        if(tool[currentExtruder].nozzle_temperature > 0) {
-                            wait_for_extruder(currentExtruder, timeout);
+                        if(tool[selectedExtruder].nozzle_temperature > 0) {
+                            wait_for_extruder(selectedExtruder, timeout);
                             command_emitted++;
                         }
                     }
@@ -3167,73 +3200,76 @@ int main(int argc, char * argv[])
                     
                     // M109 - Set Extruder Temperature and Wait
                 case 109:
-                    if(command.flag & S_IS_SET) {
-                        int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                        unsigned temperature = (unsigned)command.s;
-                        if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
-                        if(dittoPrinting) {
-                            unsigned tempB = temperature;
-                            // set extruder temperatures
-                            if(temperature) {
-                                if(override[A].active_temperature) {
-                                    temperature = override[A].active_temperature;
+                    if(reprapFlavor) {
+                        if(command.flag & S_IS_SET) {
+                            int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
+                            unsigned temperature = (unsigned)command.s;
+                            if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
+                            if(dittoPrinting) {
+                                unsigned tempB = temperature;
+                                // set extruder temperatures
+                                if(temperature) {
+                                    if(override[A].active_temperature) {
+                                        temperature = override[A].active_temperature;
+                                    }
+                                    if(override[B].active_temperature) {
+                                        tempB = override[B].active_temperature;
+                                    }
                                 }
-                                if(override[B].active_temperature) {
-                                    tempB = override[B].active_temperature;
+                                set_nozzle_temperature(A, temperature);
+                                set_nozzle_temperature(B, tempB);
+                                tool[A].nozzle_temperature = temperature;
+                                tool[B].nozzle_temperature = tempB;
+                                // wait for extruders to reach (or exceed) temperature
+                                if(tool[A].nozzle_temperature > 0) {
+                                    wait_for_extruder(A, timeout);
                                 }
+                                if(tool[B].nozzle_temperature > 0) {
+                                    wait_for_extruder(B, timeout);
+                                }
+                                command_emitted++;
                             }
-                            set_nozzle_temperature(A, temperature);
-                            set_nozzle_temperature(B, tempB);
-                            tool[A].nozzle_temperature = temperature;
-                            tool[B].nozzle_temperature = tempB;
-                            // wait for extruders to reach (or exceed) temperature
-                            if(tool[A].nozzle_temperature > 0) {
-                                wait_for_extruder(A, timeout);
+                            else {
+                                // set extruder temperature
+                                if(temperature && override[selectedExtruder].active_temperature) {
+                                    temperature = override[selectedExtruder].active_temperature;
+                                }
+                                set_nozzle_temperature(selectedExtruder, temperature);
+                                tool[selectedExtruder].nozzle_temperature = temperature;
+                                // wait for extruder to reach (or exceed) temperature
+                                if(tool[selectedExtruder].nozzle_temperature > 0) {
+                                    wait_for_extruder(selectedExtruder, timeout);
+                                }
+                                command_emitted++;
                             }
-                            if(tool[B].nozzle_temperature > 0) {
-                                wait_for_extruder(B, timeout);
-                            }
-                            command_emitted++;
                         }
                         else {
-                            // set extruder temperature
-                            if(temperature && override[selectedExtruder].active_temperature) {
-                                temperature = override[selectedExtruder].active_temperature;
-                            }
-                            set_nozzle_temperature(selectedExtruder, temperature);
-                            tool[selectedExtruder].nozzle_temperature = temperature;
-                            // wait for extruder to reach (or exceed) temperature
-                            if(tool[selectedExtruder].nozzle_temperature > 0) {
-                                wait_for_extruder(selectedExtruder, timeout);
-                            }
-                            command_emitted++;
+                            fprintf(stderr, "(line %u) Syntax error: M109 is missing temperature, use Sn where n is 0-280" EOL, lineNumber);
                         }
+                        break;
                     }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax error: M109 is missing temperature, use Sn where n is 0-280" EOL, lineNumber);
-                    }
-                    break;
-
-                    // M140 - Set Build Platform Temperature (skeinforge)
+                    // fall through to M140 for Makerbot/ReplicatorG flavor
+                    
+                    // M140 - Set Build Platform Temperature
                 case 140:
                     if(machine.a.has_heated_build_platform || machine.b.has_heated_build_platform) {
                         if(command.flag & S_IS_SET) {
                             unsigned temperature = (unsigned)command.s;
-                            if(temperature > 160) temperature = 160;
-                            unsigned extruder_id = machine.a.has_heated_build_platform ? A : B;
+                            if(temperature > HBP_MAX) temperature = HBP_MAX;
+                            unsigned tool_id = machine.a.has_heated_build_platform ? A : B;
                             if(command.flag & T_IS_SET) {
-                                extruder_id = selectedExtruder;
+                                tool_id = selectedExtruder;
                             }
-                            if(extruder_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform) {
-                                if(temperature && override[extruder_id].build_platform_temperature) {
-                                    temperature = override[extruder_id].build_platform_temperature;
+                            if(tool_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform) {
+                                if(temperature && override[tool_id].build_platform_temperature) {
+                                    temperature = override[tool_id].build_platform_temperature;
                                 }
-                                set_build_platform_temperature(extruder_id, temperature);
+                                set_build_platform_temperature(tool_id, temperature);
                                 command_emitted++;
-                                tool[extruder_id].build_platform_temperature = temperature;
+                                tool[tool_id].build_platform_temperature = temperature;
                             }
                             else {
-                                fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, lineNumber, command.m, extruder_id);
+                                fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, lineNumber, command.m, tool_id);
                             }
                         }
                         else {
@@ -3298,27 +3334,80 @@ int main(int argc, char * argv[])
                     }
                     break;
                     
-                    // M190 - Wait for build platform to reach (or exceed) temperature
-                case 190: {
-                    if(machine.a.has_heated_build_platform || machine.b.has_heated_build_platform) {
-                        int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                        unsigned extruder_id = machine.a.has_heated_build_platform ? A : B;
-                        if(command.flag & T_IS_SET) {
-                            extruder_id = selectedExtruder;
+                    // M133 - Wait for extruder
+                case 133: {
+                    int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
+                    // changing the
+                    if(dittoPrinting) {
+                        if(tool[A].nozzle_temperature > 0) {
+                            wait_for_extruder(A, timeout);
                         }
-                        if(extruder_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform) {
-                            wait_for_build_platform(extruder_id, timeout);
-                            command_emitted++;
+                        if(tool[B].nozzle_temperature > 0) {
+                            wait_for_extruder(B, timeout);
                         }
-                        else {
-                            fprintf(stderr, "(line %u) Semantic warning: M190 cannot select non-existant heated build platform T%u" EOL, lineNumber, extruder_id);
-                        }                        
+                        command_emitted++;
                     }
                     else {
-                        fprintf(stderr, "(line %u) Semantic warning: M190 cannot select non-existant heated build platform" EOL, lineNumber);
+                        // any tool changes have already occured
+                        if(tool[selectedExtruder].nozzle_temperature > 0) {
+                            wait_for_extruder(selectedExtruder, timeout);
+                            command_emitted++;
+                        }
                     }
                     break;
                 }
+                    
+                    // M134
+                    // M190 - Wait for build platform to reach (or exceed) temperature
+                case 134:
+                case 190: {
+                    if(machine.a.has_heated_build_platform || machine.b.has_heated_build_platform) {
+                        int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
+                        unsigned tool_id = machine.a.has_heated_build_platform ? A : B;
+                        if(command.flag & T_IS_SET) {
+                            tool_id = selectedExtruder;
+                        }
+                        if(tool_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform
+                           && tool[tool_id].build_platform_temperature > 0) {
+                            wait_for_build_platform(tool_id, timeout);
+                            command_emitted++;
+                        }
+                        else {
+                            fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, lineNumber, command.m, tool_id);
+                        }
+                    }
+                    else {
+                        fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, lineNumber, command.m);
+                    }
+                    break;
+                }
+                    
+                    // M135 - Change tool
+                case 135:
+                    if(!dittoPrinting && selectedExtruder != currentExtruder) {
+                        int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
+                        do_tool_change(timeout);
+                        command_emitted++;
+                    }
+                    break;
+                    
+                    // M136 - Build start notification
+                case 136:
+                    if(program_is_ready()) {
+                        start_program();
+                        start_build(buildname);
+                        // start extruder in a known state
+                        change_extruder_offset(currentExtruder);
+                    }
+                    break;
+                    
+                    // M137 - Build end notification
+                case 137:
+                    if(program_is_running()) {
+                        end_program();
+                        end_build();
+                    }
+                    break;
 
                     // M300 - Set Beep (SP)
                 case 300: {

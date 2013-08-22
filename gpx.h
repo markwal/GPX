@@ -29,19 +29,16 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "1.1"
+#define GPX_VERSION "1.2"
 
 /* Nonzero to 'simulate' RPM using 5D, zero to disable */
 
 #define ENABLE_SIMULATED_RPM 1
 
-/* Nonzero to use M6 for tool changes and M116 to wait for temperature, zero to disable */
-
-#define M6_TOOL_CHANGE_ONLY 0
-
 // BOUNDS CHECKING VARIABLES
 
 #define TEMPERATURE_MAX 280
+#define HBP_MAX 160
 
 
 #ifdef _WIN32
