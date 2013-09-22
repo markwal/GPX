@@ -2231,6 +2231,7 @@ int main(int argc, char * argv[])
     char *config = NULL;
     double filament_diameter = 0;
     char *buildname = "GPX " GPX_VERSION;
+    int overflow = 0;
 
     initialize_globals();
     
@@ -2460,6 +2461,17 @@ int main(int argc, char * argv[])
     // and both the input and output files are open, so its time to parse the
     // gcode input and convert it to x3g output
     while(fgets(buffer, BUFFER_MAX, in) != NULL) {
+        // detect input buffer overflow and ignore overflow input
+        if(overflow) {
+            if(strlen(buffer) != BUFFER_MAX - 1) {
+                overflow = 0;
+            }
+            continue;
+        }
+        if(strlen(buffer) == BUFFER_MAX - 1) {
+            overflow = 1;
+            fprintf(stderr, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, lineNumber, BUFFER_MAX);
+        }
         // reset flag state
         command.flag = 0;
         char *digits;
@@ -2643,7 +2655,7 @@ int main(int argc, char * argv[])
         // revert to tool selection to current extruder
         selectedExtruder = currentExtruder;
 
-        // change the extruder selection (in virtual tool carosel)
+        // change the extruder selection (in the virtual tool carosel)
         if(command.flag & T_IS_SET && !dittoPrinting) {
             unsigned tool_id = (unsigned)command.t;
             if(tool_id < machine.extruder_count) {
@@ -3470,12 +3482,14 @@ int main(int argc, char * argv[])
             }
         }
         else {
+            // X,Y,Z,A,B,E,F
             if(command.flag & (AXES_BIT_MASK | F_IS_SET)) {
                 do_pause_at_zpos = calculate_target_position();
                 queue_ext_point(currentFeedrate);
                 update_target_position();
                 command_emitted++;
             }
+            // T?
             else if(!dittoPrinting && selectedExtruder != currentExtruder) {
                 int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
                 do_tool_change(timeout);
