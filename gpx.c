@@ -257,7 +257,7 @@ int commandAtLength;
 int macrosEnabled;          // M73 P1 or ;@body encountered signalling body start
 int pausePending;           // signals a pause is pending before the macro script has started
 
-int recalculate5D;          // recalculate 5D E values rather than scaling them
+int rewrite5D;              // calculate 5D E values rather than scaling them
 double layer_height;
 
 FILE *in;                   // the gcode input file stream
@@ -377,7 +377,7 @@ static void initialize_globals(void)
     macrosEnabled = 0;
     pausePending = 0;
     
-    recalculate5D = 0;
+    rewrite5D = 0;
     layer_height = 0.34;
 }
 
@@ -1344,7 +1344,7 @@ static void queue_ext_point(double feedrate)
     if(magnitude(command.flag, &deltaSteps) > 0) {
         double distance = magnitude(command.flag & XYZ_BIT_MASK, &deltaMM);
         // are we moving and extruding?
-        if(recalculate5D && (command.flag & (A_IS_SET|B_IS_SET)) && distance > 0.0001) {
+        if(rewrite5D && (command.flag & (A_IS_SET|B_IS_SET)) && distance > 0.0001) {
             double filament_radius, packing_area, packing_scale;
             if(A_IS_SET && deltaMM.a > 0.0001) {
                 if(override[A].actual_filament_diameter > 0.0001) {
@@ -2042,7 +2042,7 @@ static int config_handler(unsigned lineno, const char* section, const char* prop
         if(PROPERTY_IS("ditto_printing")) dittoPrinting = atoi(value);
         else if(PROPERTY_IS("build_progress")) buildProgress = atoi(value);
         else if(PROPERTY_IS("packing_density")) machine.nominal_packing_density = strtod(value, NULL);
-        else if(PROPERTY_IS("recalculate_5d")) recalculate5D = atoi(value);
+        else if(PROPERTY_IS("recalculate_5d")) rewrite5D = atoi(value);
         else if(PROPERTY_IS("nominal_filament_diameter")
                 || PROPERTY_IS("slicer_filament_diameter")
                 || PROPERTY_IS("filament_diameter")) {
@@ -2180,15 +2180,16 @@ static void usage()
     fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, stderr);
     fputs("GNU General Public License for more details." EOL, stderr);
     
-    fputs(EOL "Usage: gpx [-dgprsv] [-f F] [-x X] [-y Y] [-z Z] [-m M] [-c C] IN [OUT]" EOL, stderr);
+    fputs(EOL "Usage: gpx [-dgprsvw] [-f F] [-x X] [-y Y] [-z Z] [-m M] [-c C] IN [OUT]" EOL, stderr);
     fputs(EOL "Options:" EOL EOL, stderr);
     fputs("\t-d\tsimulated ditto printing" EOL, stderr);
     fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, stderr);
     fputs("\t-p\toverride build percentage" EOL, stderr);
-    fputs("\t-r\trewrite 5d extrusion values" EOL, stderr);
+    fputs("\t-r\tReprap GCODE flavor" EOL, stderr);
     fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
     fputs("\t-v\tverose mode" EOL, stderr);
-    fputs(EOL "F is the filament diameter" EOL, stderr);
+    fputs("\t-w\trewrite 5d extrusion values" EOL, stderr);
+    fputs(EOL "F is the actual filament diameter" EOL, stderr);
     fputs(EOL "X,Y & Z are the coordinate system offsets for the conversion" EOL EOL, stderr);
     fputs("\tX = the x axis offset" EOL, stderr);
     fputs("\tY = the y axis offset" EOL, stderr);
@@ -2272,7 +2273,7 @@ int main(int argc, char * argv[])
     // READ COMMAND LINE
     
     // get the command line options
-    while ((c = getopt(argc, argv, "c:dgf:m:prsvx:y:z:")) != -1) {
+    while ((c = getopt(argc, argv, "c:dgf:m:prsvwx:y:z:")) != -1) {
         switch (c) {
             case 'c':
                 config = optarg;
@@ -2285,7 +2286,6 @@ int main(int argc, char * argv[])
                 break;
             case 'f':
                 filament_diameter = strtod(optarg, NULL);
-                recalculate5D = 1;
                 break;
             case 'm':
                 if(strcasecmp(optarg, "c3") == 0) machine = cupcake_G3;
@@ -2308,13 +2308,16 @@ int main(int argc, char * argv[])
                 buildProgress = 1;
                 break;
             case 'r':
-                recalculate5D = 1;
+                reprapFlavor = 1;
                 break;
             case 's':
                 standard_io = 1;
                 break;
             case 'v':
                 verboseMode = 1;
+                break;
+            case 'w':
+                rewrite5D = 1;
                 break;
             case 'x':
                 userOffset.x = strtod(optarg, NULL);
@@ -2914,16 +2917,13 @@ int main(int argc, char * argv[])
                     }
                     exit(0);
                     
-                    // M6 - Tool change
+                    // M6 - Tool change AND wait for extruder AND build platfrom to reach (or exceed) temperature
                 case 6:
                     if(!dittoPrinting && selectedExtruder != currentExtruder) {
                         int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
                         do_tool_change(timeout);
                         command_emitted++;
                     }
-                    // Reprap flavor - use M6 for tool changes and M116 to wait for temperature
-                    if(reprapFlavor) break;
-                    // fall through for Makerbot/ReplicatorG flavor
 
                     // M116 - Wait for extruder AND build platfrom to reach (or exceed) temperature
                 case 116: {
@@ -3167,28 +3167,54 @@ int main(int argc, char * argv[])
                     // M106 - Turn cooling fan on
                 case 106: {
                     int state = (command.flag & S_IS_SET) ? ((unsigned)command.s ? 1 : 0) : 1;
-                    if(dittoPrinting) {
-                        set_fan(A, state);
-                        set_fan(B, state);
-                        command_emitted++;
+                    if(reprapFlavor) {
+                        if(dittoPrinting) {
+                            set_valve(A, state);
+                            set_valve(B, state);
+                            command_emitted++;
+                        }
+                        else {
+                            set_valve(selectedExtruder, state);
+                            command_emitted++;
+                        }
                     }
                     else {
-                        set_fan(selectedExtruder, state);
-                        command_emitted++;
+                        if(dittoPrinting) {
+                            set_fan(A, state);
+                            set_fan(B, state);
+                            command_emitted++;
+                        }
+                        else {
+                            set_fan(selectedExtruder, state);
+                            command_emitted++;
+                        }
                     }
                     break;
                 }
                     
                     // M107 - Turn cooling fan off
                 case 107:
-                    if(dittoPrinting) {
-                        set_fan(A, 0);
-                        set_fan(B, 0);
-                        command_emitted++;
+                    if(reprapFlavor) {
+                        if(dittoPrinting) {
+                            set_valve(A, 0);
+                            set_valve(B, 0);
+                            command_emitted++;
+                        }
+                        else {
+                            set_valve(selectedExtruder, 0);
+                            command_emitted++;
+                        }
                     }
                     else {
-                        set_fan(selectedExtruder, 0);
-                        command_emitted++;
+                        if(dittoPrinting) {
+                            set_fan(A, 0);
+                            set_fan(B, 0);
+                            command_emitted++;
+                        }
+                        else {
+                            set_fan(selectedExtruder, 0);
+                            command_emitted++;
+                        }
                     }
                     break;
                     
