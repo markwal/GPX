@@ -24,7 +24,8 @@ x3gFile = profile.getPreference('lastFile')
 x3gFile = x3gFile[0:x3gFile.rfind('.')] + '.x3g'
 
 commandList = [getGpxAppName(), '-p', '-r']
-commandList += ['-m', machineType]
+if machineType is not None and machineType != '':
+	commandList += ['-m', machineType]
 commandList += [filename, x3gFile]
 call(commandList)
 

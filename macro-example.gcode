@@ -26,7 +26,6 @@ G4 P3500 (pre-prime extruder)
 G1 X140 Y70 Z0.2 F1100 (do a slow wipe...)
 G1 X140 Y70 Z0.5 F1100 (...and lift)
 M108 R0.0 (stop extruder)
-;@body (notify GPX body has started)
 (**** PAUSE @ ZPOS MACROS ****)
 ;@slicer 1.70mm
 ;@filament white 1.75mm 230c #FFFFFF (white filament)
@@ -35,6 +34,7 @@ M108 R0.0 (stop extruder)
 ;@start white
 ;@pause 6.0 blue
 ;@pause 3.0 red
+;@body (notify GPX body has started)
 (**** end of start.gcode ****)
 G92 E0
 (**** Select Extruder.gcode ****)

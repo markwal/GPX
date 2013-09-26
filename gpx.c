@@ -2610,16 +2610,30 @@ int main(int argc, char * argv[])
                         // null terminate
                         if(*s) *s++ = 0;
                         parse_macro(macro, normalize_comment(s));
+                        *p = 0;
+                        break;
                     }
                 }
-                else {
-                    // Comment
-                    command.comment = normalize_comment(p + 1);
-                    command.flag |= COMMENT_IS_SET;
-                }
+                // Comment
+                command.comment = normalize_comment(p + 1);
+                command.flag |= COMMENT_IS_SET;
                 *p = 0;
+                break;
             }
             else if(*p == '(') {
+                if(*(p + 1) == '@') {
+                    char *s = p + 2;
+                    if(isalpha(*s)) {
+                        char *macro = s;
+                        // skip any no space characters
+                        while(*s && !isspace(*s)) s++;
+                        // null terminate
+                        if(*s) *s++ = 0;
+                        parse_macro(macro, normalize_comment(s));
+                        *p = 0;
+                        break;
+                    }
+                }
                 // Comment
                 char *s = strchr(p + 1, '(');
                 char *e = strchr(p + 1, ')');
@@ -2638,7 +2652,8 @@ int main(int argc, char * argv[])
                     fprintf(stderr, "(line %u) Syntax warning: comment is missing closing ')'" EOL, lineNumber);
                     command.comment = normalize_comment(p + 1);
                     command.flag |= COMMENT_IS_SET;
-                    *p = 0;                   
+                    *p = 0;
+                    break;
                 }
             }
             else if(*p == '*') {
