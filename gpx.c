@@ -61,6 +61,7 @@ static Machine cupcake_G3 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
+    1,
 };
 
 static Machine cupcake_G4 = {
@@ -74,6 +75,7 @@ static Machine cupcake_G4 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
+    2,
 };
 
 static Machine cupcake_P4 = {
@@ -87,6 +89,7 @@ static Machine cupcake_P4 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
+    3,
 };
 
 static Machine cupcake_PP = {
@@ -100,6 +103,7 @@ static Machine cupcake_PP = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
+    4,
 };
 
 //  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
@@ -116,6 +120,7 @@ static Machine thing_o_matic_7 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
+    5,
 };
 
 static Machine thing_o_matic_7D = {
@@ -129,6 +134,7 @@ static Machine thing_o_matic_7D = {
     0.4, // nozzle diameter
     2,  // extruder count
     20, // timeout
+    6,
 };
 
 //  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
@@ -145,6 +151,7 @@ static Machine replicator_1 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
+    7,
 };
 
 static Machine replicator_1D = {
@@ -158,6 +165,7 @@ static Machine replicator_1D = {
     0.4, // nozzle diameter
     2,  // extruder count
     20, // timeout
+    8,
 };
 
 //  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
@@ -174,6 +182,7 @@ static Machine replicator_2 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
+    9,
 };
 
 static Machine replicator_2H = {
@@ -187,6 +196,7 @@ static Machine replicator_2H = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
+    10,
 };
 
 static Machine replicator_2X = {
@@ -200,6 +210,7 @@ static Machine replicator_2X = {
     0.4, // nozzle diameter
     2,  // extruder count
     20, // timeout
+    11,
 };
 
 // The default machine definition is the Replicator 2
@@ -215,6 +226,7 @@ Machine machine = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
+    0,
 };
 
 // PRIVATE FUNCTION PROTOTYPES
@@ -245,7 +257,7 @@ int dittoPrinting;          // enable ditto printing
 int buildProgress;          // override build percent
 int verboseMode;
 unsigned lineNumber;        // the current line number in the gcode file
-static char buffer[BUFFER_MAX + 1];    // the statically allocated parse-in-place buffer
+static char buffer[BUFFER_MAX + 1]; // the statically allocated parse-in-place buffer
 
 Filament filament[FILAMENT_MAX];
 int filamentLength;
@@ -259,6 +271,10 @@ int pausePending;           // signals a pause is pending before the macro scrip
 
 int rewrite5D;              // calculate 5D E values rather than scaling them
 double layer_height;
+
+double aLength;
+double bLength;
+double runningTime;
 
 FILE *in;                   // the gcode input file stream
 FILE *out;                  // the x3g output file stream
@@ -379,6 +395,10 @@ static void initialize_globals(void)
     
     rewrite5D = 0;
     layer_height = 0.34;
+    
+    aLength = 0.0;
+    bLength = 0.0;
+    runningTime = 0.0;
 }
 
 // STATE
@@ -540,7 +560,8 @@ static void add_command_at(double z, char *filament_id, unsigned temperature)
             commandAt[commandAtLength].temperature = temperature;
             previous_z = z;
         }
-        // nonzero temperature signals a tmperature change, not a pause @ zPos
+        // nonzero temperature signals a temperature change, not a pause @ zPos
+        // so if its the first pause @ zPos que it up
         if(temperature == 0 && commandAtLength == 0) {
             if(macrosEnabled) {
                 pause_at_zpos(z);
@@ -732,6 +753,30 @@ static Point5d mm_to_steps(Ptr5d mm, Ptr2d excess)
     return result;
 }
 
+static Point5d delta_mm()
+{
+    Point5d deltaMM;
+    // compute the relative distance traveled along each axis and convert to steps
+    if(command.flag & X_IS_SET) deltaMM.x = targetPosition.x - currentPosition.x; else deltaMM.x = 0;
+    if(command.flag & Y_IS_SET) deltaMM.y = targetPosition.y - currentPosition.y; else deltaMM.y = 0;
+    if(command.flag & Z_IS_SET) deltaMM.z = targetPosition.z - currentPosition.z; else deltaMM.z = 0;
+    if(command.flag & A_IS_SET) deltaMM.a = targetPosition.a - currentPosition.a; else deltaMM.a = 0;
+    if(command.flag & B_IS_SET) deltaMM.b = targetPosition.b - currentPosition.b; else deltaMM.b = 0;
+    return deltaMM;
+}
+
+static Point5d delta_steps(Point5d deltaMM)
+{
+    Point5d deltaSteps;
+    // compute the relative distance traveled along each axis and convert to steps
+    if(command.flag & X_IS_SET) deltaSteps.x = round(fabs(deltaMM.x) * machine.x.steps_per_mm); else deltaSteps.x = 0;
+    if(command.flag & Y_IS_SET) deltaSteps.y = round(fabs(deltaMM.y) * machine.y.steps_per_mm); else deltaSteps.y = 0;
+    if(command.flag & Z_IS_SET) deltaSteps.z = round(fabs(deltaMM.z) * machine.z.steps_per_mm); else deltaSteps.z = 0;
+    if(command.flag & A_IS_SET) deltaSteps.a = round(fabs(deltaMM.a) * machine.a.steps_per_mm); else deltaSteps.a = 0;
+    if(command.flag & B_IS_SET) deltaSteps.b = round(fabs(deltaMM.b) * machine.b.steps_per_mm); else deltaSteps.b = 0;
+    return deltaSteps;
+}
+
 // X3G COMMANDS
 
 // 131 - Find axes minimums
@@ -799,6 +844,10 @@ static void home_axes(unsigned direction)
     
     // uint16: Timeout, in seconds.
     write_16(machine.timeout);
+    
+    if(verboseMode) {
+        runningTime += distance / feedrate * 60;
+    }
 }
 
 // 133 - delay
@@ -1033,6 +1082,7 @@ static void queue_new_point(unsigned milliseconds)
         double mmPerRevolution = machine.a.motor_steps * (1 / machine.a.steps_per_mm);
         target.a = -(numRevolutions * mmPerRevolution);
         command.flag |= A_IS_SET;
+        aLength += fabs(target.a);
     }
     
     if(tool[B].motor_enabled && tool[B].rpm) {
@@ -1045,6 +1095,7 @@ static void queue_new_point(unsigned milliseconds)
         double mmPerRevolution = machine.b.motor_steps * (1 / machine.b.steps_per_mm);
         target.b = -(numRevolutions * mmPerRevolution);
         command.flag |= B_IS_SET;
+        bLength += fabs(target.a);
     }
 
     Point5d steps = mm_to_steps(&target, &excess);
@@ -1067,10 +1118,14 @@ static void queue_new_point(unsigned milliseconds)
     write_32((int)steps.b);
     
     // uint32: Duration of the movement, in microseconds
-    write_32(milliseconds * 1000);
+    write_32(milliseconds * 1000.0);
     
     // uint8: Axes bitfield to specify which axes are relative. Any axis with a bit set should make a relative movement.
     write_8(AXES_BIT_MASK);
+    
+    if(verboseMode) {
+        runningTime += milliseconds / 1000.0;
+    }
 }
 #endif
 
@@ -1283,61 +1338,14 @@ static void end_build()
 
 static void queue_ext_point(double feedrate)
 {
-    Point5d deltaMM;
-    Point5d deltaSteps;
-
     // Because we don't know our previous position, we can't calculate the feedrate or
     // distance correctly, so we use an unaccelerated command with a fixed DDA
     if(!positionKnown) {
         queue_absolute_point();
         return;
     }
-    
-    // compute the relative distance traveled along each axis and convert to steps
-    if(command.flag & X_IS_SET) {
-        deltaMM.x = targetPosition.x - currentPosition.x;
-        deltaSteps.x = round(fabs(deltaMM.x) * machine.x.steps_per_mm);
-    }
-    else {
-        deltaMM.x = 0;
-        deltaSteps.x = 0;
-    }
-    
-    if(command.flag & Y_IS_SET) {
-        deltaMM.y = targetPosition.y - currentPosition.y;
-        deltaSteps.y = round(fabs(deltaMM.y) * machine.y.steps_per_mm);
-    }
-    else {
-        deltaMM.y = 0;
-        deltaSteps.y = 0;
-    }
-    
-    if(command.flag & Z_IS_SET) {
-        deltaMM.z = targetPosition.z - currentPosition.z;
-        deltaSteps.z = round(fabs(deltaMM.z) * machine.z.steps_per_mm);
-    }
-    else {
-        deltaMM.z = 0;
-        deltaSteps.z = 0;
-    }
-    
-    if(command.flag & A_IS_SET) {
-        deltaMM.a = targetPosition.a - currentPosition.a;
-        deltaSteps.a = round(fabs(deltaMM.a) * machine.a.steps_per_mm);
-    }
-    else {
-        deltaMM.a = 0;
-        deltaSteps.a = 0;
-    }
-    
-    if(command.flag & B_IS_SET) {
-        deltaMM.b = targetPosition.b - currentPosition.b;
-        deltaSteps.b = round(fabs(deltaMM.b) * machine.b.steps_per_mm);
-    }
-    else {
-        deltaMM.b = 0;
-        deltaSteps.b = 0;
-    }
+    Point5d deltaMM = delta_mm();
+    Point5d deltaSteps = delta_steps(deltaMM);
     
     // check that we have actually moved on at least one axis when the move is
     // rounded down to the nearest step
@@ -1389,6 +1397,9 @@ static void queue_ext_point(double feedrate)
         
         target.a = -deltaMM.a;
         target.b = -deltaMM.b;
+        
+        aLength += deltaMM.a;
+        bLength += deltaMM.b;
         
         deltaMM.x = fabs(deltaMM.x);
         deltaMM.y = fabs(deltaMM.y);
@@ -1486,6 +1497,10 @@ static void queue_ext_point(double feedrate)
         
         // uint16: feedrate in mm/s, multiplied by 64 to assist fixed point calculation on the bot
         write_16((unsigned)(feedrate * 64.0));
+        
+        if(verboseMode) {
+            runningTime += minutes * 60;
+        }
 	}
 }
 
@@ -1522,6 +1537,7 @@ static int calculate_target_position(void)
     Point3d conditionalOffset = offset[currentOffset];
 
     if(macrosEnabled) {
+        // add command line offset
         conditionalOffset.x += userOffset.x;
         conditionalOffset.y += userOffset.y;
         conditionalOffset.z += userOffset.z;
@@ -1613,7 +1629,7 @@ static int calculate_target_position(void)
                 commandAtIndex++;
             }
             // no its a pause macro
-            else {
+            else if(commandAt[commandAtIndex].z <= targetPosition.z) {
                 int index = commandAt[commandAtIndex].filament_index;
                 // override filament diameter
                 if(filament[index].diameter > 0.0001) {
@@ -1646,7 +1662,7 @@ static int calculate_target_position(void)
                 }
                 commandAtIndex++;
                 if(commandAtIndex < commandAtLength) {
-                    do_pause_at_zpos = 1;
+                    do_pause_at_zpos = COMMAND_QUE_MAX;
                 }
             }
         }
@@ -1655,8 +1671,9 @@ static int calculate_target_position(void)
     return do_pause_at_zpos;
 }
 
-static void update_target_position(void)
+static void update_current_position(void)
 {
+    // the current position to tracks where the print head currently is
     if(targetPosition.z != currentPosition.z) {
         // calculate layer height
         layer_height = fabs(targetPosition.z - currentPosition.z);
@@ -1811,7 +1828,7 @@ static void parse_macro(const char* macro, char *p)
         while(isspace(*p)) p++;
         if(isalpha(*p)) {
             name = p;
-            while(*p && !isspace(*p)) p++;
+            while(*p && isalnum(*p)) p++;
             if(*p) *p++ = 0;
         }
         else if(isdigit(*p)) {
@@ -1835,7 +1852,7 @@ static void parse_macro(const char* macro, char *p)
             LED = (unsigned)strtol(t, NULL, 16);
         }
         else if(*p == '(') {
-            char *t = strrchr(p + 1, ')');
+            char *t = strchr(p + 1, ')');
             if(t) {
                 *t = 0;
                 p = t + 1;
@@ -1852,18 +1869,18 @@ static void parse_macro(const char* macro, char *p)
     // ;@printer <TYPE> <PACKING_DENSITY> <DIAMETER>mm <HBP-TEMP>c #<LED-COLOUR>
     if(MACRO_IS("machine") || MACRO_IS("printer") || MACRO_IS("slicer")) {
         if(name) {
-            if(NAME_IS("c3")) machine = cupcake_G3;
-            else if(NAME_IS("c4")) machine = cupcake_G4;
-            else if(NAME_IS("cp4")) machine = cupcake_P4;
-            else if(NAME_IS("cpp")) machine = cupcake_PP;
-            else if(NAME_IS("t6")) machine = thing_o_matic_7;
-            else if(NAME_IS("t7")) machine = thing_o_matic_7;
-            else if(NAME_IS("t7d")) machine = thing_o_matic_7D;
-            else if(NAME_IS("r1")) machine = replicator_1;
-            else if(NAME_IS("r1d")) machine = replicator_1D;
-            else if(NAME_IS("r2")) machine = replicator_2;
-            else if(NAME_IS("r2h")) machine = replicator_2H;
-            else if(NAME_IS("r2x")) machine = replicator_2X;
+            if(NAME_IS("c3") == 0) { if(machine.ordinal != 1) machine = cupcake_G3; }
+            else if(NAME_IS("c4") == 0) { if(machine.ordinal != 2) machine = cupcake_G4; }
+            else if(NAME_IS("cp4") == 0) { if(machine.ordinal != 3) machine = cupcake_P4; }
+            else if(NAME_IS("cpp") == 0) { if(machine.ordinal != 4) machine = cupcake_PP; }
+            else if(NAME_IS("t6") == 0) { if(machine.ordinal != 5) machine = thing_o_matic_7; }
+            else if(NAME_IS("t7") == 0) { if(machine.ordinal != 5) machine = thing_o_matic_7; }
+            else if(NAME_IS("t7d") == 0) { if(machine.ordinal != 6) machine = thing_o_matic_7D; }
+            else if(NAME_IS("r1") == 0) { if(machine.ordinal != 7) machine = replicator_1; }
+            else if(NAME_IS("r1d") == 0) { if( machine.ordinal != 8) machine = replicator_1D; }
+            else if(NAME_IS("r2") == 0) { if(machine.ordinal != 9) machine = replicator_2; }
+            else if(NAME_IS("r2h") == 0) { if(machine.ordinal != 10) machine = replicator_2H; }
+            else if(NAME_IS("r2x") == 0) { if(machine.ordinal != 11) machine = replicator_2X; }
             else {
                 fprintf(stderr, "(line %u) Semantic error: @printer macro with unrecognised type '%s'" EOL, lineNumber, name);
             }
@@ -1976,7 +1993,7 @@ static void parse_macro(const char* macro, char *p)
                 override[currentExtruder].active_temperature = temperature;
             }
         }
-        else {
+        else if(name) {
             int index = find_filament(name);
             if(index > 0) {
                 if(dittoPrinting) {
@@ -2014,455 +2031,15 @@ static void parse_macro(const char* macro, char *p)
     }
 }
 
-// INI FILE HANDLER
-
-// Custom machine definition ini handler
-
-#define SECTION_IS(s) strcasecmp(section, s) == 0
-#define PROPERTY_IS(n) strcasecmp(property, n) == 0
-#define VALUE_IS(v) strcasecmp(value, v) == 0
-
-static int config_handler(unsigned lineno, const char* section, const char* property, char* value)
+static void convert(char *buildname, long filesize)
 {
-    if(SECTION_IS("") || SECTION_IS("macro")) {
-        if(PROPERTY_IS("slicer")
-           || PROPERTY_IS("filament")
-           || PROPERTY_IS("pause")
-           || PROPERTY_IS("start")
-           || PROPERTY_IS("temp")
-           || PROPERTY_IS("temperature")) {
-            parse_macro(property, value);
-        }
-        else if(PROPERTY_IS("verbose")) {
-            verboseMode = atoi(value);
-        }
-        else goto SECTION_ERROR;
-    }
-    else if(SECTION_IS("printer") || SECTION_IS("slicer")) {
-        if(PROPERTY_IS("ditto_printing")) dittoPrinting = atoi(value);
-        else if(PROPERTY_IS("build_progress")) buildProgress = atoi(value);
-        else if(PROPERTY_IS("packing_density")) machine.nominal_packing_density = strtod(value, NULL);
-        else if(PROPERTY_IS("recalculate_5d")) rewrite5D = atoi(value);
-        else if(PROPERTY_IS("nominal_filament_diameter")
-                || PROPERTY_IS("slicer_filament_diameter")
-                || PROPERTY_IS("filament_diameter")) {
-            machine.nominal_filament_diameter = strtod(value, NULL);
-        }
-        else if(PROPERTY_IS("machine_type")) {
-            // use on-board machine definition
-            if(VALUE_IS("c3")) machine = cupcake_G3;
-            else if(VALUE_IS("c4")) machine = cupcake_G4;
-            else if(VALUE_IS("cp4")) machine = cupcake_P4;
-            else if(VALUE_IS("cpp")) machine = cupcake_PP;
-            else if(VALUE_IS("t7")) machine = thing_o_matic_7;
-            else if(VALUE_IS("t6")) machine = thing_o_matic_7;
-            else if(VALUE_IS("t7")) machine = thing_o_matic_7;
-            else if(VALUE_IS("t7d")) machine = thing_o_matic_7D;
-            else if(VALUE_IS("r1")) machine = replicator_1;
-            else if(VALUE_IS("r1d")) machine = replicator_1D;
-            else if(VALUE_IS("r2")) machine = replicator_2;
-            else if(VALUE_IS("r2h")) machine = replicator_2H;
-            else if(VALUE_IS("r2x")) machine = replicator_2X;
-            else {
-                fprintf(stderr, "(line %u) Configuration error: unrecognised machine type '%s'" EOL, lineno, value);
-                return 0;
-            }
-            override[A].packing_density = machine.nominal_packing_density;
-            override[B].packing_density = machine.nominal_packing_density;
-        }
-        else if(PROPERTY_IS("gcode_flavor")) {
-            // use on-board machine definition
-            if(VALUE_IS("reprap")) reprapFlavor = 1;
-            else if(VALUE_IS("makerbot")) reprapFlavor = 0;
-            else {
-                fprintf(stderr, "(line %u) Configuration error: unrecognised GCODE flavor '%s'" EOL, lineno, value);
-                return 0;
-            }
-        }
-        else if(PROPERTY_IS("build_platform_temperature")) {
-            if(machine.a.has_heated_build_platform) override[A].build_platform_temperature = atoi(value);
-            else if(machine.b.has_heated_build_platform) override[B].build_platform_temperature = atoi(value);
-        }
-        else if(PROPERTY_IS("sd_card_path")) {
-            sdCardPath = strdup(value);
-        }
-        else if(PROPERTY_IS("verbose")) {
-            verboseMode = atoi(value);
-        }
-        else goto SECTION_ERROR;
-    }
-    else if(SECTION_IS("x")) {
-        if(PROPERTY_IS("max_feedrate")) machine.x.max_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("home_feedrate")) machine.x.home_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("steps_per_mm")) machine.x.steps_per_mm = strtod(value, NULL);
-        else if(PROPERTY_IS("endstop")) machine.x.endstop = atoi(value);
-        else goto SECTION_ERROR;
-    }
-    else if(SECTION_IS("y")) {
-        if(PROPERTY_IS("max_feedrate")) machine.y.max_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("home_feedrate")) machine.y.home_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("steps_per_mm")) machine.y.steps_per_mm = strtod(value, NULL);
-        else if(PROPERTY_IS("endstop")) machine.y.endstop = atoi(value);
-        else goto SECTION_ERROR;
-    }
-    else if(SECTION_IS("z")) {
-        if(PROPERTY_IS("max_feedrate")) machine.z.max_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("home_feedrate")) machine.z.home_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("steps_per_mm")) machine.z.steps_per_mm = strtod(value, NULL);
-        else if(PROPERTY_IS("endstop")) machine.z.endstop = atoi(value);
-        else goto SECTION_ERROR;
-    }
-    else if(SECTION_IS("a")) {
-        if(PROPERTY_IS("max_feedrate")) machine.a.max_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("steps_per_mm")) machine.a.steps_per_mm = strtod(value, NULL);
-        else if(PROPERTY_IS("motor_steps")) machine.a.motor_steps = strtod(value, NULL);
-        else if(PROPERTY_IS("has_heated_build_platform")) machine.a.has_heated_build_platform = atoi(value);
-        else goto SECTION_ERROR;
-    }
-    else if(SECTION_IS("right")) {
-        if(PROPERTY_IS("active_temperature")
-           || PROPERTY_IS("nozzle_temperature")) override[A].active_temperature = atoi(value);
-        else if(PROPERTY_IS("standby_temperature")) override[A].standby_temperature = atoi(value);
-        else if(PROPERTY_IS("build_platform_temperature")) override[A].build_platform_temperature = atoi(value);
-        else if(PROPERTY_IS("actual_filament_diameter")) override[A].actual_filament_diameter = strtod(value, NULL);
-        else if(PROPERTY_IS("packing_density")) override[A].packing_density = strtod(value, NULL);
-        else goto SECTION_ERROR;
-    }
-    else if(SECTION_IS("b")) {
-        if(PROPERTY_IS("max_feedrate")) machine.b.max_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("steps_per_mm")) machine.b.steps_per_mm = strtod(value, NULL);
-        else if(PROPERTY_IS("motor_steps")) machine.b.motor_steps = strtod(value, NULL);
-        else if(PROPERTY_IS("has_heated_build_platform")) machine.b.has_heated_build_platform = atoi(value);
-        else goto SECTION_ERROR;
-    }
-    else if(SECTION_IS("left")) {
-        if(PROPERTY_IS("active_temperature")
-           || PROPERTY_IS("nozzle_temperature")) override[B].active_temperature = atoi(value);
-        else if(PROPERTY_IS("standby_temperature")) override[B].standby_temperature = atoi(value);
-        else if(PROPERTY_IS("build_platform_temperature")) override[B].build_platform_temperature = atoi(value);
-        else if(PROPERTY_IS("actual_filament_diameter")) override[B].actual_filament_diameter = strtod(value, NULL);
-        else if(PROPERTY_IS("packing_density")) override[B].packing_density = strtod(value, NULL);
-        else goto SECTION_ERROR;
-    }
-    else if(SECTION_IS("machine")) {
-        if(PROPERTY_IS("nominal_filament_diameter")
-           || PROPERTY_IS("slicer_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
-        else if(PROPERTY_IS("packing_density")) machine.nominal_packing_density = strtod(value, NULL);
-        else if(PROPERTY_IS("nozzle_diameter")) machine.nozzle_diameter = strtod(value, NULL);
-        else if(PROPERTY_IS("extruder_count")) machine.extruder_count = atoi(value);
-        else if(PROPERTY_IS("timeout")) machine.timeout = atoi(value);
-        else goto SECTION_ERROR;
-    }
-    else {
-        fprintf(stderr, "(line %u) Configuration error: unrecognised section [%s]" EOL, lineno, section);
-        return 0;
-    }
-    return 1;
-    
-SECTION_ERROR:
-    fprintf(stderr, "(line %u) Configuration error: [%s] section contains unrecognised property %s=..." EOL, lineno, section, property);
-    return 0;
-}
-
-// display usage and exit
-
-static void usage()
-{
-    fputs("GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
-
-    fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, stderr);
-    fputs("it under the terms of the GNU General Public License as published by" EOL, stderr);
-    fputs("the Free Software Foundation; either version 2 of the License, or" EOL, stderr);
-    fputs("(at your option) any later version." EOL, stderr);
-    
-    fputs(EOL "This program is distributed in the hope that it will be useful," EOL, stderr);
-    fputs("but WITHOUT ANY WARRANTY; without even the implied warranty of" EOL, stderr);
-    fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, stderr);
-    fputs("GNU General Public License for more details." EOL, stderr);
-    
-    fputs(EOL "Usage: gpx [-dgprsvw] [-f F] [-x X] [-y Y] [-z Z] [-m M] [-c C] IN [OUT]" EOL, stderr);
-    fputs(EOL "Options:" EOL EOL, stderr);
-    fputs("\t-d\tsimulated ditto printing" EOL, stderr);
-    fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, stderr);
-    fputs("\t-p\toverride build percentage" EOL, stderr);
-    fputs("\t-r\tReprap GCODE flavor" EOL, stderr);
-    fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
-    fputs("\t-v\tverose mode" EOL, stderr);
-    fputs("\t-w\trewrite 5d extrusion values" EOL, stderr);
-    fputs(EOL "F is the actual filament diameter" EOL, stderr);
-    fputs(EOL "X,Y & Z are the coordinate system offsets for the conversion" EOL EOL, stderr);
-    fputs("\tX = the x axis offset" EOL, stderr);
-    fputs("\tY = the y axis offset" EOL, stderr);
-    fputs("\tZ = the z axis offset" EOL, stderr);
-    fputs(EOL "M is the predefined machine type" EOL EOL, stderr);
-    fputs("\tc3  = Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-    fputs("\tc4  = Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-    fputs("\tcp4 = Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-    fputs("\tcpp = Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, stderr);
-    fputs("\tt6  = TOM Mk6 - single extruder" EOL, stderr);
-    fputs("\tt7  = TOM Mk7 - single extruder" EOL, stderr);
-    fputs("\tt7d = TOM Mk7 - dual extruder" EOL, stderr);
-    fputs("\tr1  = Replicator 1 - single extruder" EOL, stderr);
-    fputs("\tr1d = Replicator 1 - dual extruder" EOL, stderr);
-    fputs("\tr2  = Replicator 2 (default config)" EOL, stderr);
-    fputs("\tr2h = Replicator 2 with HBP" EOL, stderr);
-    fputs("\tr2x = Replicator 2X" EOL, stderr);
-    fputs(EOL "C is the filename of a custom machine definition (ini)" EOL, stderr);
-    fputs(EOL "IN is the name of the sliced gcode input filename" EOL, stderr);
-    fputs(EOL "OUT is the name of the x3g output filename" EOL, stderr);
-    fputs(EOL "Examples:" EOL, stderr);
-    fputs("\tgpx -p -m r2 my-sliced-model.gcode" EOL, stderr);
-    fputs("\tgpx -c custom-tom.ini example.gcode /volumes/things/example.x3g" EOL, stderr);
-    fputs("\tgpx -x 3 -y -3 offset-model.gcode" EOL EOL, stderr);
-
-    exit(1);
-}
-
-// GPX program entry point
-
-int main(int argc, char * argv[])
-{
-    long filesize = 0;
     unsigned progress = 0;
-    int c, i;
+    int i;
+    int overflow = 0;
     int next_line = 0;
     int command_emitted = 0;
     int do_pause_at_zpos = 0;
-    int standard_io = 0;
-    char *config = NULL;
-    double filament_diameter = 0;
-    char *buildname = "GPX " GPX_VERSION;
-    int overflow = 0;
 
-    initialize_globals();
-    
-    // READ GPX.INI
-    
-    // if present, read the gpx.ini file from the program directory
-    {
-        char *appname = argv[0];
-        // check for .exe extension
-        char *dot = strrchr(appname, '.');
-        if(dot) {
-            long l = dot - appname;
-            memcpy(buffer, appname, l);
-            appname = buffer + l;
-        }
-        // or just append .ini if no extension is present
-        else {
-            size_t sl = strlen(appname);
-            memcpy(buffer, appname, sl);
-            appname = buffer + sl;
-        }
-        *appname++ = '.';
-        *appname++ = 'i';
-        *appname++ = 'n';
-        *appname++ = 'i';
-        *appname++ = '\0';
-        appname = buffer;
-        i = ini_parse(appname, config_handler);
-        if(i == 0) {
-            if(verboseMode) fprintf(stderr, "Loaded config: %s" EOL, appname);
-        }
-        else if (i > 0) {
-            fprintf(stderr, "(ini line %u) Configuration syntax error in gpx.ini: unrecognised paremeters" EOL, i);
-            usage();
-        }
-    }
-
-    // READ COMMAND LINE
-    
-    // get the command line options
-    while ((c = getopt(argc, argv, "c:dgf:m:prsvwx:y:z:")) != -1) {
-        switch (c) {
-            case 'c':
-                config = optarg;
-                break;
-            case 'd':
-                dittoPrinting = 1;
-                break;
-            case 'g':
-                reprapFlavor = 0;
-                break;
-            case 'f':
-                filament_diameter = strtod(optarg, NULL);
-                break;
-            case 'm':
-                if(strcasecmp(optarg, "c3") == 0) machine = cupcake_G3;
-                else if(strcasecmp(optarg, "c4") == 0) machine = cupcake_G4;
-                else if(strcasecmp(optarg, "cp4") == 0) machine = cupcake_P4;
-                else if(strcasecmp(optarg, "cpp") == 0) machine = cupcake_PP;
-                else if(strcasecmp(optarg, "t6") == 0) machine = thing_o_matic_7;
-                else if(strcasecmp(optarg, "t7") == 0) machine = thing_o_matic_7;
-                else if(strcasecmp(optarg, "t7d") == 0) machine = thing_o_matic_7D;
-                else if(strcasecmp(optarg, "r1") == 0) machine = replicator_1;
-                else if(strcasecmp(optarg, "r1d") == 0) machine = replicator_1D;
-                else if(strcasecmp(optarg, "r2") == 0) machine = replicator_2;
-                else if(strcasecmp(optarg, "r2h") == 0) machine = replicator_2H;
-                else if(strcasecmp(optarg, "r2x") == 0) machine = replicator_2X;
-                else usage();
-                override[A].packing_density = machine.nominal_packing_density;
-                override[B].packing_density = machine.nominal_packing_density;
-                break;
-            case 'p':
-                buildProgress = 1;
-                break;
-            case 'r':
-                reprapFlavor = 1;
-                break;
-            case 's':
-                standard_io = 1;
-                break;
-            case 'v':
-                verboseMode = 1;
-                break;
-            case 'w':
-                rewrite5D = 1;
-                break;
-            case 'x':
-                userOffset.x = strtod(optarg, NULL);
-                break;
-            case 'y':
-                userOffset.y = strtod(optarg, NULL);
-                break;
-            case 'z':
-                userOffset.z = strtod(optarg, NULL);
-                break;
-            case '?':
-            default:
-                usage();
-        }
-    }
-    
-    // READ CONFIGURATION
-    
-    if(config) {
-        i = ini_parse(config, config_handler);
-        if(i == 0) {
-            if(verboseMode) fprintf(stderr, "Loaded config: %s" EOL, config);
-        }
-        else if (i < 0) {
-            fprintf(stderr, "Command line error: cannot load configuration file '%s'" EOL, config);
-            usage();
-        }
-        else if (i > 0) {
-            fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, config);
-            usage();
-        }
-    }
-    
-    argc -= optind;
-    argv += optind;
-    
-    // OPEN FILES FOR INPUT AND OUTPUT
-    
-    // open the input filename if one is provided
-    if(argc > 0) {
-        char *filename = argv[0];
-        if((in = fopen(filename, "rw")) == NULL) {
-            perror("Error opening input");
-            in = stdin;
-            exit(1);
-        }
-        // assign build name
-        buildname = strrchr(filename, PATH_DELIM);
-        if(buildname) {
-            buildname++;
-        }
-        else {
-            buildname = filename;
-        }
-        filesize = get_filesize(in);
-        argc--;
-        argv++;
-        // use the output filename if one is provided
-        if(argc > 0) {
-            filename = argv[0];
-        }
-        else {
-            // or use the input filename with a .x3g extension
-            char *dot = strrchr(filename, '.');
-            if(dot) {
-                long l = dot - filename;
-                memcpy(buffer, filename, l);
-                filename = buffer + l;
-            }
-            // or just append one if no .gcode extension is present
-            else {
-                size_t sl = strlen(filename);
-                memcpy(buffer, filename, sl);
-                filename = buffer + sl;
-            }
-            *filename++ = '.';
-            *filename++ = 'x';
-            *filename++ = '3';
-            *filename++ = 'g';
-            *filename++ = '\0';
-            filename = buffer;
-        }
-        if((out = fopen(filename, "wb")) == NULL) {
-            perror("Error creating output");
-            out = stdout;
-            exit(1);
-        }
-        if(verboseMode) fprintf(stderr, "Writing to: %s" EOL, filename);
-        if(sdCardPath) {
-            char sd_filename[300];
-            long sl = strlen(sdCardPath);
-            if(sdCardPath[sl - 1] == PATH_DELIM) {
-                sdCardPath[--sl] = 0;
-            }
-            char *delim = strrchr(filename, PATH_DELIM);
-            if(delim) {
-                memcpy(sd_filename, sdCardPath, sl);
-                long l = strlen(delim);
-                memcpy(sd_filename + sl, delim, l);
-                sd_filename[sl + l] = 0;
-            }
-            else {
-                memcpy(sd_filename, sdCardPath, sl);
-                sd_filename[sl++] = PATH_DELIM;
-                long l = strlen(filename);
-                memcpy(sd_filename + sl, filename, l);
-                sd_filename[sl + l] = 0;                
-            }
-            out2 = fopen(sd_filename, "wb");
-            if(out2) {
-                if(verboseMode) fprintf(stderr, "Writing to: %s" EOL, sd_filename);
-            }
-        }
-    }
-    else if(!standard_io) {
-        usage();
-    }
-    
-    if(dittoPrinting && machine.extruder_count == 1) {
-        fputs("Configuration error: ditto printing cannot access non-existant second extruder" EOL, stderr);
-        dittoPrinting = 0;
-    }
-    
-    if(filament_diameter > 0.0001) {
-        override[A].actual_filament_diameter = filament_diameter;
-        override[B].actual_filament_diameter = filament_diameter;
-    }
-    
-    // CALCULATE FILAMENT SCALING
-    
-    if(override[A].actual_filament_diameter > 0.0001
-       && override[A].actual_filament_diameter != machine.nominal_filament_diameter) {
-        set_filament_scale(A, override[A].actual_filament_diameter);
-    }
-    
-    if(override[B].actual_filament_diameter > 0.0001
-       && override[B].actual_filament_diameter != machine.nominal_filament_diameter) {
-        set_filament_scale(B, override[B].actual_filament_diameter);
-    }
-
-    // READ INPUT AND CONVERT TO OUTPUT
-    
-    // at this point we have read the command line, set the machine definition
-    // and both the input and output files are open, so its time to parse the
-    // gcode input and convert it to x3g output
     while(fgets(buffer, BUFFER_MAX, in) != NULL) {
         // detect input buffer overflow and ignore overflow input
         if(overflow) {
@@ -2503,8 +2080,8 @@ int main(int argc, char * argv[])
                 p = normalize_word(p);
                 switch(c) {
                         
-                    // PARAMETERS
-
+                        // PARAMETERS
+                        
                         // Xnnn	 X coordinate, usually to move to
                     case 'x':
                     case 'X':
@@ -2525,21 +2102,21 @@ int main(int argc, char * argv[])
                         command.z = strtod(digits, NULL);
                         command.flag |= Z_IS_SET;
                         break;
-
+                        
                         // Annn	 Length of extrudate in mm.
                     case 'a':
                     case 'A':
                         command.a = strtod(digits, NULL);
                         command.flag |= A_IS_SET;
                         break;
-
+                        
                         // Bnnn	 Length of extrudate in mm.
                     case 'b':
                     case 'B':
                         command.b = strtod(digits, NULL);
                         command.flag |= B_IS_SET;
                         break;
-                                                
+                        
                         // Ennn	 Length of extrudate in mm.
                     case 'e':
                     case 'E':
@@ -2553,7 +2130,7 @@ int main(int argc, char * argv[])
                         command.f = strtod(digits, NULL);
                         command.flag |= F_IS_SET;
                         break;
-                                                
+                        
                         // Pnnn	 Command parameter, such as a time in milliseconds
                     case 'p':
                     case 'P':
@@ -2575,8 +2152,8 @@ int main(int argc, char * argv[])
                         command.flag |= S_IS_SET;
                         break;
                         
-                    // COMMANDS
-
+                        // COMMANDS
+                        
                         // Gnnn GCode command, such as move to a point
                     case 'g':
                     case 'G':
@@ -2595,7 +2172,7 @@ int main(int argc, char * argv[])
                         command.t = atoi(digits);
                         command.flag |= T_IS_SET;
                         break;
-                    
+                        
                     default:
                         fprintf(stderr, "(line %u) Syntax warning: unrecognised command word '%c'" EOL, lineNumber, c);
                 }
@@ -2625,10 +2202,12 @@ int main(int argc, char * argv[])
                     char *s = p + 2;
                     if(isalpha(*s)) {
                         char *macro = s;
+                        char *e = strrchr(p + 1, ')');
                         // skip any no space characters
                         while(*s && !isspace(*s)) s++;
                         // null terminate
                         if(*s) *s++ = 0;
+                        if(e) *e = 0;
                         parse_macro(macro, normalize_comment(s));
                         *p = 0;
                         break;
@@ -2669,10 +2248,10 @@ int main(int argc, char * argv[])
                 break;
             }
         }
-
+        
         // revert to tool selection to current extruder
         selectedExtruder = currentExtruder;
-
+        
         // change the extruder selection (in the virtual tool carosel)
         if(command.flag & T_IS_SET && !dittoPrinting) {
             unsigned tool_id = (unsigned)command.t;
@@ -2683,7 +2262,7 @@ int main(int argc, char * argv[])
                 fprintf(stderr, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, lineNumber, tool_id);
             }
         }
-
+        
         // we treat E as short hand for A or B being set, depending on the state of the currentExtruder
         
         if(command.flag & E_IS_SET) {
@@ -2706,14 +2285,14 @@ int main(int argc, char * argv[])
                     // G0 - Rapid Positioning
                 case 0:
                     if(command.flag & F_IS_SET) {
-                        do_pause_at_zpos = calculate_target_position();
+                        do_pause_at_zpos += calculate_target_position();
                         queue_ext_point(currentFeedrate);
-                        update_target_position();
+                        update_current_position();
                         command_emitted++;
                     }
                     else {
                         Point3d delta;
-                        do_pause_at_zpos = calculate_target_position();
+                        do_pause_at_zpos += calculate_target_position();
                         if(command.flag & X_IS_SET) delta.x = fabs(targetPosition.x - currentPosition.x);
                         if(command.flag & Y_IS_SET) delta.y = fabs(targetPosition.y - currentPosition.y);
                         if(command.flag & Z_IS_SET) delta.z = fabs(targetPosition.z - currentPosition.z);
@@ -2738,16 +2317,16 @@ int main(int argc, char * argv[])
                             feedrate = machine.x.max_feedrate;
                         }
                         queue_ext_point(feedrate);
-                        update_target_position();
+                        update_current_position();
                         command_emitted++;
                     }
                     break;
                     
                     // G1 - Coordinated Motion
                 case 1:
-                    do_pause_at_zpos = calculate_target_position();
+                    do_pause_at_zpos += calculate_target_position();
                     queue_ext_point(currentFeedrate);
-                    update_target_position();
+                    update_current_position();
                     command_emitted++;
                     break;
                     
@@ -2759,7 +2338,7 @@ int main(int argc, char * argv[])
                     if(command.flag & P_IS_SET) {
 #if ENABLE_SIMULATED_RPM
                         if(tool[currentExtruder].motor_enabled && tool[currentExtruder].rpm) {
-                            do_pause_at_zpos = calculate_target_position();
+                            do_pause_at_zpos += calculate_target_position();
                             queue_new_point(command.p);
                             command_emitted++;
                         }
@@ -2769,13 +2348,13 @@ int main(int argc, char * argv[])
                             delay(command.p);
                             command_emitted++;
                         }
-
+                        
                     }
                     else {
                         fprintf(stderr, "(line %u) Syntax error: G4 is missing delay parameter, use Pn where n is milliseconds" EOL, lineNumber);
                     }
                     break;
-
+                    
                     // G10 - Create Coordinate System Offset from the Absolute one
                 case 10:
                     if(command.flag & P_IS_SET && command.p >= 1.0 && command.p <= 6.0) {
@@ -2814,7 +2393,7 @@ int main(int argc, char * argv[])
                         fprintf(stderr, "(line %u) Syntax error: G10 is missing coordiante system, use Pn where n is 1-6" EOL, lineNumber);
                     }
                     break;
-                
+                    
                     // G21 - Use Milimeters as Units (IGNORED)
                     // G71 - Use Milimeters as Units (IGNORED)
                 case 21:
@@ -2825,12 +2404,12 @@ int main(int argc, char * argv[])
                 case 53:
                     currentOffset = 0;
                     break;
-
+                    
                     // G54 - Use coordinate system from G10 P1
                 case 54:
                     currentOffset = 1;
                     break;
-
+                    
                     // G55 - Use coordinate system from G10 P2
                 case 55:
                     currentOffset = 2;
@@ -2860,7 +2439,7 @@ int main(int argc, char * argv[])
                 case 90:
                     isRelative = 0;
                     break;
-
+                    
                     // G91 - Relative Positioning
                 case 91:
                     if(positionKnown) {
@@ -2871,7 +2450,7 @@ int main(int argc, char * argv[])
                         exit(1);
                     }
                     break;
-
+                    
                     // G92 - Define current position on axes
                 case 92: {
                     if(command.flag & X_IS_SET) currentPosition.x = command.x;
@@ -2921,7 +2500,7 @@ int main(int argc, char * argv[])
             }
         }
         else if(command.flag & M_IS_SET) {
-            switch(command.m) {                    
+            switch(command.m) {
                     // M2 - End program
                 case 2:
                     if(program_is_running()) {
@@ -2939,7 +2518,7 @@ int main(int argc, char * argv[])
                         do_tool_change(timeout);
                         command_emitted++;
                     }
-
+                    
                     // M116 - Wait for extruder AND build platfrom to reach (or exceed) temperature
                 case 116: {
                     int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
@@ -2971,7 +2550,7 @@ int main(int argc, char * argv[])
                     }
                     break;
                 }
-
+                    
                     // M17 - Enable axes steppers
                 case 17:
                     if(command.flag & AXES_BIT_MASK) {
@@ -3020,10 +2599,10 @@ int main(int argc, char * argv[])
                         command_emitted++;
                     }
                     else {
-                        fprintf(stderr, "(line %u) Syntax error: M70 is missing message text, use (text) where text is message" EOL, lineNumber);                        
+                        fprintf(stderr, "(line %u) Syntax error: M70 is missing message text, use (text) where text is message" EOL, lineNumber);
                     }
                     break;
-
+                    
                     // M71 - Display message and wait for button press
                 case 71: {
                     unsigned vPos = command.flag & Y_IS_SET ? (unsigned)command.y : 0;
@@ -3326,14 +2905,14 @@ int main(int argc, char * argv[])
                             }
                         }
                         else {
-                            fprintf(stderr, "(line %u) Syntax error: M%u is missing temperature, use Sn where n is 0-160" EOL, lineNumber, command.m);
+                            fprintf(stderr, "(line %u) Syntax error: M%u is missing temperature, use Sn where n is 0-120" EOL, lineNumber, command.m);
                         }
                     }
                     else {
                         fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, lineNumber, command.m);
                     }
                     break;
-
+                    
                     // M126 - Turn blower fan on (valve open)
                 case 126: {
                     int state = (command.flag & S_IS_SET) ? ((unsigned)command.s ? 1 : 0) : 1;
@@ -3348,7 +2927,7 @@ int main(int argc, char * argv[])
                     }
                     break;
                 }
-
+                    
                     // M127 - Turn blower fan off (valve close)
                 case 127:
                     if(dittoPrinting) {
@@ -3461,7 +3040,7 @@ int main(int argc, char * argv[])
                         end_build();
                     }
                     break;
-
+                    
                     // M300 - Set Beep (SP)
                 case 300: {
                     unsigned frequency = 300;
@@ -3489,7 +3068,7 @@ int main(int argc, char * argv[])
                 case 322:
                     if(command.flag & Z_IS_SET) {
                         float conditional_z = offset[currentOffset].z;
-
+                        
                         if(macrosEnabled) {
                             conditional_z += userOffset.z;
                         }
@@ -3525,9 +3104,9 @@ int main(int argc, char * argv[])
         else {
             // X,Y,Z,A,B,E,F
             if(command.flag & (AXES_BIT_MASK | F_IS_SET)) {
-                do_pause_at_zpos = calculate_target_position();
+                do_pause_at_zpos += calculate_target_position();
                 queue_ext_point(currentFeedrate);
-                update_target_position();
+                update_current_position();
                 command_emitted++;
             }
             // T?
@@ -3539,8 +3118,11 @@ int main(int argc, char * argv[])
         }
         // check for pending pause @ zPos
         if(do_pause_at_zpos) {
-            pause_at_zpos(commandAt[commandAtIndex].z);
-            do_pause_at_zpos = 0;
+            do_pause_at_zpos--;
+            // issue next pause @ zPos after command buffer is flushed
+            if(do_pause_at_zpos == 0) {
+                pause_at_zpos(commandAt[commandAtIndex].z);
+            }
         }
         // update progress
         if(filesize && buildProgress && command_emitted) {
@@ -3569,7 +3151,579 @@ int main(int argc, char * argv[])
         end_build();
     }
     set_steppers(AXES_BIT_MASK, 0);
+
+}
+
+// INI FILE HANDLER
+
+// Custom machine definition ini handler
+
+#define SECTION_IS(s) strcasecmp(section, s) == 0
+#define PROPERTY_IS(n) strcasecmp(property, n) == 0
+#define VALUE_IS(v) strcasecmp(value, v) == 0
+
+static int config_handler(unsigned lineno, const char* section, const char* property, char* value)
+{
+    if(SECTION_IS("") || SECTION_IS("macro")) {
+        if(PROPERTY_IS("slicer")
+           || PROPERTY_IS("filament")
+           || PROPERTY_IS("pause")
+           || PROPERTY_IS("start")
+           || PROPERTY_IS("temp")
+           || PROPERTY_IS("temperature")) {
+            parse_macro(property, value);
+        }
+        else if(PROPERTY_IS("verbose")) {
+            verboseMode = atoi(value);
+        }
+        else goto SECTION_ERROR;
+    }
+    else if(SECTION_IS("printer") || SECTION_IS("slicer")) {
+        if(PROPERTY_IS("ditto_printing")) dittoPrinting = atoi(value);
+        else if(PROPERTY_IS("build_progress")) buildProgress = atoi(value);
+        else if(PROPERTY_IS("packing_density")) machine.nominal_packing_density = strtod(value, NULL);
+        else if(PROPERTY_IS("recalculate_5d")) rewrite5D = atoi(value);
+        else if(PROPERTY_IS("nominal_filament_diameter")
+                || PROPERTY_IS("slicer_filament_diameter")
+                || PROPERTY_IS("filament_diameter")) {
+            machine.nominal_filament_diameter = strtod(value, NULL);
+        }
+        else if(PROPERTY_IS("machine_type")) {
+            // use on-board machine definition
+            if(VALUE_IS("c3")) {
+                machine = cupcake_G3;
+                if(verboseMode) fputs("Loading machine definition: Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+            }
+            else if(VALUE_IS("c4")) {
+                machine = cupcake_G4;
+                if(verboseMode) fputs("Loading machine definition: Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+            }
+            else if(VALUE_IS("cp4")) {
+                machine = cupcake_P4;
+                if(verboseMode) fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+            }
+            else if(VALUE_IS("cpp")) {
+                machine = cupcake_PP;
+                if(verboseMode) fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, stderr);
+            }
+            else if(VALUE_IS("t6")) {
+                machine = thing_o_matic_7;
+                if(verboseMode) fputs("Loading machine definition: TOM Mk6 - single extruder" EOL, stderr);
+            }
+            else if(VALUE_IS("t7")) {
+                machine = thing_o_matic_7;
+                if(verboseMode) fputs( "Loading machine definition: TOM Mk7 - single extruder" EOL, stderr);
+            }
+            else if(VALUE_IS("t7d")) {
+                machine = thing_o_matic_7D;
+                if(verboseMode) fputs("Loading machine definition: TOM Mk7 - dual extruder" EOL, stderr);
+            }
+            else if(VALUE_IS("r1")) {
+                machine = replicator_1;
+                if(verboseMode) fputs("Loading machine definition: Replicator 1 - single extruder" EOL, stderr);
+            }
+            else if(VALUE_IS("r1d")) {
+                machine = replicator_1D;
+                if(verboseMode) fputs("Loading machine definition: Replicator 1 - dual extruder" EOL, stderr);
+            }
+            else if(VALUE_IS("r2")) {
+                machine = replicator_2;
+                if(verboseMode) fputs("Loading machine definition: Replicator 2" EOL, stderr);
+            }
+            else if(VALUE_IS("r2h")) {
+                machine = replicator_2H;
+                if(verboseMode) fputs("Loading machine definition: Replicator 2 with HBP" EOL, stderr);
+            }
+            else if(VALUE_IS("r2x")) {
+                machine = replicator_2X;
+                if(verboseMode) fputs("Loading machine definition: Replicator 2X" EOL, stderr);
+            }
+            else {
+                fprintf(stderr, "(line %u) Configuration error: unrecognised machine type '%s'" EOL, lineno, value);
+                return 0;
+            }
+            override[A].packing_density = machine.nominal_packing_density;
+            override[B].packing_density = machine.nominal_packing_density;
+        }
+        else if(PROPERTY_IS("gcode_flavor")) {
+            // use on-board machine definition
+            if(VALUE_IS("reprap")) reprapFlavor = 1;
+            else if(VALUE_IS("makerbot")) reprapFlavor = 0;
+            else {
+                fprintf(stderr, "(line %u) Configuration error: unrecognised GCODE flavor '%s'" EOL, lineno, value);
+                return 0;
+            }
+        }
+        else if(PROPERTY_IS("build_platform_temperature")) {
+            if(machine.a.has_heated_build_platform) override[A].build_platform_temperature = atoi(value);
+            else if(machine.b.has_heated_build_platform) override[B].build_platform_temperature = atoi(value);
+        }
+        else if(PROPERTY_IS("sd_card_path")) {
+            sdCardPath = strdup(value);
+        }
+        else if(PROPERTY_IS("verbose")) {
+            verboseMode = atoi(value);
+        }
+        else goto SECTION_ERROR;
+    }
+    else if(SECTION_IS("x")) {
+        if(PROPERTY_IS("max_feedrate")) machine.x.max_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("home_feedrate")) machine.x.home_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("steps_per_mm")) machine.x.steps_per_mm = strtod(value, NULL);
+        else if(PROPERTY_IS("endstop")) machine.x.endstop = atoi(value);
+        else goto SECTION_ERROR;
+    }
+    else if(SECTION_IS("y")) {
+        if(PROPERTY_IS("max_feedrate")) machine.y.max_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("home_feedrate")) machine.y.home_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("steps_per_mm")) machine.y.steps_per_mm = strtod(value, NULL);
+        else if(PROPERTY_IS("endstop")) machine.y.endstop = atoi(value);
+        else goto SECTION_ERROR;
+    }
+    else if(SECTION_IS("z")) {
+        if(PROPERTY_IS("max_feedrate")) machine.z.max_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("home_feedrate")) machine.z.home_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("steps_per_mm")) machine.z.steps_per_mm = strtod(value, NULL);
+        else if(PROPERTY_IS("endstop")) machine.z.endstop = atoi(value);
+        else goto SECTION_ERROR;
+    }
+    else if(SECTION_IS("a")) {
+        if(PROPERTY_IS("max_feedrate")) machine.a.max_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("steps_per_mm")) machine.a.steps_per_mm = strtod(value, NULL);
+        else if(PROPERTY_IS("motor_steps")) machine.a.motor_steps = strtod(value, NULL);
+        else if(PROPERTY_IS("has_heated_build_platform")) machine.a.has_heated_build_platform = atoi(value);
+        else goto SECTION_ERROR;
+    }
+    else if(SECTION_IS("right")) {
+        if(PROPERTY_IS("active_temperature")
+           || PROPERTY_IS("nozzle_temperature")) override[A].active_temperature = atoi(value);
+        else if(PROPERTY_IS("standby_temperature")) override[A].standby_temperature = atoi(value);
+        else if(PROPERTY_IS("build_platform_temperature")) override[A].build_platform_temperature = atoi(value);
+        else if(PROPERTY_IS("actual_filament_diameter")) override[A].actual_filament_diameter = strtod(value, NULL);
+        else if(PROPERTY_IS("packing_density")) override[A].packing_density = strtod(value, NULL);
+        else goto SECTION_ERROR;
+    }
+    else if(SECTION_IS("b")) {
+        if(PROPERTY_IS("max_feedrate")) machine.b.max_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("steps_per_mm")) machine.b.steps_per_mm = strtod(value, NULL);
+        else if(PROPERTY_IS("motor_steps")) machine.b.motor_steps = strtod(value, NULL);
+        else if(PROPERTY_IS("has_heated_build_platform")) machine.b.has_heated_build_platform = atoi(value);
+        else goto SECTION_ERROR;
+    }
+    else if(SECTION_IS("left")) {
+        if(PROPERTY_IS("active_temperature")
+           || PROPERTY_IS("nozzle_temperature")) override[B].active_temperature = atoi(value);
+        else if(PROPERTY_IS("standby_temperature")) override[B].standby_temperature = atoi(value);
+        else if(PROPERTY_IS("build_platform_temperature")) override[B].build_platform_temperature = atoi(value);
+        else if(PROPERTY_IS("actual_filament_diameter")) override[B].actual_filament_diameter = strtod(value, NULL);
+        else if(PROPERTY_IS("packing_density")) override[B].packing_density = strtod(value, NULL);
+        else goto SECTION_ERROR;
+    }
+    else if(SECTION_IS("machine")) {
+        if(PROPERTY_IS("nominal_filament_diameter")
+           || PROPERTY_IS("slicer_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
+        else if(PROPERTY_IS("packing_density")) machine.nominal_packing_density = strtod(value, NULL);
+        else if(PROPERTY_IS("nozzle_diameter")) machine.nozzle_diameter = strtod(value, NULL);
+        else if(PROPERTY_IS("extruder_count")) machine.extruder_count = atoi(value);
+        else if(PROPERTY_IS("timeout")) machine.timeout = atoi(value);
+        else goto SECTION_ERROR;
+    }
+    else {
+        fprintf(stderr, "(line %u) Configuration error: unrecognised section [%s]" EOL, lineno, section);
+        return 0;
+    }
+    return 1;
     
+SECTION_ERROR:
+    fprintf(stderr, "(line %u) Configuration error: [%s] section contains unrecognised property %s=..." EOL, lineno, section, property);
+    return 0;
+}
+
+// display usage and exit
+
+static void usage()
+{
+    fputs("GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
+
+    fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, stderr);
+    fputs("it under the terms of the GNU General Public License as published by" EOL, stderr);
+    fputs("the Free Software Foundation; either version 2 of the License, or" EOL, stderr);
+    fputs("(at your option) any later version." EOL, stderr);
+    
+    fputs(EOL "This program is distributed in the hope that it will be useful," EOL, stderr);
+    fputs("but WITHOUT ANY WARRANTY; without even the implied warranty of" EOL, stderr);
+    fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, stderr);
+    fputs("GNU General Public License for more details." EOL, stderr);
+    
+    fputs(EOL "Usage: gpx [-dgprsvw] [-f F] [-x X] [-y Y] [-z Z] [-m M] [-c C] IN [OUT]" EOL, stderr);
+    fputs(EOL "Options:" EOL EOL, stderr);
+    fputs("\t-d\tsimulated ditto printing" EOL, stderr);
+    fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, stderr);
+    fputs("\t-p\toverride build percentage" EOL, stderr);
+    fputs("\t-r\tReprap GCODE flavor" EOL, stderr);
+    fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
+    fputs("\t-v\tverose mode" EOL, stderr);
+    fputs("\t-w\trewrite 5d extrusion values" EOL, stderr);
+    fputs(EOL "F is the actual filament diameter" EOL, stderr);
+    fputs(EOL "X,Y & Z are the coordinate system offsets for the conversion" EOL EOL, stderr);
+    fputs("\tX = the x axis offset" EOL, stderr);
+    fputs("\tY = the y axis offset" EOL, stderr);
+    fputs("\tZ = the z axis offset" EOL, stderr);
+    fputs(EOL "M is the predefined machine type" EOL EOL, stderr);
+    fputs("\tc3  = Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+    fputs("\tc4  = Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+    fputs("\tcp4 = Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+    fputs("\tcpp = Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, stderr);
+    fputs("\tt6  = TOM Mk6 - single extruder" EOL, stderr);
+    fputs("\tt7  = TOM Mk7 - single extruder" EOL, stderr);
+    fputs("\tt7d = TOM Mk7 - dual extruder" EOL, stderr);
+    fputs("\tr1  = Replicator 1 - single extruder" EOL, stderr);
+    fputs("\tr1d = Replicator 1 - dual extruder" EOL, stderr);
+    fputs("\tr2  = Replicator 2 (default config)" EOL, stderr);
+    fputs("\tr2h = Replicator 2 with HBP" EOL, stderr);
+    fputs("\tr2x = Replicator 2X" EOL, stderr);
+    fputs(EOL "C is the filename of a custom machine definition (ini)" EOL, stderr);
+    fputs(EOL "IN is the name of the sliced gcode input filename" EOL, stderr);
+    fputs(EOL "OUT is the name of the x3g output filename" EOL, stderr);
+    fputs(EOL "Examples:" EOL, stderr);
+    fputs("\tgpx -p -m r2 my-sliced-model.gcode" EOL, stderr);
+    fputs("\tgpx -c custom-tom.ini example.gcode /volumes/things/example.x3g" EOL, stderr);
+    fputs("\tgpx -x 3 -y -3 offset-model.gcode" EOL EOL, stderr);
+
+    exit(1);
+}
+
+// GPX program entry point
+
+int main(int argc, char * argv[])
+{
+    long filesize = 0;
+    int c, i;
+    int standard_io = 0;
+    char *config = NULL;
+    double filament_diameter = 0;
+    char *buildname = "GPX " GPX_VERSION;
+
+    initialize_globals();
+    
+    // READ GPX.INI
+    
+    // if present, read the gpx.ini file from the program directory
+    {
+        char *appname = argv[0];
+        // check for .exe extension
+        char *dot = strrchr(appname, '.');
+        if(dot) {
+            long l = dot - appname;
+            memcpy(buffer, appname, l);
+            appname = buffer + l;
+        }
+        // or just append .ini if no extension is present
+        else {
+            size_t sl = strlen(appname);
+            memcpy(buffer, appname, sl);
+            appname = buffer + sl;
+        }
+        *appname++ = '.';
+        *appname++ = 'i';
+        *appname++ = 'n';
+        *appname++ = 'i';
+        *appname++ = '\0';
+        appname = buffer;
+        i = ini_parse(appname, config_handler);
+        if(i == 0) {
+            if(verboseMode) fprintf(stderr, "Loaded config: %s" EOL, appname);
+        }
+        else if (i > 0) {
+            fprintf(stderr, "(ini line %u) Configuration syntax error in gpx.ini: unrecognised paremeters" EOL, i);
+            usage();
+        }
+    }
+
+    // READ COMMAND LINE
+    
+    // get the command line options
+    while ((c = getopt(argc, argv, "c:dgf:m:prsvwx:y:z:")) != -1) {
+        switch (c) {
+            case 'c':
+                config = optarg;
+                break;
+            case 'd':
+                dittoPrinting = 1;
+                break;
+            case 'g':
+                reprapFlavor = 0;
+                break;
+            case 'f':
+                filament_diameter = strtod(optarg, NULL);
+                break;
+            case 'm':
+                // only load/clobber the machine definition if the one specified on the command line is different
+                if(strcasecmp(optarg, "c3") == 0) {
+                    if(machine.ordinal != 1) {
+                        machine = cupcake_G3;
+                        if(verboseMode) fputs("Loading machine definition: Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m c3" EOL, stderr);
+                }
+                else if(strcasecmp(optarg, "c4") == 0) {
+                    if(machine.ordinal != 2) {
+                        machine = cupcake_G4;
+                        if(verboseMode) fputs("Loading machine definition: Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m c4" EOL, stderr);
+                }
+                else if(strcasecmp(optarg, "cp4") == 0) {
+                    if(machine.ordinal != 3) {
+                        machine = cupcake_P4;
+                        if(verboseMode) fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m cp4" EOL, stderr);
+                }
+                else if(strcasecmp(optarg, "cpp") == 0) {
+                    if(machine.ordinal != 4) {
+                        machine = cupcake_PP;
+                        if(verboseMode) fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m cpp" EOL, stderr);
+                }
+                else if(strcasecmp(optarg, "t6") == 0) {
+                    if(machine.ordinal != 5) {
+                        machine = thing_o_matic_7;
+                        if(verboseMode) fputs("Loading machine definition: TOM Mk6 - single extruder" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m t6" EOL, stderr);
+                }
+                else if(strcasecmp(optarg, "t7") == 0) {
+                    if(machine.ordinal != 5) {
+                        machine = thing_o_matic_7;
+                        if(verboseMode) fputs("Loading machine definition: TOM Mk7 - single extruder" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m t7" EOL, stderr);
+                }
+                else if(strcasecmp(optarg, "t7d") == 0) {
+                    if(machine.ordinal != 6) {
+                        machine = thing_o_matic_7D;
+                        if(verboseMode) fputs("Loading machine definition: TOM Mk7 - dual extruder" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m t7d" EOL, stderr);
+                }
+                else if(strcasecmp(optarg, "r1") == 0) {
+                    if(machine.ordinal != 7) {
+                        machine = replicator_1;
+                        if(verboseMode) fputs("Loading machine definition: Replicator 1 - single extruder" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m r1" EOL, stderr);
+                }
+                else if(strcasecmp(optarg, "r1d") == 0) {
+                    if(machine.ordinal != 8) {
+                        machine = replicator_1D;
+                        if(verboseMode) fputs("Loading machine definition: Replicator 1 - dual extruder" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m r1d" EOL, stderr);
+                }
+                else if(strcasecmp(optarg, "r2") == 0) {
+                    if(machine.ordinal != 9) {
+                        machine = replicator_2;
+                        if(verboseMode) fputs("Loading machine definition: Replicator 2" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m r2" EOL, stderr);
+                }
+                else if(strcasecmp(optarg, "r2h") == 0) {
+                    if(machine.ordinal != 10) {
+                        machine = replicator_2H;
+                        if(verboseMode) fputs("Loading machine definition: Replicator 2 with HBP" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m r2h" EOL, stderr);
+                }
+                else if(strcasecmp(optarg, "r2x") == 0) {
+                    if(machine.ordinal != 11) {
+                        machine = replicator_2X;
+                        if(verboseMode) fputs("Loading machine definition: Replicator 2X" EOL, stderr);
+                    }
+                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m r2x" EOL, stderr);
+                }
+                else usage();
+                override[A].packing_density = machine.nominal_packing_density;
+                override[B].packing_density = machine.nominal_packing_density;
+                break;
+            case 'p':
+                buildProgress = 1;
+                break;
+            case 'r':
+                reprapFlavor = 1;
+                break;
+            case 's':
+                standard_io = 1;
+                break;
+            case 'v':
+                verboseMode = 1;
+                break;
+            case 'w':
+                rewrite5D = 1;
+                break;
+            case 'x':
+                userOffset.x = strtod(optarg, NULL);
+                break;
+            case 'y':
+                userOffset.y = strtod(optarg, NULL);
+                break;
+            case 'z':
+                userOffset.z = strtod(optarg, NULL);
+                break;
+            case '?':
+            default:
+                usage();
+        }
+    }
+    
+    // READ CONFIGURATION
+    
+    if(config) {
+        i = ini_parse(config, config_handler);
+        if(i == 0) {
+            if(verboseMode) fprintf(stderr, "Loaded config: %s" EOL, config);
+        }
+        else if (i < 0) {
+            fprintf(stderr, "Command line error: cannot load configuration file '%s'" EOL, config);
+            usage();
+        }
+        else if (i > 0) {
+            fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, config);
+            usage();
+        }
+    }
+    
+    argc -= optind;
+    argv += optind;
+    
+    // OPEN FILES FOR INPUT AND OUTPUT
+    
+    // open the input filename if one is provided
+    if(argc > 0) {
+        char *filename = argv[0];
+        if((in = fopen(filename, "rw")) == NULL) {
+            perror("Error opening input");
+            in = stdin;
+            exit(1);
+        }
+        // assign build name
+        buildname = strrchr(filename, PATH_DELIM);
+        if(buildname) {
+            buildname++;
+        }
+        else {
+            buildname = filename;
+        }
+        filesize = get_filesize(in);
+        argc--;
+        argv++;
+        // use the output filename if one is provided
+        if(argc > 0) {
+            filename = argv[0];
+        }
+        else {
+            // or use the input filename with a .x3g extension
+            char *dot = strrchr(filename, '.');
+            if(dot) {
+                long l = dot - filename;
+                memcpy(buffer, filename, l);
+                filename = buffer + l;
+            }
+            // or just append one if no .gcode extension is present
+            else {
+                size_t sl = strlen(filename);
+                memcpy(buffer, filename, sl);
+                filename = buffer + sl;
+            }
+            *filename++ = '.';
+            *filename++ = 'x';
+            *filename++ = '3';
+            *filename++ = 'g';
+            *filename++ = '\0';
+            filename = buffer;
+        }
+        if((out = fopen(filename, "wb")) == NULL) {
+            perror("Error creating output");
+            out = stdout;
+            exit(1);
+        }
+        if(verboseMode) fprintf(stderr, "Writing to: %s" EOL, filename);
+        // write a second copy to the SD Card
+        if(sdCardPath) {
+            char sd_filename[300];
+            long sl = strlen(sdCardPath);
+            if(sdCardPath[sl - 1] == PATH_DELIM) {
+                sdCardPath[--sl] = 0;
+            }
+            char *delim = strrchr(filename, PATH_DELIM);
+            if(delim) {
+                memcpy(sd_filename, sdCardPath, sl);
+                long l = strlen(delim);
+                memcpy(sd_filename + sl, delim, l);
+                sd_filename[sl + l] = 0;
+            }
+            else {
+                memcpy(sd_filename, sdCardPath, sl);
+                sd_filename[sl++] = PATH_DELIM;
+                long l = strlen(filename);
+                memcpy(sd_filename + sl, filename, l);
+                sd_filename[sl + l] = 0;                
+            }
+            out2 = fopen(sd_filename, "wb");
+            if(out2) {
+                if(verboseMode) fprintf(stderr, "Writing to: %s" EOL, sd_filename);
+            }
+        }
+    }
+    else if(!standard_io) {
+        usage();
+    }
+    
+    if(dittoPrinting && machine.extruder_count == 1) {
+        fputs("Configuration error: ditto printing cannot access non-existant second extruder" EOL, stderr);
+        dittoPrinting = 0;
+    }
+    
+    if(filament_diameter > 0.0001) {
+        override[A].actual_filament_diameter = filament_diameter;
+        override[B].actual_filament_diameter = filament_diameter;
+    }
+    
+    // CALCULATE FILAMENT SCALING
+    
+    if(override[A].actual_filament_diameter > 0.0001
+       && override[A].actual_filament_diameter != machine.nominal_filament_diameter) {
+        set_filament_scale(A, override[A].actual_filament_diameter);
+    }
+    
+    if(override[B].actual_filament_diameter > 0.0001
+       && override[B].actual_filament_diameter != machine.nominal_filament_diameter) {
+        set_filament_scale(B, override[B].actual_filament_diameter);
+    }
+    
+    // READ INPUT AND CONVERT TO OUTPUT
+    
+    // at this point we have read the command line, set the machine definition
+    // and both the input and output files are open, so its time to parse the
+    // gcode input and convert it to x3g output
+    convert(buildname, filesize);
+    
+    // PRINT STATISTICS
+    
+    if(verboseMode) {
+        long seconds = round(runningTime);
+        long minutes = seconds / 60;        
+        long hours = minutes / 60;
+        minutes %= 60;
+        seconds %= 60;
+        fprintf(stderr, "Extrusion length: %#0.3f metres" EOL, round(aLength + bLength) / 1000);
+        fputs("Estimated print time: ", stderr);
+        if(hours) fprintf(stderr, "%lu hours ", hours);
+        if(minutes) fprintf(stderr, "%lu minutes ", minutes);
+        fprintf(stderr, "%lu seconds" EOL, seconds);
+    }
+
     exit(0);
 }
 

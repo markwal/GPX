@@ -29,7 +29,9 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "1.3"
+#define GPX_VERSION "1.4"
+
+#define COMMAND_QUE_MAX 15
 
 /* Nonzero to 'simulate' RPM using 5D, zero to disable */
 
@@ -38,7 +40,7 @@
 // BOUNDS CHECKING VARIABLES
 
 #define TEMPERATURE_MAX 280
-#define HBP_MAX 160
+#define HBP_MAX 120
 
 
 #ifdef _WIN32
@@ -161,6 +163,7 @@ typedef struct tMachine {
     double nozzle_diameter;
     unsigned extruder_count;
     unsigned timeout;
+    unsigned ordinal;
 } Machine;
 
 typedef struct tTool {
