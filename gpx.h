@@ -29,7 +29,7 @@
 
 #include <limits.h>
 
-#define GPX_VERSION "1.4"
+#define GPX_VERSION "1.5"
 
 #define COMMAND_QUE_MAX 15
 
@@ -196,7 +196,8 @@ typedef struct tFilament {
 typedef struct tCommandAt {
     double z;
     unsigned filament_index;
-    unsigned temperature;
+    unsigned nozzle_temperature;
+    unsigned build_platform_temperature;
 } CommandAt;
 
 #define COMMAND_AT_MAX 128

@@ -491,92 +491,6 @@ static size_t write_string(char *string, long length)
     return bytes_sent;
 }
 
-// COMMAND @ ZPOS FUNCTIONS
-
-// find an existing filament definition
-
-static int find_filament(char *filament_id)
-{
-    int i, index = -1;
-    // a brute force search is generally fastest for low n
-    for(i = 0; i < filamentLength; i++) {
-        if(strcmp(filament_id, filament[i].colour) == 0) {
-            index = i;
-            break;
-        }
-    }
-    return index;
-}
-
-// add a new filament definition
-
-static int add_filament(char *filament_id, double diameter, unsigned temperature, unsigned LED)
-{
-    int index = find_filament(filament_id);
-    if(index < 0) {
-        if(filamentLength < FILAMENT_MAX) {
-            index = filamentLength++;
-            filament[index].colour = strdup(filament_id);
-            filament[index].diameter = diameter;
-            filament[index].temperature = temperature;
-            filament[index].LED = LED;
-        }
-        else {
-            fprintf(stderr, "(line %u) Buffer overflow: too many @filament definitions (maximum = %i)" EOL, lineNumber, FILAMENT_MAX - 1);
-            index = 0;
-        }
-    }
-    return index;
-}
-
-// append a new command at z function
-
-static void add_command_at(double z, char *filament_id, unsigned temperature)
-{
-    static double previous_z = 0.0;
-    int index = filament_id ? find_filament(filament_id) : 0;
-    if(index < 0) {
-        fprintf(stderr, "(line %u) Semantic error: @pause macro with undefined filament name '%s', use a @filament macro to define it" EOL, lineNumber, filament_id);
-        index = 0;
-    }
-    // insert command
-    if(commandAtLength < COMMAND_AT_MAX) {
-        if(z <= previous_z) {
-            int i = commandAtLength;
-            // make a space
-            while(i > 0 && z <= commandAt[i - 1].z) {
-                commandAt[i] = commandAt[i - 1];
-                i--;
-            }
-            commandAt[i].z = z;
-            commandAt[i].filament_index = index;
-            commandAt[i].temperature = temperature;
-            previous_z = commandAt[commandAtLength].z;
-        }
-        // append command
-        else {
-            commandAt[commandAtLength].z = z;
-            commandAt[commandAtLength].filament_index = index;
-            commandAt[commandAtLength].temperature = temperature;
-            previous_z = z;
-        }
-        // nonzero temperature signals a temperature change, not a pause @ zPos
-        // so if its the first pause @ zPos que it up
-        if(temperature == 0 && commandAtLength == 0) {
-            if(macrosEnabled) {
-                pause_at_zpos(z);
-            }
-            else {
-                pausePending = 1;
-            }
-        }
-        commandAtLength++;
-    }
-    else {
-        fprintf(stderr, "(line %u) Buffer overflow: too many @pause definitions (maximum = %i)" EOL, lineNumber, COMMAND_AT_MAX);
-    }
-}
-
 // 5D VECTOR FUNCTIONS
 
 // compute the filament scaling factor
@@ -1526,6 +1440,94 @@ static void pause_at_zpos(float z_positon)
     write_float(z_positon);
 }
 
+// COMMAND @ ZPOS FUNCTIONS
+
+// find an existing filament definition
+
+static int find_filament(char *filament_id)
+{
+    int i, index = -1;
+    // a brute force search is generally fastest for low n
+    for(i = 0; i < filamentLength; i++) {
+        if(strcmp(filament_id, filament[i].colour) == 0) {
+            index = i;
+            break;
+        }
+    }
+    return index;
+}
+
+// add a new filament definition
+
+static int add_filament(char *filament_id, double diameter, unsigned temperature, unsigned LED)
+{
+    int index = find_filament(filament_id);
+    if(index < 0) {
+        if(filamentLength < FILAMENT_MAX) {
+            index = filamentLength++;
+            filament[index].colour = strdup(filament_id);
+            filament[index].diameter = diameter;
+            filament[index].temperature = temperature;
+            filament[index].LED = LED;
+        }
+        else {
+            fprintf(stderr, "(line %u) Buffer overflow: too many @filament definitions (maximum = %i)" EOL, lineNumber, FILAMENT_MAX - 1);
+            index = 0;
+        }
+    }
+    return index;
+}
+
+// append a new command at z function
+
+static void add_command_at(double z, char *filament_id, unsigned nozzle_temperature, unsigned build_platform_temperature)
+{
+    static double previous_z = 0.0;
+    int index = filament_id ? find_filament(filament_id) : 0;
+    if(index < 0) {
+        fprintf(stderr, "(line %u) Semantic error: @pause macro with undefined filament name '%s', use a @filament macro to define it" EOL, lineNumber, filament_id);
+        index = 0;
+    }
+    // insert command
+    if(commandAtLength < COMMAND_AT_MAX) {
+        if(z <= previous_z) {
+            int i = commandAtLength;
+            // make a space
+            while(i > 0 && z <= commandAt[i - 1].z) {
+                commandAt[i] = commandAt[i - 1];
+                i--;
+            }
+            commandAt[i].z = z;
+            commandAt[i].filament_index = index;
+            commandAt[i].nozzle_temperature = nozzle_temperature;
+            commandAt[i].build_platform_temperature = build_platform_temperature;
+            previous_z = commandAt[commandAtLength].z;
+        }
+        // append command
+        else {
+            commandAt[commandAtLength].z = z;
+            commandAt[commandAtLength].filament_index = index;
+            commandAt[commandAtLength].nozzle_temperature = nozzle_temperature;
+            commandAt[commandAtLength].build_platform_temperature = build_platform_temperature;
+            previous_z = z;
+        }
+        // nonzero temperature signals a temperature change, not a pause @ zPos
+        // so if its the first pause @ zPos que it up
+        if(nozzle_temperature == 0 && build_platform_temperature == 0 && commandAtLength == 0) {
+            if(macrosEnabled) {
+                pause_at_zpos(z);
+            }
+            else {
+                pausePending = 1;
+            }
+        }
+        commandAtLength++;
+    }
+    else {
+        fprintf(stderr, "(line %u) Buffer overflow: too many @pause definitions (maximum = %i)" EOL, lineNumber, COMMAND_AT_MAX);
+    }
+}
+
 // TARGET POSITION
 
 // calculate target position
@@ -1612,18 +1614,28 @@ static int calculate_target_position(void)
         // check if the next command will cross the z threshold
         if(commandAt[commandAtIndex].z <= targetPosition.z) {
             // is this a temperature change macro?
-            if(commandAt[commandAtIndex].temperature) {
-                unsigned temperature = commandAt[commandAtIndex].temperature;
+            if(commandAt[commandAtIndex].nozzle_temperature || commandAt[commandAtIndex].build_platform_temperature) {
+                unsigned nozzle_temperature = commandAt[commandAtIndex].nozzle_temperature;
+                unsigned build_platform_temperature = commandAt[commandAtIndex].build_platform_temperature;
                 // make sure the temperature has changed
-                if(tool[currentExtruder].nozzle_temperature != temperature) {
-                    if(dittoPrinting) {
-                        set_nozzle_temperature(A, temperature);
-                        set_nozzle_temperature(B, temperature);
-                        tool[A].nozzle_temperature = tool[B].nozzle_temperature = temperature;
+                if(nozzle_temperature) {
+                    if((currentExtruder == A || tool[A].nozzle_temperature) && tool[A].nozzle_temperature != nozzle_temperature) {
+                        set_nozzle_temperature(A, nozzle_temperature);
+                        tool[A].nozzle_temperature = override[A].active_temperature = nozzle_temperature;
                     }
-                    else {
-                        set_nozzle_temperature(currentExtruder, temperature);
-                        tool[currentExtruder].nozzle_temperature = temperature;
+                    if((currentExtruder == B || tool[B].nozzle_temperature) && tool[B].nozzle_temperature != nozzle_temperature) {
+                        set_nozzle_temperature(B, nozzle_temperature);
+                        tool[B].nozzle_temperature = override[B].active_temperature = nozzle_temperature;
+                    }
+                }
+                if(build_platform_temperature) {
+                    if(machine.a.has_heated_build_platform && tool[A].build_platform_temperature && tool[A].build_platform_temperature != build_platform_temperature) {
+                        set_build_platform_temperature(A, build_platform_temperature);
+                        tool[A].build_platform_temperature = override[A].build_platform_temperature = build_platform_temperature;
+                    }
+                    else if(machine.b.has_heated_build_platform && tool[B].build_platform_temperature && tool[B].build_platform_temperature != build_platform_temperature) {
+                        set_build_platform_temperature(B, build_platform_temperature);
+                        tool[B].build_platform_temperature = override[B].build_platform_temperature = build_platform_temperature;
                     }
                 }
                 commandAtIndex++;
@@ -1820,7 +1832,8 @@ static void parse_macro(const char* macro, char *p)
     char *name = NULL;
     double z = 0.0;
     double diameter = 0.0;
-    unsigned temperature = 0;
+    unsigned nozzle_temperature = 0;
+    unsigned build_platform_temperature = 0;
     unsigned LED = 0;
 
     while(*p != 0) {
@@ -1838,7 +1851,13 @@ static void parse_macro(const char* macro, char *p)
                 diameter = strtod(t, NULL);
             }
             else if(*(p - 1) == 'c') {
-                temperature = atoi(t);
+                unsigned temperature = atoi(t);
+                if(temperature > HBP_MAX) {
+                    nozzle_temperature = temperature;
+                }
+                else {
+                    build_platform_temperature = temperature;
+                }
             }
             else {
                 z = strtod(t, NULL);
@@ -1891,11 +1910,11 @@ static void parse_macro(const char* macro, char *p)
             machine.nominal_packing_density = z;
         }
         if(diameter > 0.0001) machine.nominal_filament_diameter = diameter;
-        if(temperature) {
-            if(machine.a.has_heated_build_platform) override[A].build_platform_temperature = temperature;
-            else if(machine.b.has_heated_build_platform) override[B].build_platform_temperature = temperature;
+        if(build_platform_temperature) {
+            if(machine.a.has_heated_build_platform) override[A].build_platform_temperature = build_platform_temperature;
+            else if(machine.b.has_heated_build_platform) override[B].build_platform_temperature = build_platform_temperature;
             else {
-                fprintf(stderr, "(line %u) Semantic warning: @printer macro cannot override non-existant heated build platform" EOL, lineNumber);                
+                fprintf(stderr, "(line %u) Semantic warning: @printer macro cannot override non-existant heated build platform" EOL, lineNumber);
             }
         }
         if(LED) set_LED_RGB(LED, 0);
@@ -1925,7 +1944,7 @@ static void parse_macro(const char* macro, char *p)
     // ;@filament <NAME> <DIAMETER>mm <TEMP>c #<LED-COLOUR>
     else if(MACRO_IS("filament")) {
         if(name) {
-            add_filament(name, diameter, temperature, LED);
+            add_filament(name, diameter, nozzle_temperature, LED);
         }
         else {
             fprintf(stderr, "(line %u) Semantic error: @filament macro with missing name" EOL, lineNumber);
@@ -1943,7 +1962,7 @@ static void parse_macro(const char* macro, char *p)
         }
         if(z > 0.0001) override[A].packing_density = z;
         if(diameter > 0.0001) set_filament_scale(A, diameter);
-        if(temperature) override[A].active_temperature = temperature;
+        if(nozzle_temperature) override[A].active_temperature = nozzle_temperature;
     }
     // ;@left <NAME> <PACKING_DENSITY> <DIAMETER>mm <TEMP>c
     else if(MACRO_IS("left")) {
@@ -1957,12 +1976,15 @@ static void parse_macro(const char* macro, char *p)
         }
         if(z > 0.0001) override[A].packing_density = z;
         if(diameter > 0.0001) set_filament_scale(B, diameter);
-        if(temperature) override[B].active_temperature = temperature;
+        if(nozzle_temperature) override[B].active_temperature = nozzle_temperature;
     }
     // ;@pause <ZPOS> <NAME>
     else if(MACRO_IS("pause")) {
         if(z > 0.0001) {
-            add_command_at(z, name, 0);
+            add_command_at(z, name, 0, 0);
+        }
+        else if(diameter > 0.0001) {
+            add_command_at(diameter, name, 0, 0);
         }
         else {
             fprintf(stderr, "(line %u) Semantic error: @pause macro with missing zPos" EOL, lineNumber);            
@@ -1971,9 +1993,12 @@ static void parse_macro(const char* macro, char *p)
     // ;@temp <ZPOS> <TEMP>c
     // ;@temperature <ZPOS> <TEMP>c
     else if(MACRO_IS("temp") || MACRO_IS("temperature")) {
-        if(temperature) {
+        if(nozzle_temperature || build_platform_temperature) {
             if(z > 0.0001) {
-                add_command_at(z, NULL, temperature);
+                add_command_at(z, NULL, nozzle_temperature, build_platform_temperature);
+            }
+            else if(diameter > 0.0001) {
+                add_command_at(diameter, NULL, nozzle_temperature, build_platform_temperature);
             }
             else {
                 fprintf(stderr, "(line %u) Semantic error: @%s macro with missing zPos" EOL, lineNumber, macro);
@@ -1985,30 +2010,63 @@ static void parse_macro(const char* macro, char *p)
     }
     // ;@start <NAME> <TEMP>c
     else if(MACRO_IS("start")) {
-        if(temperature) {
-            if(dittoPrinting) {
-                override[A].active_temperature = override[B].active_temperature = temperature;
+        if(nozzle_temperature || build_platform_temperature) {
+            if(nozzle_temperature) {
+                if(tool[A].nozzle_temperature && tool[A].nozzle_temperature != nozzle_temperature) {
+                    set_nozzle_temperature(A, nozzle_temperature);
+                    tool[A].nozzle_temperature = override[A].active_temperature = nozzle_temperature;
+                }
+                else {
+                    override[A].active_temperature = nozzle_temperature;
+                }
+                if(tool[B].nozzle_temperature && tool[B].nozzle_temperature != nozzle_temperature) {
+                    set_nozzle_temperature(B, nozzle_temperature);
+                    tool[B].nozzle_temperature = override[B].active_temperature = nozzle_temperature;
+                }
+                else {
+                    override[B].active_temperature = nozzle_temperature;
+                }
             }
-            else {
-                override[currentExtruder].active_temperature = temperature;
+            if(build_platform_temperature) {
+                if(machine.a.has_heated_build_platform && tool[A].build_platform_temperature && tool[A].build_platform_temperature != build_platform_temperature) {
+                    set_build_platform_temperature(A, build_platform_temperature);
+                    tool[A].build_platform_temperature = override[A].build_platform_temperature = build_platform_temperature;
+                }
+                else if(machine.b.has_heated_build_platform && tool[B].build_platform_temperature && tool[B].build_platform_temperature != build_platform_temperature) {
+                    set_build_platform_temperature(B, build_platform_temperature);
+                    tool[B].build_platform_temperature = override[B].build_platform_temperature = build_platform_temperature;
+                }
             }
         }
         else if(name) {
             int index = find_filament(name);
             if(index > 0) {
-                if(dittoPrinting) {
-                    if(filament[index].diameter > 0.0001) {
+                if(filament[index].diameter > 0.0001) {
+                    if(dittoPrinting) {
                         set_filament_scale(A, filament[index].diameter);
                         set_filament_scale(B, filament[index].diameter);
                     }
-                    if(filament[index].temperature)  {
-                        override[A].active_temperature = override[B].active_temperature = filament[index].temperature;
+                    else {
+                        set_filament_scale(currentExtruder, filament[index].diameter);
                     }
                 }
-                else {
-                    if(filament[index].diameter > 0.0001) set_filament_scale(currentExtruder, filament[index].diameter);
-                    if(filament[index].temperature) override[currentExtruder].active_temperature = filament[index].temperature;
-                    if(filament[index].LED) set_LED_RGB(filament[index].LED, 0);
+                if(filament[index].LED) set_LED_RGB(filament[index].LED, 0);
+                nozzle_temperature = filament[index].temperature;
+                if(nozzle_temperature) {
+                    if(tool[A].nozzle_temperature && tool[A].nozzle_temperature != nozzle_temperature) {
+                        set_nozzle_temperature(A, nozzle_temperature);
+                        tool[A].nozzle_temperature = override[A].active_temperature = nozzle_temperature;
+                    }
+                    else {
+                        override[A].active_temperature = nozzle_temperature;
+                    }
+                    if(tool[B].nozzle_temperature && tool[B].nozzle_temperature != nozzle_temperature) {
+                        set_nozzle_temperature(B, nozzle_temperature);
+                        tool[B].nozzle_temperature = override[B].active_temperature = nozzle_temperature;
+                    }
+                    else {
+                        override[B].active_temperature = nozzle_temperature;
+                    }
                 }
             }
             else {
@@ -2249,8 +2307,8 @@ static void convert(char *buildname, long filesize)
             }
         }
         
-        // revert to tool selection to current extruder
-        selectedExtruder = currentExtruder;
+        // revert tool selection to current extruder (Makerbot Tn is not sticky)
+        if(!reprapFlavor) selectedExtruder = currentExtruder;
         
         // change the extruder selection (in the virtual tool carosel)
         if(command.flag & T_IS_SET && !dittoPrinting) {
@@ -3109,7 +3167,7 @@ static void convert(char *buildname, long filesize)
                 update_current_position();
                 command_emitted++;
             }
-            // T?
+            // Tn
             else if(!dittoPrinting && selectedExtruder != currentExtruder) {
                 int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
                 do_tool_change(timeout);
