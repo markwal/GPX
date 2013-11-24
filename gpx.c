@@ -26,24 +26,20 @@
 
 #include <assert.h>
 #include <ctype.h>
-#include <errno.h>
+//#include <errno.h>
 #include <float.h>
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
-
-#ifdef _WIN32
-#   include "getopt.h"
-#else
-#   include <unistd.h>
-#endif
+#include <unistd.h>
 
 #include "gpx.h"
-#include "ini.h"
 
 #define A 0
 #define B 1
+
+#define SHOW(FN) if(gpx->flag.showErrorMessages) FN
+#define CALL(FN) if((rval = FN) != 0) return rval
 
 // Machine definitions
 
@@ -213,293 +209,400 @@ static Machine replicator_2X = {
     11,
 };
 
-// The default machine definition is the Replicator 2
+#define MACHINE_IS(m) strcasecmp(machine, m) == 0
 
-Machine machine = {
-    {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
-    1.75, // nominal filament diameter
-    0.97, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    0,
-};
+int gpx_set_machine(Gpx *gpx, char *machine)
+{
+    // only load/clobber the on-board machine definition if the one specified is different
+    if(MACHINE_IS("c3")) {
+        if(gpx->machine.type != 1) {
+            gpx->machine = cupcake_G3;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m c3" EOL, stderr);
+    }
+    else if(MACHINE_IS("c4")) {
+        if(gpx->machine.type != 2) {
+            gpx->machine = cupcake_G4;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m c4" EOL, stderr);
+    }
+    else if(MACHINE_IS("cp4")) {
+        if(gpx->machine.type != 3) {
+            gpx->machine = cupcake_P4;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m cp4" EOL, stderr);
+    }
+    else if(MACHINE_IS("cpp")) {
+        if(gpx->machine.type != 4) {
+            gpx->machine = cupcake_PP;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m cpp" EOL, stderr);
+    }
+    else if(MACHINE_IS("t6")) {
+        if(gpx->machine.type != 5) {
+            gpx->machine = thing_o_matic_7;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: TOM Mk6 - single extruder" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m t6" EOL, stderr);
+    }
+    else if(MACHINE_IS("t7")) {
+        if(gpx->machine.type != 5) {
+            gpx->machine = thing_o_matic_7;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: TOM Mk7 - single extruder" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m t7" EOL, stderr);
+    }
+    else if(MACHINE_IS("t7d")) {
+        if(gpx->machine.type != 6) {
+            gpx->machine = thing_o_matic_7D;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: TOM Mk7 - dual extruder" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m t7d" EOL, stderr);
+    }
+    else if(MACHINE_IS("r1")) {
+        if(gpx->machine.type != 7) {
+            gpx->machine = replicator_1;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: Replicator 1 - single extruder" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m r1" EOL, stderr);
+    }
+    else if(MACHINE_IS("r1d")) {
+        if(gpx->machine.type != 8) {
+            gpx->machine = replicator_1D;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: Replicator 1 - dual extruder" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m r1d" EOL, stderr);
+    }
+    else if(MACHINE_IS("r2")) {
+        if(gpx->machine.type != 9) {
+            gpx->machine = replicator_2;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: Replicator 2" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m r2" EOL, stderr);
+    }
+    else if(MACHINE_IS("r2h")) {
+        if(gpx->machine.type != 10) {
+            gpx->machine = replicator_2H;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: Replicator 2 with HBP" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m r2h" EOL, stderr);
+    }
+    else if(MACHINE_IS("r2x")) {
+        if(gpx->machine.type != 11) {
+            gpx->machine = replicator_2X;
+            if(gpx->flag.verboseMode) fputs("Loading machine definition: Replicator 2X" EOL, stderr);
+        }
+        else if(gpx->flag.verboseMode) fputs("Ignoring duplicate machine definition: -m r2x" EOL, stderr);
+    }
+    else {
+        return 1;
+    }
+    return 0;
+}
 
 // PRIVATE FUNCTION PROTOTYPES
 
-static double get_home_feedrate(int flag);
-static void pause_at_zpos(float z_positon);
-
-// GLOBAL VARIABLES
-
-Command command;            // the gcode command line
-Point5d currentPosition;    // the current position of the extruder in 5D space
-Point5d targetPosition;     // the target poaition the extruder will move to (including G10 offsets)
-Point2d excess;             // the accumulated rounding error in mm to step conversion
-int selectedExtruder;       // the current extruder selection (on the virtual tool carosel)
-int currentExtruder;        // the currently selectd extruder being used by the bot
-double currentFeedrate;     // the current feed rate
-int currentOffset;          // current G10 offset
-Point3d offset[7];          // G10 offsets
-Point3d userOffset;         // command line offset
-Tool tool[2];               // tool state
-Override override[2];       // gcode override
-int isRelative;             // signals relitive or absolute coordinates
-int extruderIsRelative;     // signals relitive or absolute coordinates for extruder
-int positionKnown;          // is the current extruder position known
-int programState;           // gcode program state used to trigger start and end code sequences
-int reprapFlavor;           // reprap gcode flavor
-int dittoPrinting;          // enable ditto printing
-int buildProgress;          // override build percent
-int verboseMode;
-unsigned lineNumber;        // the current line number in the gcode file
-static char buffer[BUFFER_MAX + 1]; // the statically allocated parse-in-place buffer
-
-Filament filament[FILAMENT_MAX];
-int filamentLength;
-
-CommandAt commandAt[COMMAND_AT_MAX];
-int commandAtIndex;
-int commandAtLength;
-
-int macrosEnabled;          // M73 P1 or ;@body encountered signalling body start
-int pausePending;           // signals a pause is pending before the macro script has started
-
-int rewrite5D;              // calculate 5D E values rather than scaling them
-double layer_height;
-
-double aLength;
-double bLength;
-double runningTime;
-
-FILE *in;                   // the gcode input file stream
-FILE *out;                  // the x3g output file stream
-FILE *out2;                 // secondary output path
-char *sdCardPath;
-
-// cleanup code in case we encounter an error that causes the program to exit
-
-static void exit_handler(void)
-{
-    // close open files
-    if(in != stdin) {
-        fclose(in);
-        if(out != stdout) {
-            if(ferror(out)) {
-                perror("while writing to output file");
-            }
-            fclose(out);
-        }
-        if(out2) {
-            fclose(out2);
-        }
-    }
-}
+static double get_home_feedrate(Gpx *gpx, int flag);
+static int pause_at_zpos(Gpx *gpx, float z_positon);
 
 // initialization of global variables
 
-static void initialize_globals(void)
+void gpx_initialize(Gpx *gpx, int firstTime)
 {
     int i;
-    
+    gpx->buffer.ptr = gpx->buffer.out;
     // we default to using pipes
-    in = stdin;
-    out = stdout;
-    out2 = NULL;
-    sdCardPath = NULL;
     
-    // register cleanup function
-    atexit(exit_handler);
+    // initialise machine
+    if(firstTime) gpx->machine = replicator_2;
     
-    command.flag = 0;
+    // initialise command
+    gpx->command.x = 0.0;
+    gpx->command.y = 0.0;
+    gpx->command.z = 0.0;
+    gpx->command.a = 0.0;
+    gpx->command.b = 0.0;
     
-    // initialize current position to zero
+    gpx->command.e = 0.0;
+    gpx->command.f = 0.0;
     
-    currentPosition.x = 0.0;
-    currentPosition.y = 0.0;
-    currentPosition.z = 0.0;
+    gpx->command.p = 0.0;
+    gpx->command.r = 0.0;
+    gpx->command.s = 0.0;
     
-    currentPosition.a = 0.0;
-    currentPosition.b = 0.0;
+
+    gpx->command.g = 0.0;
+    gpx->command.m = 0.0;
+    gpx->command.t = 0.0;
     
-    command.e = 0.0;
-    command.f = 0.0;
-    command.p = 0.0;
-    command.r = 0.0;
-    command.s = 0.0;
+    gpx->command.comment = "";
+        
+    gpx->command.flag = 0;
     
-    command.comment = "";
+    // initialize target position
+    gpx->target.position.x = 0.0;
+    gpx->target.position.y = 0.0;
+    gpx->target.position.z = 0.0;
     
-    excess.a = 0.0;
-    excess.b = 0.0;
+    gpx->target.position.a = 0.0;
+    gpx->target.position.b = 0.0;
+
+    gpx->target.extruder = 0;
+
+    // initialize current position
+    gpx->current.position.x = 0.0;
+    gpx->current.position.y = 0.0;
+    gpx->current.position.z = 0.0;
     
-    currentFeedrate = get_home_feedrate(XYZ_BIT_MASK);
-    
-    currentOffset = 0;
-    
+    gpx->current.position.a = 0.0;
+    gpx->current.position.b = 0.0;
+
+    gpx->current.positionKnown = 0;
+    gpx->current.feedrate = get_home_feedrate(gpx, XYZ_BIT_MASK);
+    gpx->current.extruder = 0;
+    gpx->current.offset = 0;
+    gpx->current.percent = 0;
+
+    // initialize the accumulated rounding error
+    gpx->excess.a = 0.0;
+    gpx->excess.b = 0.0;
+
+    // initialize the G10 offsets
     for(i = 0; i < 7; i++) {
-        offset[i].x = 0.0;
-        offset[i].y = 0.0;
-        offset[i].z = 0.0;
+        gpx->offset[i].x = 0.0;
+        gpx->offset[i].y = 0.0;
+        gpx->offset[i].z = 0.0;
     }
 
-    userOffset.x = 0.0;
-    userOffset.y = 0.0;
-    userOffset.z = 0.0;
-    
-    selectedExtruder = 0;
-    currentExtruder = 0;
+    // initialize the command line offset
+    if(firstTime) {
+        gpx->userOffset.x = 0.0;
+        gpx->userOffset.y = 0.0;
+        gpx->userOffset.z = 0.0;
+    }
     
     for(i = 0; i < 2; i++) {
-        tool[i].motor_enabled = 0;
+        gpx->tool[i].motor_enabled = 0;
 #if ENABLE_SIMULATED_RPM
-        tool[i].rpm = 0;
+        gpx->tool[i].rpm = 0;
 #endif
-        tool[i].nozzle_temperature = 0;
-        tool[i].build_platform_temperature = 0;
+        gpx->tool[i].nozzle_temperature = 0;
+        gpx->tool[i].build_platform_temperature = 0;
         
-        override[i].actual_filament_diameter = 0;
-        override[i].filament_scale = 1.0;
-        override[i].packing_density = 1.0;
-        override[i].standby_temperature = 0;
-        override[i].active_temperature = 0;
-        override[i].build_platform_temperature = 0;
+        gpx->override[i].actual_filament_diameter = 0;
+        gpx->override[i].filament_scale = 1.0;
+        gpx->override[i].packing_density = 1.0;
+        gpx->override[i].standby_temperature = 0;
+        gpx->override[i].active_temperature = 0;
+        gpx->override[i].build_platform_temperature = 0;
+    }
+    
+    if(firstTime) {
+        gpx->filament[0].colour = "_null_";
+        gpx->filament[0].diameter = 0.0;
+        gpx->filament[0].temperature = 0;
+        gpx->filament[0].LED = 0;
+        gpx->filamentLength = 1;
+    }
+    
+    if(firstTime) gpx->commandAtIndex = 0;
+    gpx->commandAtLength = 0;
+    gpx->commandAtZ = 0.0;
+    
+    // SETTINGS
+    
+    if(firstTime) {
+        gpx->sdCardPath = NULL;
+        gpx->buildName = "GPX " GPX_VERSION;
     }
 
-    isRelative = 0;
-    extruderIsRelative = 0;
-    positionKnown = 0;
-    programState = 0;
+    gpx->flag.relativeCoordinates = 0;
+    gpx->flag.extruderIsRelative = 0;
 
-    reprapFlavor = 1; // default is reprap flavor
-    dittoPrinting = 0;
-    buildProgress = 0;
-    verboseMode = 0;
+    if(firstTime) {
+        gpx->flag.reprapFlavor = 1; // default is reprap flavor
+        gpx->flag.dittoPrinting = 0;
+        gpx->flag.buildProgress = 0;
+        gpx->flag.verboseMode = 0;
+        gpx->flag.rewrite5D = 0;
+        gpx->flag.serialIO = 0;
+    }
+   
+    // STATE
     
-    lineNumber = 1;
-    
-    filament[0].colour = "_null_";
-    filament[0].diameter = 0.0;
-    filament[0].temperature = 0;
-    filament[0].LED = 0;
-    filamentLength = 1;
+    gpx->flag.programState = 0;
+    gpx->flag.doPauseAtZPos = 0;
+    gpx->flag.pausePending = 0;
+    gpx->flag.macrosEnabled = 0;
+    gpx->flag.framingEnabled = 0;
+    if(firstTime) gpx->flag.showErrorMessages = 1;
 
-    commandAtIndex = 0;
-    commandAtLength = 0;
-    macrosEnabled = 0;
-    pausePending = 0;
+    gpx->longestDDA = 0;
+    gpx->layerHeight = 0.34;
+    gpx->lineNumber = 1;
     
-    rewrite5D = 0;
-    layer_height = 0.34;
     
-    aLength = 0.0;
-    bLength = 0.0;
-    runningTime = 0.0;
+    // STATISTICS
+    
+    gpx->accumulated.a = 0.0;
+    gpx->accumulated.b = 0.0;
+    gpx->accumulated.time = 0.0;
+    gpx->accumulated.bytes = 0;
+    
+    if(firstTime) {
+        gpx->total.length = 0.0;
+        gpx->total.time = 0.0;
+        gpx->total.bytes = 0;
+    }
+    
+    // CALLBACK
+    
+    gpx->callbackHandler = NULL;
+    gpx->callbackData = NULL;
 }
 
 // STATE
 
-#define start_program() programState = RUNNING_STATE
-#define end_program() programState = ENDED_STATE
+#define start_program() gpx->flag.programState = RUNNING_STATE
+#define end_program() gpx->flag.programState = ENDED_STATE
 
-#define program_is_ready() programState < RUNNING_STATE
-#define program_is_running() programState < ENDED_STATE
+#define program_is_ready() gpx->flag.programState < RUNNING_STATE
+#define program_is_running() gpx->flag.programState < ENDED_STATE
 
 // IO FUNCTIONS
 
-static void write_8(unsigned char value)
+static void write_8(Gpx *gpx, unsigned char value)
 {
-    if(fputc(value, out) == EOF) exit(1);
-    
-    if(out2) {
-        if(fputc(value, out2) == EOF) exit(1);
-    }
+    *gpx->buffer.ptr++ = value;
 }
 
-static void write_16(unsigned short value)
+static void write_16(Gpx *gpx, unsigned short value)
 {
     union {
         unsigned short s;
         unsigned char b[2];
     } u;
     u.s = value;
-    
-    if(fputc(u.b[0], out) == EOF) exit(1);
-    if(fputc(u.b[1], out) == EOF) exit(1);
-    
-    if(out2) {
-        if(fputc(u.b[0], out2) == EOF) exit(1);
-        if(fputc(u.b[1], out2) == EOF) exit(1);
-    }
+    *gpx->buffer.ptr++ = u.b[0];
+    *gpx->buffer.ptr++ = u.b[1];
 }
 
-static void write_32(unsigned int value)
+static void write_32(Gpx *gpx, unsigned int value)
 {
     union {
         unsigned int i;
         unsigned char b[4];
     } u;
     u.i = value;
-    
-    if(fputc(u.b[0], out) == EOF) exit(1);
-    if(fputc(u.b[1], out) == EOF) exit(1);
-    if(fputc(u.b[2], out) == EOF) exit(1);
-    if(fputc(u.b[3], out) == EOF) exit(1);
-    
-    if(out2) {
-        if(fputc(u.b[0], out2) == EOF) exit(1);
-        if(fputc(u.b[1], out2) == EOF) exit(1);
-        if(fputc(u.b[2], out2) == EOF) exit(1);
-        if(fputc(u.b[3], out2) == EOF) exit(1);
-    }
+    *gpx->buffer.ptr++ = u.b[0];
+    *gpx->buffer.ptr++ = u.b[1];
+    *gpx->buffer.ptr++ = u.b[2];
+    *gpx->buffer.ptr++ = u.b[3];
 }
 
-static void write_float(float value)
+static void write_float(Gpx *gpx, float value)
 {
     union {
         float f;
         unsigned char b[4];
     } u;
     u.f = value;
-    
-    if(fputc(u.b[0], out) == EOF) exit(1);
-    if(fputc(u.b[1], out) == EOF) exit(1);
-    if(fputc(u.b[2], out) == EOF) exit(1);
-    if(fputc(u.b[3], out) == EOF) exit(1);
-    
-    if(out2) {
-        if(fputc(u.b[0], out2) == EOF) exit(1);
-        if(fputc(u.b[1], out2) == EOF) exit(1);
-        if(fputc(u.b[2], out2) == EOF) exit(1);
-        if(fputc(u.b[3], out2) == EOF) exit(1);
+    *gpx->buffer.ptr++ = u.b[0];
+    *gpx->buffer.ptr++ = u.b[1];
+    *gpx->buffer.ptr++ = u.b[2];
+    *gpx->buffer.ptr++ = u.b[3];
+}
+
+static long write_string(Gpx *gpx, char *string, long length)
+{
+    long l = length;
+    while(l--) {
+        *gpx->buffer.ptr++ = *string++;
+    }
+    *gpx->buffer.ptr++ = '\0';
+    return length;
+}
+
+// FRAMING
+
+static unsigned char calculate_crc(unsigned char *addr, long len)
+{
+    unsigned char data, crc = 0;
+    while(len--) {
+        data = *addr++;
+        // 8-bit iButton/Maxim/Dallas CRC loop unrolled
+        crc = crc ^ data;
+        // 1
+        if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
+        else crc >>= 1;
+        
+        // 2
+        if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
+        else crc >>= 1;
+        
+        // 3
+        if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
+        else crc >>= 1;
+        
+        // 4
+        if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
+        else crc >>= 1;
+        
+        // 5
+        if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
+        else crc >>= 1;
+        
+        // 6
+        if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
+        else crc >>= 1;
+        
+        // 7
+        if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
+        else crc >>= 1;
+        
+        // 8
+        if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
+        else crc >>= 1;
+    }
+    return crc;
+}
+
+static void begin_frame(Gpx *gpx)
+{
+    gpx->buffer.ptr = gpx->buffer.out;
+    if(gpx->flag.framingEnabled) {
+        gpx->buffer.out[0] = 0xD5;  // synchronization byte
+        gpx->buffer.ptr += 2;
     }
 }
 
-static size_t write_string(char *string, long length)
+static int end_frame(Gpx *gpx)
 {
-    size_t bytes_sent = fwrite(string, 1, length, out);
-    if(fputc('\0', out) == EOF) exit(1);
-    
-    if(out2) {
-        bytes_sent = fwrite(string, 1, length, out2);
-        if(fputc('\0', out2) == EOF) exit(1);
+    if(gpx->flag.framingEnabled) {
+        unsigned char *start = (unsigned char *)gpx->buffer.out + 2;
+        unsigned char *end = (unsigned char *)gpx->buffer.ptr;
+        long frameLength = end - start;
+        gpx->buffer.out[1] = (unsigned char)frameLength;
+        *gpx->buffer.ptr++ = calculate_crc(start, frameLength);
     }
-    return bytes_sent;
+    gpx->accumulated.bytes += gpx->buffer.ptr - gpx->buffer.out;
+    if(gpx->callbackHandler) return gpx->callbackHandler(gpx, gpx->callbackData);
+    return 0;
 }
 
 // 5D VECTOR FUNCTIONS
 
 // compute the filament scaling factor
 
-static void set_filament_scale(unsigned extruder_id, double filament_diameter)
+static void set_filament_scale(Gpx *gpx, unsigned extruder_id, double filament_diameter)
 {
     double actual_radius = filament_diameter / 2;
-    double nominal_radius = machine.nominal_filament_diameter / 2;
-    override[extruder_id].filament_scale = (nominal_radius * nominal_radius) / (actual_radius * actual_radius);
+    double nominal_radius = gpx->machine.nominal_filament_diameter / 2;
+    gpx->override[extruder_id].filament_scale = (nominal_radius * nominal_radius) / (actual_radius * actual_radius);
 }
 
 // return the magnitude (length) of the 5D vector
@@ -554,84 +657,85 @@ static double largest_axis(int flag, Ptr5d vector)
 
 // calculate the dda for the longest axis for the current machine definition
 
-static int get_longest_dda()
+static int get_longest_dda(Gpx *gpx)
 {
     // calculate once
-    static int longestDDA = 0;
+    int longestDDA = gpx->longestDDA;
     if(longestDDA == 0) {
-        longestDDA = (int)(60 * 1000000.0 / (machine.x.max_feedrate * machine.x.steps_per_mm));
+        longestDDA = (int)(60 * 1000000.0 / (gpx->machine.x.max_feedrate * gpx->machine.x.steps_per_mm));
     
-        int axisDDA = (int)(60 * 1000000.0 / (machine.y.max_feedrate * machine.y.steps_per_mm));
+        int axisDDA = (int)(60 * 1000000.0 / (gpx->machine.y.max_feedrate * gpx->machine.y.steps_per_mm));
         if(longestDDA < axisDDA) longestDDA = axisDDA;
     
-        axisDDA = (int)(60 * 1000000.0 / (machine.z.max_feedrate * machine.z.steps_per_mm));
+        axisDDA = (int)(60 * 1000000.0 / (gpx->machine.z.max_feedrate * gpx->machine.z.steps_per_mm));
         if(longestDDA < axisDDA) longestDDA = axisDDA;
+        gpx->longestDDA = longestDDA;
     }
     return longestDDA;
 }
 
 // return the maximum home feedrate
 
-static double get_home_feedrate(int flag) {
+static double get_home_feedrate(Gpx *gpx, int flag) {
     double feedrate = 0.0;
     if(flag & X_IS_SET) {
-        feedrate = machine.x.home_feedrate;
+        feedrate = gpx->machine.x.home_feedrate;
     }
-    if(flag & Y_IS_SET && feedrate < machine.y.home_feedrate) {
-        feedrate = machine.y.home_feedrate;
+    if(flag & Y_IS_SET && feedrate < gpx->machine.y.home_feedrate) {
+        feedrate = gpx->machine.y.home_feedrate;
     }
-    if(flag & Z_IS_SET && feedrate < machine.z.home_feedrate) {
-        feedrate = machine.z.home_feedrate;
+    if(flag & Z_IS_SET && feedrate < gpx->machine.z.home_feedrate) {
+        feedrate = gpx->machine.z.home_feedrate;
     }
     return feedrate;
 }
 
 // return the maximum safe feedrate
 
-static double get_safe_feedrate(int flag, Ptr5d delta) {
+static double get_safe_feedrate(Gpx *gpx, int flag, Ptr5d delta) {
     
-    double feedrate = currentFeedrate;
+    double feedrate = gpx->current.feedrate;
     if(feedrate == 0.0) {
-        feedrate = machine.x.max_feedrate;
-        if(feedrate < machine.y.max_feedrate) {
-            feedrate = machine.y.max_feedrate;
+        feedrate = gpx->machine.x.max_feedrate;
+        if(feedrate < gpx->machine.y.max_feedrate) {
+            feedrate = gpx->machine.y.max_feedrate;
         }
-        if(feedrate < machine.z.max_feedrate) {
-            feedrate = machine.z.max_feedrate;
+        if(feedrate < gpx->machine.z.max_feedrate) {
+            feedrate = gpx->machine.z.max_feedrate;
         }
-        if(feedrate < machine.a.max_feedrate) {
-            feedrate = machine.a.max_feedrate;
+        if(feedrate < gpx->machine.a.max_feedrate) {
+            feedrate = gpx->machine.a.max_feedrate;
         }
-        if(feedrate < machine.b.max_feedrate) {
-            feedrate = machine.b.max_feedrate;
+        if(feedrate < gpx->machine.b.max_feedrate) {
+            feedrate = gpx->machine.b.max_feedrate;
         }
     }
 
     double distance = magnitude(flag & XYZ_BIT_MASK, delta);
-    if(flag & X_IS_SET && (feedrate * delta->x / distance) > machine.x.max_feedrate) {
-        feedrate = machine.x.max_feedrate * distance / delta->x;
+    if(flag & X_IS_SET && (feedrate * delta->x / distance) > gpx->machine.x.max_feedrate) {
+        feedrate = gpx->machine.x.max_feedrate * distance / delta->x;
     }
-    if(flag & Y_IS_SET && (feedrate * delta->y / distance) > machine.y.max_feedrate) {
-        feedrate = machine.y.max_feedrate * distance / delta->y;
+    if(flag & Y_IS_SET && (feedrate * delta->y / distance) > gpx->machine.y.max_feedrate) {
+        feedrate = gpx->machine.y.max_feedrate * distance / delta->y;
     }
-    if(flag & Z_IS_SET && (feedrate * delta->z / distance) > machine.z.max_feedrate) {
-        feedrate = machine.z.max_feedrate * distance / delta->z;
+    if(flag & Z_IS_SET && (feedrate * delta->z / distance) > gpx->machine.z.max_feedrate) {
+        feedrate = gpx->machine.z.max_feedrate * distance / delta->z;
     }
 
     if(distance == 0) {
-        if(flag & A_IS_SET && feedrate > machine.a.max_feedrate) {
-            feedrate = machine.a.max_feedrate;
+        if(flag & A_IS_SET && feedrate > gpx->machine.a.max_feedrate) {
+            feedrate = gpx->machine.a.max_feedrate;
         }        
-        if(flag & B_IS_SET && feedrate > machine.b.max_feedrate) {
-            feedrate = machine.b.max_feedrate;
+        if(flag & B_IS_SET && feedrate > gpx->machine.b.max_feedrate) {
+            feedrate = gpx->machine.b.max_feedrate;
         }
     }
     else {
-        if(flag & A_IS_SET && (feedrate * delta->a / distance) > machine.a.max_feedrate) {
-            feedrate = machine.a.max_feedrate * distance / delta->a;
+        if(flag & A_IS_SET && (feedrate * delta->a / distance) > gpx->machine.a.max_feedrate) {
+            feedrate = gpx->machine.a.max_feedrate * distance / delta->a;
         }
-        if(flag & B_IS_SET && (feedrate * delta->b / distance) > machine.b.max_feedrate) {
-            feedrate = machine.b.max_feedrate * distance / delta->b;
+        if(flag & B_IS_SET && (feedrate * delta->b / distance) > gpx->machine.b.max_feedrate) {
+            feedrate = gpx->machine.b.max_feedrate * distance / delta->b;
         }
     }
     return feedrate;
@@ -641,103 +745,149 @@ static double get_safe_feedrate(int flag, Ptr5d delta) {
 
 // IMPORTANT: this command changes the global excess value which accumulates the rounding remainder
 
-static Point5d mm_to_steps(Ptr5d mm, Ptr2d excess)
+static Point5d mm_to_steps(Gpx *gpx, Ptr5d mm, Ptr2d excess)
 {
     double value;
     Point5d result;
-    result.x = round(mm->x * machine.x.steps_per_mm);
-    result.y = round(mm->y * machine.y.steps_per_mm);
-    result.z = round(mm->z * machine.z.steps_per_mm);
+    result.x = round(mm->x * gpx->machine.x.steps_per_mm);
+    result.y = round(mm->y * gpx->machine.y.steps_per_mm);
+    result.z = round(mm->z * gpx->machine.z.steps_per_mm);
     if(excess) {
         // accumulate rounding remainder
-        value = (mm->a * machine.a.steps_per_mm) + excess->a;
+        value = (mm->a * gpx->machine.a.steps_per_mm) + excess->a;
         result.a = round(value);
         // changes to excess
         excess->a = value - result.a;
         
-        value = (mm->b * machine.b.steps_per_mm) + excess->b;
+        value = (mm->b * gpx->machine.b.steps_per_mm) + excess->b;
         result.b = round(value);
         // changes to excess
         excess->b = value - result.b;
     }
     else {
-        result.a = round(mm->a * machine.a.steps_per_mm);
-        result.b = round(mm->b * machine.b.steps_per_mm);        
+        result.a = round(mm->a * gpx->machine.a.steps_per_mm);
+        result.b = round(mm->b * gpx->machine.b.steps_per_mm);        
     }
     return result;
 }
 
-static Point5d delta_mm()
+static Point5d delta_mm(Gpx *gpx)
 {
     Point5d deltaMM;
     // compute the relative distance traveled along each axis and convert to steps
-    if(command.flag & X_IS_SET) deltaMM.x = targetPosition.x - currentPosition.x; else deltaMM.x = 0;
-    if(command.flag & Y_IS_SET) deltaMM.y = targetPosition.y - currentPosition.y; else deltaMM.y = 0;
-    if(command.flag & Z_IS_SET) deltaMM.z = targetPosition.z - currentPosition.z; else deltaMM.z = 0;
-    if(command.flag & A_IS_SET) deltaMM.a = targetPosition.a - currentPosition.a; else deltaMM.a = 0;
-    if(command.flag & B_IS_SET) deltaMM.b = targetPosition.b - currentPosition.b; else deltaMM.b = 0;
+    if(gpx->command.flag & X_IS_SET) deltaMM.x = gpx->target.position.x - gpx->current.position.x; else deltaMM.x = 0;
+    if(gpx->command.flag & Y_IS_SET) deltaMM.y = gpx->target.position.y - gpx->current.position.y; else deltaMM.y = 0;
+    if(gpx->command.flag & Z_IS_SET) deltaMM.z = gpx->target.position.z - gpx->current.position.z; else deltaMM.z = 0;
+    if(gpx->command.flag & A_IS_SET) deltaMM.a = gpx->target.position.a - gpx->current.position.a; else deltaMM.a = 0;
+    if(gpx->command.flag & B_IS_SET) deltaMM.b = gpx->target.position.b - gpx->current.position.b; else deltaMM.b = 0;
     return deltaMM;
 }
 
-static Point5d delta_steps(Point5d deltaMM)
+static Point5d delta_steps(Gpx *gpx,Point5d deltaMM)
 {
     Point5d deltaSteps;
     // compute the relative distance traveled along each axis and convert to steps
-    if(command.flag & X_IS_SET) deltaSteps.x = round(fabs(deltaMM.x) * machine.x.steps_per_mm); else deltaSteps.x = 0;
-    if(command.flag & Y_IS_SET) deltaSteps.y = round(fabs(deltaMM.y) * machine.y.steps_per_mm); else deltaSteps.y = 0;
-    if(command.flag & Z_IS_SET) deltaSteps.z = round(fabs(deltaMM.z) * machine.z.steps_per_mm); else deltaSteps.z = 0;
-    if(command.flag & A_IS_SET) deltaSteps.a = round(fabs(deltaMM.a) * machine.a.steps_per_mm); else deltaSteps.a = 0;
-    if(command.flag & B_IS_SET) deltaSteps.b = round(fabs(deltaMM.b) * machine.b.steps_per_mm); else deltaSteps.b = 0;
+    if(gpx->command.flag & X_IS_SET) deltaSteps.x = round(fabs(deltaMM.x) * gpx->machine.x.steps_per_mm); else deltaSteps.x = 0;
+    if(gpx->command.flag & Y_IS_SET) deltaSteps.y = round(fabs(deltaMM.y) * gpx->machine.y.steps_per_mm); else deltaSteps.y = 0;
+    if(gpx->command.flag & Z_IS_SET) deltaSteps.z = round(fabs(deltaMM.z) * gpx->machine.z.steps_per_mm); else deltaSteps.z = 0;
+    if(gpx->command.flag & A_IS_SET) deltaSteps.a = round(fabs(deltaMM.a) * gpx->machine.a.steps_per_mm); else deltaSteps.a = 0;
+    if(gpx->command.flag & B_IS_SET) deltaSteps.b = round(fabs(deltaMM.b) * gpx->machine.b.steps_per_mm); else deltaSteps.b = 0;
     return deltaSteps;
 }
+
+// X3G QUERIES
+
+// 00 - Get version
+
+// 01 - Initialize firmware to boot state
+
+// 02 - Get available buffer size
+
+// 03 - Clear buffer
+
+// 07 - Abort immediately
+
+// 08 - Pause/Resume
+
+// 10 - Tool query
+
+// 11 - Is finished
+
+// 12 - Read from EEPROM
+
+// 13 - Write to EEPROM
+
+// 14 - Capture to file
+
+// 15 - End capture to file
+
+// 16 - Play back capture
+
+// 17 - Reset
+
+// 18 - Get next filename
+
+// 20 - Get build name
+
+// 21 - Get extended position
+
+// 22 - Extended stop
+
+// 23 - Get motherboard status
+
+// 24 - Get build statistics
+
+// 25 - Get communication statistics
+
+// 27 - Get advanced version number
 
 // X3G COMMANDS
 
 // 131 - Find axes minimums
 // 132 - Find axes maximums
 
-static void home_axes(unsigned direction)
+static int home_axes(Gpx *gpx, unsigned direction)
 {
     Point5d unitVector;
-    int xyz_flag = command.flag & XYZ_BIT_MASK;
-    double feedrate = command.flag & F_IS_SET ? currentFeedrate : get_home_feedrate(command.flag);
+    int xyz_flag = gpx->command.flag & XYZ_BIT_MASK;
+    double feedrate = gpx->command.flag & F_IS_SET ? gpx->current.feedrate : get_home_feedrate(gpx, gpx->command.flag);
     double longestAxis = 0.0;
     assert(direction <= 1);
 
     // compute the slowest feedrate
     if(xyz_flag & X_IS_SET) {
-        if(machine.x.home_feedrate < feedrate) {
-            feedrate = machine.x.home_feedrate;
+        if(gpx->machine.x.home_feedrate < feedrate) {
+            feedrate = gpx->machine.x.home_feedrate;
         }
         unitVector.x = 1;
-        longestAxis = machine.x.steps_per_mm;
+        longestAxis = gpx->machine.x.steps_per_mm;
         // confirm machine compatibility
-        if(direction != machine.x.endstop) {
-            fprintf(stderr, "(line %u) Semantic warning: X axis homing to %s endstop" EOL, lineNumber, direction ? "maximum" : "minimum");
+        if(direction != gpx->machine.x.endstop) {
+            SHOW( fprintf(stderr, "(line %u) Semantic warning: X axis homing to %s endstop" EOL, gpx->lineNumber, direction ? "maximum" : "minimum") );
         }
     }
     if(xyz_flag & Y_IS_SET) {
-        if(machine.y.home_feedrate < feedrate) {
-            feedrate = machine.y.home_feedrate;
+        if(gpx->machine.y.home_feedrate < feedrate) {
+            feedrate = gpx->machine.y.home_feedrate;
         }
         unitVector.y = 1;
-        if(longestAxis < machine.y.steps_per_mm) {
-            longestAxis = machine.y.steps_per_mm;
+        if(longestAxis < gpx->machine.y.steps_per_mm) {
+            longestAxis = gpx->machine.y.steps_per_mm;
         }
-        if(direction != machine.y.endstop) {
-            fprintf(stderr, "(line %u) Semantic warning: Y axis homing to %s endstop" EOL, lineNumber, direction ? "maximum" : "minimum");
+        if(direction != gpx->machine.y.endstop) {
+            SHOW( fprintf(stderr, "(line %u) Semantic warning: Y axis homing to %s endstop" EOL, gpx->lineNumber, direction ? "maximum" : "minimum") );
         }
     }
     if(xyz_flag & Z_IS_SET) {
-        if(machine.z.home_feedrate < feedrate) {
-            feedrate = machine.z.home_feedrate;
+        if(gpx->machine.z.home_feedrate < feedrate) {
+            feedrate = gpx->machine.z.home_feedrate;
         }
         unitVector.z = 1;
-        if(longestAxis < machine.z.steps_per_mm) {
-            longestAxis = machine.z.steps_per_mm;
+        if(longestAxis < gpx->machine.z.steps_per_mm) {
+            longestAxis = gpx->machine.z.steps_per_mm;
         }
-        if(direction != machine.z.endstop) {
-            fprintf(stderr, "(line %u) Semantic warning: Z axis homing to %s endstop" EOL, lineNumber, direction ? "maximum" : "minimum");
+        if(direction != gpx->machine.z.endstop) {
+            SHOW( fprintf(stderr, "(line %u) Semantic warning: Z axis homing to %s endstop" EOL, gpx->lineNumber, direction ? "maximum" : "minimum") );
         }
     }
     
@@ -748,30 +898,36 @@ static void home_axes(unsigned direction)
     // time between steps for longest axis = microseconds / longestStep
     unsigned step_delay = (unsigned)round(microseconds / longestAxis);
     
-    write_8(direction == ENDSTOP_IS_MIN ? 131 :132);
+    gpx->accumulated.time += distance / feedrate * 60;
+
+    begin_frame(gpx);
+
+    write_8(gpx, direction == ENDSTOP_IS_MIN ? 131 :132);
     
     // uint8: Axes bitfield. Axes whose bits are set will be moved.
-    write_8(xyz_flag);
+    write_8(gpx, xyz_flag);
     
     // uint32: Feedrate, in microseconds between steps on the max delta. (DDA)
-    write_32(step_delay);
+    write_32(gpx, step_delay);
     
     // uint16: Timeout, in seconds.
-    write_16(machine.timeout);
+    write_16(gpx, gpx->machine.timeout);
     
-    if(verboseMode) {
-        runningTime += distance / feedrate * 60;
-    }
+    return end_frame(gpx);
 }
 
 // 133 - delay
 
-static void delay(unsigned milliseconds)
+static int delay(Gpx *gpx, unsigned milliseconds)
 {
-    write_8(133);
+    begin_frame(gpx);
+    
+    write_8(gpx, 133);
     
     // uint32: delay, in milliseconds
-    write_32(milliseconds);
+    write_32(gpx, milliseconds);
+    
+    return end_frame(gpx);
 }
 
 // 134 - Change extruder offset
@@ -779,200 +935,270 @@ static void delay(unsigned milliseconds)
 // This is important to use on dual-head Replicators, because the machine needs to know
 // the current toolhead in order to apply a calibration offset.
 
-static void change_extruder_offset(unsigned extruder_id)
+static int change_extruder_offset(Gpx *gpx, unsigned extruder_id)
 {
-    assert(extruder_id < machine.extruder_count);
-    write_8(134);
+    assert(extruder_id < gpx->machine.extruder_count);
+    
+    begin_frame(gpx);
+    
+    write_8(gpx, 134);
     
     // uint8: ID of the extruder to switch to
-    write_8(extruder_id);
+    write_8(gpx, extruder_id);
+    
+    return end_frame(gpx);
 }
 
 // 135 - Wait for extruder ready
 
-static void wait_for_extruder(unsigned extruder_id, unsigned timeout)
+static int wait_for_extruder(Gpx *gpx, unsigned extruder_id, unsigned timeout)
 {
-    assert(extruder_id < machine.extruder_count);
-    write_8(135);
+    assert(extruder_id < gpx->machine.extruder_count);
+    
+    begin_frame(gpx);
+
+    write_8(gpx, 135);
     
     // uint8: ID of the extruder to wait for
-    write_8(extruder_id);
+    write_8(gpx, extruder_id);
     
     // uint16: delay between query packets sent to the extruder, in ms (nominally 100 ms)
-    write_16(100);
+    write_16(gpx, 100);
     
     // uint16: Timeout before continuing without extruder ready, in seconds (nominally 1 minute)
-    write_16(timeout);
+    write_16(gpx, timeout);
+    
+    return end_frame(gpx);
 }
  
 // 136 - extruder action command
 
 // Action 03 - Set extruder target temperature
 
-static void set_nozzle_temperature(unsigned extruder_id, unsigned temperature)
+static int set_nozzle_temperature(Gpx *gpx, unsigned extruder_id, unsigned temperature)
 {
-    assert(extruder_id < machine.extruder_count);
-    write_8(136);
+    assert(extruder_id < gpx->machine.extruder_count);
+    
+    begin_frame(gpx);
+
+    write_8(gpx, 136);
     
     // uint8: ID of the extruder to query
-    write_8(extruder_id);
+    write_8(gpx, extruder_id);
     
     // uint8: Action command to send to the extruder
-    write_8(3);
+    write_8(gpx, 3);
     
     // uint8: Length of the extruder command payload (N)
-    write_8(2);
+    write_8(gpx, 2);
     
     // int16: Desired target temperature, in Celsius
-    write_16(temperature);
+    write_16(gpx, temperature);
+    
+    return end_frame(gpx);
 }
 
 // Action 12 - Enable / Disable fan
 
-static void set_fan(unsigned extruder_id, unsigned state)
+static int set_fan(Gpx *gpx, unsigned extruder_id, unsigned state)
 {
-    assert(extruder_id < machine.extruder_count);
-    write_8(136);
+    assert(extruder_id < gpx->machine.extruder_count);
+    
+    begin_frame(gpx);
+
+    write_8(gpx, 136);
     
     // uint8: ID of the extruder to query
-    write_8(extruder_id);
+    write_8(gpx, extruder_id);
     
     // uint8: Action command to send to the extruder
-    write_8(12);
+    write_8(gpx, 12);
     
     // uint8: Length of the extruder command payload (N)
-    write_8(1);
+    write_8(gpx, 1);
     
     // uint8: 1 to enable, 0 to disable
-    write_8(state);
+    write_8(gpx, state);
+    
+    return end_frame(gpx);
 }
 
 // Action 13 - Enable / Disable extra output (blower fan)
 
-static void set_valve(unsigned extruder_id, unsigned state)
+/*
+ WARNING: If you are using Gen 4 electronics (e.g. a Thing-o-Matic or a
+ heavily modified Cupcake), THEN DO NOT USE M126 / M127. It can trigger
+ a bug in the Gen 4 Extruder Controller firmware that will cause the
+ HBP temperature to go wild.  Note that the Extruder Controller is a
+ separate uprocessor on a separate board.  It has it's own firmware.
+ It's not clear if the bug is firmware-only or if there is a problem
+ with electronics as well (e.g. the HBP FET sees some residual current
+ from the EXTRA FET and its Vgs/Igs threshold is met and it activates).
+ But, there's no fix for the bug since no one has invested the time in
+ diagnosing this Extruder Controller issue.
+ 
+ - dnewman 22/11/2013
+ */
+
+static int set_valve(Gpx *gpx, unsigned extruder_id, unsigned state)
 {
-    assert(extruder_id < machine.extruder_count);
-    write_8(136);
-    
-    // uint8: ID of the extruder to query
-    write_8(extruder_id);
-    
-    // uint8: Action command to send to the extruder
-    write_8(13);
-    
-    // uint8: Length of the extruder command payload (N)
-    write_8(1);
-    
-    // uint8: 1 to enable, 0 to disable
-    write_8(state);
+    assert(extruder_id < gpx->machine.extruder_count);
+    if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+
+        begin_frame(gpx);
+        
+        write_8(gpx, 136);
+        
+        // uint8: ID of the extruder to query
+        write_8(gpx, extruder_id);
+        
+        // uint8: Action command to send to the extruder
+        write_8(gpx, 13);
+        
+        // uint8: Length of the extruder command payload (N)
+        write_8(gpx, 1);
+        
+        // uint8: 1 to enable, 0 to disable
+        write_8(gpx, state);
+        
+        return end_frame(gpx);
+    }
+    else if(gpx->flag.verboseMode) {
+        fputs("Warning: ignoring M126/M127 with Gen 4 extruder electronics" EOL, stderr);
+    }
+    return 0;
 }
 
 // Action 31 - Set build platform target temperature
 
-static void set_build_platform_temperature(unsigned extruder_id, unsigned temperature)
+static int set_build_platform_temperature(Gpx *gpx, unsigned extruder_id, unsigned temperature)
 {
-    assert(extruder_id < machine.extruder_count);
-    write_8(136);
+    assert(extruder_id < gpx->machine.extruder_count);
+    
+    begin_frame(gpx);
+    
+    write_8(gpx, 136);
     
     // uint8: ID of the extruder to query
-    write_8(extruder_id);
+    write_8(gpx, extruder_id);
     
     // uint8: Action command to send to the extruder
-    write_8(31);
+    write_8(gpx, 31);
     
     // uint8: Length of the extruder command payload (N)
-    write_8(2);
+    write_8(gpx, 2);
     
     // int16: Desired target temperature, in Celsius
-    write_16(temperature);
+    write_16(gpx, temperature);
+    
+    return end_frame(gpx);
 }
 
 // 137 - Enable / Disable axes steppers
 
-static void set_steppers(unsigned axes, unsigned state)
+static int set_steppers(Gpx *gpx, unsigned axes, unsigned state)
 {
     unsigned bitfield = axes & AXES_BIT_MASK;
     if(state) {
         bitfield |= 0x80;
     }
-    write_8(137);
+    
+    begin_frame(gpx);
+    
+    write_8(gpx, 137);
     
     // uint8: Bitfield codifying the command (see below)
-    write_8(bitfield);
+    write_8(gpx, bitfield);
+    
+    return end_frame(gpx);
 }
  
 // 139 - Queue absolute point
 
-static void queue_absolute_point()
+static int queue_absolute_point(Gpx *gpx)
 {
-    long longestDDA = get_longest_dda();
-    Point5d steps = mm_to_steps(&targetPosition, &excess);
+    long longestDDA = gpx->longestDDA ? gpx->longestDDA : get_longest_dda(gpx);
+    Point5d steps = mm_to_steps(gpx, &gpx->target.position, &gpx->excess);
     
-    write_8(139);
+    begin_frame(gpx);
+    
+    write_8(gpx, 139);
     
     // int32: X coordinate, in steps
-    write_32((int)steps.x);
+    write_32(gpx, (int)steps.x);
     
     // int32: Y coordinate, in steps
-    write_32((int)steps.y);
+    write_32(gpx, (int)steps.y);
     
     // int32: Z coordinate, in steps
-    write_32((int)steps.z);
+    write_32(gpx, (int)steps.z);
     
     // int32: A coordinate, in steps
-    write_32(-(int)steps.a);
+    write_32(gpx, -(int)steps.a);
     
     // int32: B coordinate, in steps
-    write_32(-(int)steps.b);
+    write_32(gpx, -(int)steps.b);
     
     // uint32: Feedrate, in microseconds between steps on the max delta. (DDA)
-    write_32((int)longestDDA);
+    write_32(gpx, (int)longestDDA);
+    
+    return end_frame(gpx);
 }
 
 // 140 - Set extended position
 
-static void set_position()
+static int set_position(Gpx *gpx)
 {
-    Point5d steps = mm_to_steps(&currentPosition, NULL);
-    write_8(140);
+    Point5d steps = mm_to_steps(gpx, &gpx->current.position, NULL);
+    
+    begin_frame(gpx);
+    
+    write_8(gpx, 140);
     
     // int32: X position, in steps
-    write_32((int)steps.x);
+    write_32(gpx, (int)steps.x);
     
     // int32: Y position, in steps
-    write_32((int)steps.y);
+    write_32(gpx, (int)steps.y);
     
     // int32: Z position, in steps
-    write_32((int)steps.z);
+    write_32(gpx, (int)steps.z);
     
     // int32: A position, in steps
-    write_32((int)steps.a);
+    write_32(gpx, (int)steps.a);
     
     // int32: B position, in steps
-    write_32((int)steps.b);
+    write_32(gpx, (int)steps.b);
+    
+    return end_frame(gpx);
 }
 
 // 141 - Wait for build platform ready
 
-static void wait_for_build_platform(unsigned extruder_id, int timeout)
+static int wait_for_build_platform(Gpx *gpx, unsigned extruder_id, int timeout)
 {
-    assert(extruder_id < machine.extruder_count);
-    write_8(141);
+    assert(extruder_id < gpx->machine.extruder_count);
+    
+    begin_frame(gpx);
+    
+    write_8(gpx, 141);
     
     // uint8: ID of the extruder platform to wait for
-    write_8(extruder_id);
+    write_8(gpx, extruder_id);
     
     // uint16: delay between query packets sent to the extruder, in ms (nominally 100 ms)
-    write_16(100);
+    write_16(gpx, 100);
     
     // uint16: Timeout before continuing without extruder ready, in seconds (nominally 1 minute)
-    write_16(timeout);
+    write_16(gpx, timeout);
+    
+    return end_frame(gpx);
 }
 
 // 142 - Queue extended point, new style
 
 #if ENABLE_SIMULATED_RPM
-static void queue_new_point(unsigned milliseconds)
+static int queue_new_point(Gpx *gpx, unsigned milliseconds)
 {
     Point5d target;
     
@@ -986,168 +1212,226 @@ static void queue_new_point(unsigned milliseconds)
     target.b = 0;
 
     // if we have a G4 dwell and either the a or b motor is on, 'simulate' a 5D extrusion distance
-    if(tool[A].motor_enabled && tool[A].rpm) {
-        double maxrpm = machine.a.max_feedrate * machine.a.steps_per_mm / machine.a.motor_steps;
-        double rpm = tool[A].rpm > maxrpm ? maxrpm : tool[A].rpm;
+    if(gpx->tool[A].motor_enabled && gpx->tool[A].rpm) {
+        double maxrpm = gpx->machine.a.max_feedrate * gpx->machine.a.steps_per_mm / gpx->machine.a.motor_steps;
+        double rpm = gpx->tool[A].rpm > maxrpm ? maxrpm : gpx->tool[A].rpm;
         double minutes = milliseconds / 60000.0;
         // minute * revolution/minute
-        double numRevolutions = minutes * (tool[A].motor_enabled > 0 ? rpm : -rpm);
+        double numRevolutions = minutes * (gpx->tool[A].motor_enabled > 0 ? rpm : -rpm);
         // steps/revolution * mm/steps
-        double mmPerRevolution = machine.a.motor_steps * (1 / machine.a.steps_per_mm);
+        double mmPerRevolution = gpx->machine.a.motor_steps * (1 / gpx->machine.a.steps_per_mm);
         target.a = -(numRevolutions * mmPerRevolution);
-        command.flag |= A_IS_SET;
-        aLength += fabs(target.a);
+        gpx->command.flag |= A_IS_SET;
+        gpx->accumulated.a += fabs(target.a);
     }
     
-    if(tool[B].motor_enabled && tool[B].rpm) {
-        double maxrpm = machine.b.max_feedrate * machine.b.steps_per_mm / machine.b.motor_steps;
-        double rpm = tool[B].rpm > maxrpm ? maxrpm : tool[B].rpm;
+    if(gpx->tool[B].motor_enabled && gpx->tool[B].rpm) {
+        double maxrpm = gpx->machine.b.max_feedrate * gpx->machine.b.steps_per_mm / gpx->machine.b.motor_steps;
+        double rpm = gpx->tool[B].rpm > maxrpm ? maxrpm : gpx->tool[B].rpm;
         double minutes = milliseconds / 60000.0;
         // minute * revolution/minute
-        double numRevolutions = minutes * (tool[B].motor_enabled > 0 ? rpm : -rpm);
+        double numRevolutions = minutes * (gpx->tool[B].motor_enabled > 0 ? rpm : -rpm);
         // steps/revolution * mm/steps
-        double mmPerRevolution = machine.b.motor_steps * (1 / machine.b.steps_per_mm);
+        double mmPerRevolution = gpx->machine.b.motor_steps * (1 / gpx->machine.b.steps_per_mm);
         target.b = -(numRevolutions * mmPerRevolution);
-        command.flag |= B_IS_SET;
-        bLength += fabs(target.a);
+        gpx->command.flag |= B_IS_SET;
+        gpx->accumulated.b += fabs(target.a);
     }
 
-    Point5d steps = mm_to_steps(&target, &excess);
+    Point5d steps = mm_to_steps(gpx, &target, &gpx->excess);
 
-    write_8(142);
+    gpx->accumulated.time += milliseconds / 1000.0;
+    
+    begin_frame(gpx);
+
+    write_8(gpx, 142);
     
     // int32: X coordinate, in steps
-    write_32((int)steps.x);
+    write_32(gpx, (int)steps.x);
     
     // int32: Y coordinate, in steps
-    write_32((int)steps.y);
+    write_32(gpx, (int)steps.y);
     
     // int32: Z coordinate, in steps
-    write_32((int)steps.z);
+    write_32(gpx, (int)steps.z);
     
     // int32: A coordinate, in steps
-    write_32((int)steps.a);
+    write_32(gpx, (int)steps.a);
     
     // int32: B coordinate, in steps
-    write_32((int)steps.b);
+    write_32(gpx, (int)steps.b);
     
     // uint32: Duration of the movement, in microseconds
-    write_32(milliseconds * 1000.0);
+    write_32(gpx, milliseconds * 1000.0);
     
     // uint8: Axes bitfield to specify which axes are relative. Any axis with a bit set should make a relative movement.
-    write_8(AXES_BIT_MASK);
+    write_8(gpx, AXES_BIT_MASK);
     
-    if(verboseMode) {
-        runningTime += milliseconds / 1000.0;
-    }
+    return end_frame(gpx);
 }
 #endif
 
 // 143 - Store home positions
 
-static void store_home_positions(void)
+static int store_home_positions(Gpx *gpx)
 {
-    write_8(143);
+    begin_frame(gpx);
+    
+    write_8(gpx, 143);
     
     // uint8: Axes bitfield to specify which axes' positions to store.
     // Any axis with a bit set should have its position stored.
-    write_8(command.flag & AXES_BIT_MASK);
+    write_8(gpx, gpx->command.flag & AXES_BIT_MASK);
+    
+    return end_frame(gpx);
 }
 
 // 144 - Recall home positions
 
-static void recall_home_positions(void)
+static int recall_home_positions(Gpx *gpx)
 {
-    write_8(144);
+    begin_frame(gpx);
+    
+    write_8(gpx, 144);
     
     // uint8: Axes bitfield to specify which axes' positions to recall.
     // Any axis with a bit set should have its position recalled.
-    write_8(command.flag & AXES_BIT_MASK);
+    write_8(gpx, gpx->command.flag & AXES_BIT_MASK);
+    
+    return end_frame(gpx);
 }
 
 // 145 - Set digital potentiometer value
 
-static void set_pot_value(unsigned axis, unsigned value)
+static int set_pot_value(Gpx *gpx, unsigned axis, unsigned value)
 {
     assert(axis <= 4);
     assert(value <= 127);
-    write_8(145);
+    
+    begin_frame(gpx);
+    
+    write_8(gpx, 145);
     
     // uint8: axis value (valid range 0-4) which axis pot to set
-    write_8(axis);
+    write_8(gpx, axis);
     
     // uint8: value (valid range 0-127), values over max will be capped at max
-    write_8(value);
+    write_8(gpx, value);
+    
+    return end_frame(gpx);
 }
  
 // 146 - Set RGB LED value
 
-static void set_LED(unsigned red, unsigned green, unsigned blue, unsigned blink)
+static int set_LED(Gpx *gpx, unsigned red, unsigned green, unsigned blue, unsigned blink)
 {
-    write_8(146);
+    begin_frame(gpx);
+    
+    write_8(gpx, 146);
     
     // uint8: red value (all pix are 0-255)
-    write_8(red);
+    write_8(gpx, red);
     
     // uint8: green
-    write_8(green);
+    write_8(gpx, green);
     
     // uint8: blue
-    write_8(blue);
+    write_8(gpx, blue);
     
     // uint8: blink rate (0-255 valid)
-    write_8(blink);
+    write_8(gpx, blink);
     
     // uint8: 0 (reserved for future use)
-    write_8(0);
+    write_8(gpx, 0);
+    
+    return end_frame(gpx);
 }
 
-static void set_LED_RGB(unsigned rgb, unsigned blink)
+static int set_LED_RGB(Gpx *gpx, unsigned rgb, unsigned blink)
 {
-    write_8(146);
+    begin_frame(gpx);
+    
+    write_8(gpx, 146);
     
     // uint8: red value (all pix are 0-255)
-    write_8((rgb >> 16) & 0xFF);
+    write_8(gpx, (rgb >> 16) & 0xFF);
     
     // uint8: green
-    write_8((rgb >> 8) & 0xFF);
+    write_8(gpx, (rgb >> 8) & 0xFF);
     
     // uint8: blue
-    write_8(rgb & 0xFF);
+    write_8(gpx, rgb & 0xFF);
     
     // uint8: blink rate (0-255 valid)
-    write_8(blink);
+    write_8(gpx, blink);
     
     // uint8: 0 (reserved for future use)
-    write_8(0);
+    write_8(gpx, 0);
 
+    return end_frame(gpx);
 }
 
 // 147 - Set Beep
 
-static void set_beep(unsigned frequency, unsigned milliseconds)
+static int set_beep(Gpx *gpx, unsigned frequency, unsigned milliseconds)
 {
-    write_8(147);
+    begin_frame(gpx);
+    
+    write_8(gpx, 147);
     
     // uint16: frequency
-    write_16(frequency);
+    write_16(gpx, frequency);
 
     // uint16: buzz length in ms
-    write_16(milliseconds);
+    write_16(gpx, milliseconds);
 
     // uint8: 0 (reserved for future use)
-    write_8(0);
+    write_8(gpx, 0);
+    
+    return end_frame(gpx);
 }
 
 // 148 - Pause for button
 
+#define BUTTON_CENTER   0x01
+#define BUTTON_RIGHT    0x02
+#define BUTTON_LEFT     0x04
+#define BUTTON_DOWN     0x08
+#define BUTTON_UP       0x10
+#define BUTTON_RESET    0x20
+
+// Button options
+
+#define READY_ON_TIMEOUT 0x01   // change to ready state on timeout
+#define RESET_ON_TIMEOUT 0x02   // reset on timeout
+#define CLEAR_ON_PRESS  0x04    // clear screen on button press
+
+static int wait_for_button(Gpx *gpx, int button, unsigned timeout, int button_options)
+{
+    begin_frame(gpx);
+    
+    write_8(gpx, 148);
+    
+    // uint8: Bit field of buttons to wait for
+    write_8(gpx, button);
+    
+    // uint16: Timeout, in seconds. A value of 0 indicates that the command should not time out.
+    write_16(gpx, timeout);
+    
+    // uint8: Options bitfield
+    write_8(gpx, button_options);
+    
+    return end_frame(gpx);
+}
+
 // 149 - Display message to LCD
 
-static void display_message(char *message, unsigned vPos, unsigned hPos, unsigned timeout, int wait_for_button)
+static int display_message(Gpx *gpx, char *message, unsigned vPos, unsigned hPos, unsigned timeout, int wait_for_button)
 {
     assert(vPos < 4);
     assert(hPos < 20);
     
+    int rval = 0;
     long bytesSent = 0;
     unsigned bitfield = 0;
     unsigned seconds = 0;
@@ -1158,6 +1442,7 @@ static void display_message(char *message, unsigned vPos, unsigned hPos, unsigne
     long length = strlen(message);
     if(vPos || hPos) {
         if(length > maxLength) length = maxLength;
+        bitfield |= 0x01; //do not clear flag
     }
     else {
         if(length > 80) length = 80;
@@ -1175,145 +1460,180 @@ static void display_message(char *message, unsigned vPos, unsigned hPos, unsigne
             bitfield |= 0x01; //do not clear flag
         }
         
-        write_8(149);
+        begin_frame(gpx);
+        
+        write_8(gpx, 149);
         
         // uint8: Options bitfield (see below)
-        write_8(bitfield);
+        write_8(gpx, bitfield);
         // uint8: Horizontal position to display the message at (commonly 0-19)
-        write_8(hPos);
+        write_8(gpx, hPos);
         // uint8: Vertical position to display the message at (commonly 0-3)
-        write_8(vPos);
+        write_8(gpx, vPos);
         // uint8: Timeout, in seconds. If 0, this message will left on the screen
-        write_8(seconds);
+        write_8(gpx, seconds);
         // 1+N bytes: Message to write to the screen, in ASCII, terminated with a null character.
         long rowLength = length - bytesSent;
-        bytesSent += write_string(message + bytesSent, rowLength < maxLength ? rowLength : maxLength);
+        bytesSent += write_string(gpx, message + bytesSent, rowLength < maxLength ? rowLength : maxLength);
+        
+        rval = end_frame(gpx);
+        if(rval) break;
     }
+    return rval;
 }
 
 // 150 - Set Build Percentage
 
-static void set_build_progress(unsigned percent)
+static int set_build_progress(Gpx *gpx, unsigned percent)
 {
     if(percent > 100) percent = 100;
     
-    write_8(150);
+    begin_frame(gpx);
+    
+    write_8(gpx, 150);
     
     // uint8: percent (0-100)
-    write_8(percent);
+    write_8(gpx, percent);
     
     // uint8: 0 (reserved for future use) (reserved for future use)
-    write_8(0);
+    write_8(gpx, 0);
+    
+    return end_frame(gpx);
 }
 
 // 151 - Queue Song
 
-static void queue_song(unsigned song_id)
+static int queue_song(Gpx *gpx, unsigned song_id)
 {
     // song ID 0: error tone with 4 cycles
     // song ID 1: done tone
     // song ID 2: error tone with 2 cycles
     
     assert(song_id <= 2);
-    write_8(151);
+    
+    begin_frame(gpx);
+    
+    write_8(gpx, 151);
     
     // uint8: songID: select from a predefined list of songs
-    write_8(song_id);
+    write_8(gpx, song_id);
+    
+    return end_frame(gpx);
 }
 
-// 152 - Restore to factory settings
+// 152 - Reset to factory defaults
+
+static int factory_defaults(Gpx *gpx)
+{
+    begin_frame(gpx);
+
+    write_8(gpx, 152);
+    
+    // uint8: 0 (reserved for future use)
+    write_8(gpx, 0);
+    
+    return end_frame(gpx);
+}
+
 
 // 153 - Build start notification
 
-static void start_build(char * filename)
+static int start_build(Gpx *gpx, char * filename)
 {
-    write_8(153);
+    begin_frame(gpx);
+    
+    write_8(gpx, 153);
     
     // uint32: 0 (reserved for future use)
-    write_32(0);
+    write_32(gpx, 0);
 
     // 1+N bytes: Name of the build, in ASCII, null terminated
-    write_string(filename, strlen(filename));
+    write_string(gpx, filename, strlen(filename));
+    
+    return end_frame(gpx);
 }
 
 // 154 - Build end notification
 
-static void end_build()
+static int end_build(Gpx *gpx)
 {
-    write_8(154);
+    begin_frame(gpx);
+    
+    write_8(gpx, 154);
 
     // uint8: 0 (reserved for future use)
-    write_8(0);
+    write_8(gpx, 0);
+    
+    return end_frame(gpx);
 }
  
 // 155 - Queue extended point x3g
 
 // IMPORTANT: this command updates the parser state
 
-static void queue_ext_point(double feedrate)
+static int queue_ext_point(Gpx *gpx, double feedrate)
 {
     // Because we don't know our previous position, we can't calculate the feedrate or
     // distance correctly, so we use an unaccelerated command with a fixed DDA
-    if(!positionKnown) {
-        queue_absolute_point();
-        return;
+    if(!gpx->current.positionKnown) {
+        return queue_absolute_point(gpx);
     }
-    Point5d deltaMM = delta_mm();
-    Point5d deltaSteps = delta_steps(deltaMM);
+    Point5d deltaMM = delta_mm(gpx);
+    Point5d deltaSteps = delta_steps(gpx, deltaMM);
     
     // check that we have actually moved on at least one axis when the move is
     // rounded down to the nearest step
-    if(magnitude(command.flag, &deltaSteps) > 0) {
-        double distance = magnitude(command.flag & XYZ_BIT_MASK, &deltaMM);
+    if(magnitude(gpx->command.flag, &deltaSteps) > 0) {
+        double distance = magnitude(gpx->command.flag & XYZ_BIT_MASK, &deltaMM);
         // are we moving and extruding?
-        if(rewrite5D && (command.flag & (A_IS_SET|B_IS_SET)) && distance > 0.0001) {
+        if(gpx->flag.rewrite5D && (gpx->command.flag & (A_IS_SET|B_IS_SET)) && distance > 0.0001) {
             double filament_radius, packing_area, packing_scale;
             if(A_IS_SET && deltaMM.a > 0.0001) {
-                if(override[A].actual_filament_diameter > 0.0001) {
-                    filament_radius = override[A].actual_filament_diameter / 2;
-                    packing_area = M_PI * filament_radius * filament_radius * override[A].packing_density;
+                if(gpx->override[A].actual_filament_diameter > 0.0001) {
+                    filament_radius = gpx->override[A].actual_filament_diameter / 2;
+                    packing_area = M_PI * filament_radius * filament_radius * gpx->override[A].packing_density;
                 }
                 else {
-                    filament_radius = machine.nominal_filament_diameter / 2;
-                    packing_area = M_PI * filament_radius * filament_radius * machine.nominal_packing_density;
+                    filament_radius = gpx->machine.nominal_filament_diameter / 2;
+                    packing_area = M_PI * filament_radius * filament_radius * gpx->machine.nominal_packing_density;
                 }
-                packing_scale = machine.nozzle_diameter * layer_height / packing_area;
+                packing_scale = gpx->machine.nozzle_diameter * gpx->layerHeight / packing_area;
                 if(deltaMM.a > 0) {
                     deltaMM.a = distance * packing_scale;
                 }
                 else {
                     deltaMM.a = -(distance * packing_scale);
                 }
-                targetPosition.a = currentPosition.a + deltaMM.a;
-                deltaSteps.a = round(fabs(deltaMM.a) * machine.a.steps_per_mm);
+                gpx->target.position.a = gpx->current.position.a + deltaMM.a;
+                deltaSteps.a = round(fabs(deltaMM.a) * gpx->machine.a.steps_per_mm);
             }
             if(B_IS_SET && deltaMM.b > 0.0001) {
-                if(override[B].actual_filament_diameter > 0.0001) {
-                    filament_radius = override[B].actual_filament_diameter / 2;
-                    packing_area = M_PI * filament_radius * filament_radius * override[A].packing_density;
+                if(gpx->override[B].actual_filament_diameter > 0.0001) {
+                    filament_radius = gpx->override[B].actual_filament_diameter / 2;
+                    packing_area = M_PI * filament_radius * filament_radius * gpx->override[A].packing_density;
                 }
                 else {
-                    filament_radius = machine.nominal_filament_diameter / 2;
-                    packing_area = M_PI * filament_radius * filament_radius * machine.nominal_packing_density;
+                    filament_radius = gpx->machine.nominal_filament_diameter / 2;
+                    packing_area = M_PI * filament_radius * filament_radius * gpx->machine.nominal_packing_density;
                 }
-                packing_scale = machine.nozzle_diameter * layer_height / packing_area;
+                packing_scale = gpx->machine.nozzle_diameter * gpx->layerHeight / packing_area;
                 if(deltaMM.b > 0) {
                     deltaMM.b = distance * packing_scale;
                 }
                 else {
                     deltaMM.b = -(distance * packing_scale);
                 }
-                targetPosition.b = currentPosition.b + deltaMM.b;
-                deltaSteps.b = round(fabs(deltaMM.b) * machine.b.steps_per_mm);
+                gpx->target.position.b = gpx->current.position.b + deltaMM.b;
+                deltaSteps.b = round(fabs(deltaMM.b) * gpx->machine.b.steps_per_mm);
             }
         }
-        Point5d target = targetPosition;
+        Point5d target = gpx->target.position;
         
         target.a = -deltaMM.a;
         target.b = -deltaMM.b;
         
-        aLength += deltaMM.a;
-        bLength += deltaMM.b;
+        gpx->accumulated.a += deltaMM.a;
+        gpx->accumulated.b += deltaMM.b;
         
         deltaMM.x = fabs(deltaMM.x);
         deltaMM.y = fabs(deltaMM.y);
@@ -1321,15 +1641,15 @@ static void queue_ext_point(double feedrate)
         deltaMM.a = fabs(deltaMM.a);
         deltaMM.b = fabs(deltaMM.b);
         
-        double feedrate = get_safe_feedrate(command.flag, &deltaMM);
+        feedrate = get_safe_feedrate(gpx, gpx->command.flag, &deltaMM);
         double minutes = distance / feedrate;
         
         if(minutes == 0) {
             distance = 0;
-            if(command.flag & A_IS_SET) {
+            if(gpx->command.flag & A_IS_SET) {
                 distance = deltaMM.a;
             }
-            if(command.flag & B_IS_SET && distance < deltaMM.b) {
+            if(gpx->command.flag & B_IS_SET && distance < deltaMM.b) {
                 distance = deltaMM.b;
             }
             minutes = distance / feedrate;
@@ -1340,116 +1660,174 @@ static void queue_ext_point(double feedrate)
 
 #if ENABLE_SIMULATED_RPM
         // if either a or b is 0, but their motor is on and turning, 'simulate' a 5D extrusion distance
-        if(deltaMM.a == 0.0 && tool[A].motor_enabled && tool[A].rpm) {
-            double maxrpm = machine.a.max_feedrate * machine.a.steps_per_mm / machine.a.motor_steps;
-            double rpm = tool[A].rpm > maxrpm ? maxrpm : tool[A].rpm;
+        if(deltaMM.a == 0.0 && gpx->tool[A].motor_enabled && gpx->tool[A].rpm) {
+            double maxrpm = gpx->machine.a.max_feedrate * gpx->machine.a.steps_per_mm / gpx->machine.a.motor_steps;
+            double rpm = gpx->tool[A].rpm > maxrpm ? maxrpm : gpx->tool[A].rpm;
             // minute * revolution/minute
-            double numRevolutions = minutes * (tool[A].motor_enabled > 0 ? rpm : -rpm);
+            double numRevolutions = minutes * (gpx->tool[A].motor_enabled > 0 ? rpm : -rpm);
             // steps/revolution * mm/steps
-            double mmPerRevolution = machine.a.motor_steps * (1 / machine.a.steps_per_mm);
+            double mmPerRevolution = gpx->machine.a.motor_steps * (1 / gpx->machine.a.steps_per_mm);
             // set distance
             deltaMM.a = numRevolutions * mmPerRevolution;
-            deltaSteps.a = round(fabs(deltaMM.a) * machine.a.steps_per_mm);
+            deltaSteps.a = round(fabs(deltaMM.a) * gpx->machine.a.steps_per_mm);
             target.a = -deltaMM.a;
         }
         else {
             // disable RPM as soon as we begin 5D printing
-            tool[A].rpm = 0;
+            gpx->tool[A].rpm = 0;
         }
-        if(deltaMM.b == 0.0 && tool[B].motor_enabled && tool[B].rpm) {
-            double maxrpm = machine.b.max_feedrate * machine.b.steps_per_mm / machine.b.motor_steps;
-            double rpm = tool[B].rpm > maxrpm ? maxrpm : tool[B].rpm;
+        if(deltaMM.b == 0.0 && gpx->tool[B].motor_enabled && gpx->tool[B].rpm) {
+            double maxrpm = gpx->machine.b.max_feedrate * gpx->machine.b.steps_per_mm / gpx->machine.b.motor_steps;
+            double rpm = gpx->tool[B].rpm > maxrpm ? maxrpm : gpx->tool[B].rpm;
             // minute * revolution/minute
-            double numRevolutions = minutes * (tool[B].motor_enabled > 0 ? rpm : -rpm);
+            double numRevolutions = minutes * (gpx->tool[B].motor_enabled > 0 ? rpm : -rpm);
             // steps/revolution * mm/steps
-            double mmPerRevolution = machine.b.motor_steps * (1 / machine.b.steps_per_mm);
+            double mmPerRevolution = gpx->machine.b.motor_steps * (1 / gpx->machine.b.steps_per_mm);
             // set distance
             deltaMM.b = numRevolutions * mmPerRevolution;
-            deltaSteps.b = round(fabs(deltaMM.b) * machine.b.steps_per_mm);
+            deltaSteps.b = round(fabs(deltaMM.b) * gpx->machine.b.steps_per_mm);
             target.b = -deltaMM.b;
         }
         else {
             // disable RPM as soon as we begin 5D printing
-            tool[B].rpm = 0;
+            gpx->tool[B].rpm = 0;
         }
 #endif
         
-        Point5d steps = mm_to_steps(&target, &excess);
+        Point5d steps = mm_to_steps(gpx, &target, &gpx->excess);
         
         double usec = (60000000.0 * minutes);
         
-        double dda_interval = usec / largest_axis(command.flag, &deltaSteps);
+        double dda_interval = usec / largest_axis(gpx->command.flag, &deltaSteps);
         
         // Convert dda_interval into dda_rate (dda steps per second on the longest axis)
         double dda_rate = 1000000.0 / dda_interval;
+        
+        gpx->accumulated.time += minutes * 60;
 
-        write_8(155);
+        begin_frame(gpx);
+        
+        write_8(gpx, 155);
         
         // int32: X coordinate, in steps
-        write_32((int)steps.x);
+        write_32(gpx, (int)steps.x);
         
         // int32: Y coordinate, in steps
-        write_32((int)steps.y);
+        write_32(gpx, (int)steps.y);
         
         // int32: Z coordinate, in steps
-        write_32((int)steps.z);
+        write_32(gpx, (int)steps.z);
         
         // int32: A coordinate, in steps
-        write_32((int)steps.a);
+        write_32(gpx, (int)steps.a);
         
         // int32: B coordinate, in steps
-        write_32((int)steps.b);
+        write_32(gpx, (int)steps.b);
 
         // uint32: DDA Feedrate, in steps/s
-        write_32((unsigned)dda_rate);
+        write_32(gpx, (unsigned)dda_rate);
         
         // uint8: Axes bitfield to specify which axes are relative. Any axis with a bit set should make a relative movement.
-        write_8(A_IS_SET|B_IS_SET);
+        write_8(gpx, A_IS_SET|B_IS_SET);
 
         // float (single precision, 32 bit): mm distance for this move.  normal of XYZ if any of these axes are active, and AB for extruder only moves
-        write_float((float)distance);
+        write_float(gpx, (float)distance);
         
         // uint16: feedrate in mm/s, multiplied by 64 to assist fixed point calculation on the bot
-        write_16((unsigned)(feedrate * 64.0));
+        write_16(gpx, (unsigned)(feedrate * 64.0));
         
-        if(verboseMode) {
-            runningTime += minutes * 60;
-        }
+        return end_frame(gpx);        
 	}
+    return 0;
 }
 
 // 156 - Set segment acceleration
 
-static void set_acceleration(int state)
+static int set_acceleration(Gpx *gpx, int state)
 {
-    write_8(156);
+    begin_frame(gpx);
+    
+    write_8(gpx, 156);
     
     // uint8: 1 to enable, 0 to disable
-    write_8(state);
+    write_8(gpx, state);
+    
+    return end_frame(gpx);
 }
 
 // 157 - Stream Version
 
+static int stream_version(Gpx *gpx)
+{
+    if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+        begin_frame(gpx);
+        
+        write_8(gpx, 157);
+        
+        // uint8: x3g version high byte
+        write_8(gpx, STREAM_VERSION_HIGH);
+        
+        // uint8: x3g version low byte
+        write_8(gpx, STREAM_VERSION_LOW);
+        
+        // uint8: not implemented
+        write_8(gpx, 0);
+        
+        // uint32: not implemented
+        write_32(gpx, 0);
+        
+        // uint16: bot type: PID for the intended bot is sent
+        // Repliator 2/2X (Might Two)
+        if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_2) {
+            write_16(gpx, 0xB015);
+        }
+        // Replicator (Might One)
+        else {
+            write_16(gpx, 0xD314);
+        }
+        
+        // uint16: not implemented
+        write_16(gpx, 0);
+        
+        // uint32: not implemented
+        write_32(gpx, 0);
+        
+        // uint32: not implemented
+        write_32(gpx, 0);
+        
+        // uint8: not implemented
+        write_8(gpx, 0);
+        
+        return end_frame(gpx);
+    }
+    return 0;
+}
+
 // 158 - Pause @ zPos
 
-static void pause_at_zpos(float z_positon)
+static int pause_at_zpos(Gpx *gpx, float z_positon)
 {
-    write_8(158);
+    begin_frame(gpx);
+    
+    write_8(gpx, 158);
     
     // uint8: pause at Z coordinate or 0.0 to disable
-    write_float(z_positon);
+    write_float(gpx, z_positon);
+    
+    return end_frame(gpx);
 }
 
 // COMMAND @ ZPOS FUNCTIONS
 
 // find an existing filament definition
 
-static int find_filament(char *filament_id)
+static int find_filament(Gpx *gpx, char *filament_id)
 {
     int i, index = -1;
+    int l = gpx->filamentLength;
     // a brute force search is generally fastest for low n
-    for(i = 0; i < filamentLength; i++) {
-        if(strcmp(filament_id, filament[i].colour) == 0) {
+    for(i = 0; i < l; i++) {
+        if(strcmp(filament_id, gpx->filament[i].colour) == 0) {
             index = i;
             break;
         }
@@ -1459,19 +1837,19 @@ static int find_filament(char *filament_id)
 
 // add a new filament definition
 
-static int add_filament(char *filament_id, double diameter, unsigned temperature, unsigned LED)
+static int add_filament(Gpx *gpx, char *filament_id, double diameter, unsigned temperature, unsigned LED)
 {
-    int index = find_filament(filament_id);
+    int index = find_filament(gpx, filament_id);
     if(index < 0) {
-        if(filamentLength < FILAMENT_MAX) {
-            index = filamentLength++;
-            filament[index].colour = strdup(filament_id);
-            filament[index].diameter = diameter;
-            filament[index].temperature = temperature;
-            filament[index].LED = LED;
+        if(gpx->filamentLength < FILAMENT_MAX) {
+            index = gpx->filamentLength++;
+            gpx->filament[index].colour = strdup(filament_id);
+            gpx->filament[index].diameter = diameter;
+            gpx->filament[index].temperature = temperature;
+            gpx->filament[index].LED = LED;
         }
         else {
-            fprintf(stderr, "(line %u) Buffer overflow: too many @filament definitions (maximum = %i)" EOL, lineNumber, FILAMENT_MAX - 1);
+            SHOW( fprintf(stderr, "(line %u) Buffer overflow: too many @filament definitions (maximum = %i)" EOL, gpx->lineNumber, FILAMENT_MAX - 1) );
             index = 0;
         }
     }
@@ -1480,251 +1858,253 @@ static int add_filament(char *filament_id, double diameter, unsigned temperature
 
 // append a new command at z function
 
-static void add_command_at(double z, char *filament_id, unsigned nozzle_temperature, unsigned build_platform_temperature)
+static int add_command_at(Gpx *gpx, double z, char *filament_id, unsigned nozzle_temperature, unsigned build_platform_temperature)
 {
-    static double previous_z = 0.0;
-    int index = filament_id ? find_filament(filament_id) : 0;
+    int rval;
+    int index = filament_id ? find_filament(gpx, filament_id) : 0;
     if(index < 0) {
-        fprintf(stderr, "(line %u) Semantic error: @pause macro with undefined filament name '%s', use a @filament macro to define it" EOL, lineNumber, filament_id);
+        SHOW( fprintf(stderr, "(line %u) Semantic error: @pause macro with undefined filament name '%s', use a @filament macro to define it" EOL, gpx->lineNumber, filament_id) );
         index = 0;
     }
     // insert command
-    if(commandAtLength < COMMAND_AT_MAX) {
-        if(z <= previous_z) {
-            int i = commandAtLength;
+    if(gpx->commandAtLength < COMMAND_AT_MAX) {
+        int i = gpx->commandAtLength;
+        if(z <= gpx->commandAtZ) {
             // make a space
-            while(i > 0 && z <= commandAt[i - 1].z) {
-                commandAt[i] = commandAt[i - 1];
+            while(i > 0 && z <= gpx->commandAt[i - 1].z) {
+                gpx->commandAt[i] = gpx->commandAt[i - 1];
                 i--;
             }
-            commandAt[i].z = z;
-            commandAt[i].filament_index = index;
-            commandAt[i].nozzle_temperature = nozzle_temperature;
-            commandAt[i].build_platform_temperature = build_platform_temperature;
-            previous_z = commandAt[commandAtLength].z;
+            gpx->commandAt[i].z = z;
+            gpx->commandAt[i].filament_index = index;
+            gpx->commandAt[i].nozzle_temperature = nozzle_temperature;
+            gpx->commandAt[i].build_platform_temperature = build_platform_temperature;
+            gpx->commandAtZ = gpx->commandAt[gpx->commandAtLength].z;
         }
         // append command
         else {
-            commandAt[commandAtLength].z = z;
-            commandAt[commandAtLength].filament_index = index;
-            commandAt[commandAtLength].nozzle_temperature = nozzle_temperature;
-            commandAt[commandAtLength].build_platform_temperature = build_platform_temperature;
-            previous_z = z;
+            gpx->commandAt[i].z = z;
+            gpx->commandAt[i].filament_index = index;
+            gpx->commandAt[i].nozzle_temperature = nozzle_temperature;
+            gpx->commandAt[i].build_platform_temperature = build_platform_temperature;
+            gpx->commandAtZ = z;
         }
         // nonzero temperature signals a temperature change, not a pause @ zPos
         // so if its the first pause @ zPos que it up
-        if(nozzle_temperature == 0 && build_platform_temperature == 0 && commandAtLength == 0) {
-            if(macrosEnabled) {
-                pause_at_zpos(z);
+        if(nozzle_temperature == 0 && build_platform_temperature == 0 && gpx->commandAtLength == 0) {
+            if(gpx->flag.macrosEnabled) {
+                CALL( pause_at_zpos(gpx, z) );
             }
             else {
-                pausePending = 1;
+                gpx->flag.pausePending = 1;
             }
         }
-        commandAtLength++;
+        gpx->commandAtLength++;
     }
     else {
-        fprintf(stderr, "(line %u) Buffer overflow: too many @pause definitions (maximum = %i)" EOL, lineNumber, COMMAND_AT_MAX);
+        SHOW( fprintf(stderr, "(line %u) Buffer overflow: too many @pause definitions (maximum = %i)" EOL, gpx->lineNumber, COMMAND_AT_MAX) );
     }
+    return 0;
 }
 
 // TARGET POSITION
 
 // calculate target position
 
-static int calculate_target_position(void)
+static int calculate_target_position(Gpx *gpx)
 {
-    int do_pause_at_zpos = 0;
-    
-    Point3d conditionalOffset = offset[currentOffset];
+    int rval = 0;
+    // G10 ofset
+    Point3d userOffset = gpx->offset[gpx->current.offset];
 
-    if(macrosEnabled) {
-        // add command line offset
-        conditionalOffset.x += userOffset.x;
-        conditionalOffset.y += userOffset.y;
-        conditionalOffset.z += userOffset.z;
+    if(gpx->flag.macrosEnabled) {
+        // plus command line offset
+        userOffset.x += gpx->userOffset.x;
+        userOffset.y += gpx->userOffset.y;
+        userOffset.z += gpx->userOffset.z;
     }
     
     // CALCULATE TARGET POSITION
     
     // x
-    if(command.flag & X_IS_SET) {
-        targetPosition.x = isRelative ? (currentPosition.x + command.x) : (command.x + conditionalOffset.x);
+    if(gpx->command.flag & X_IS_SET) {
+        gpx->target.position.x = gpx->flag.relativeCoordinates ? (gpx->current.position.x + gpx->command.x) : (gpx->command.x + userOffset.x);
     }
     else {
-        targetPosition.x = currentPosition.x;
+        gpx->target.position.x = gpx->current.position.x;
     }
     
     // y
-    if(command.flag & Y_IS_SET) {
-        targetPosition.y = isRelative ? (currentPosition.y + command.y) : (command.y + conditionalOffset.y);
+    if(gpx->command.flag & Y_IS_SET) {
+        gpx->target.position.y = gpx->flag.relativeCoordinates ? (gpx->current.position.y + gpx->command.y) : (gpx->command.y + userOffset.y);
     }
     else {
-        targetPosition.y = currentPosition.y;
+        gpx->target.position.y = gpx->current.position.y;
     }
     
     // z
-    if(command.flag & Z_IS_SET) {
-        targetPosition.z = isRelative ? (currentPosition.z + command.z) : (command.z + conditionalOffset.z);
+    if(gpx->command.flag & Z_IS_SET) {
+        gpx->target.position.z = gpx->flag.relativeCoordinates ? (gpx->current.position.z + gpx->command.z) : (gpx->command.z + userOffset.z);
     }
     else {
-        targetPosition.z = currentPosition.z;
+        gpx->target.position.z = gpx->current.position.z;
     }
 
     // a
-    if(command.flag & A_IS_SET) {
-        double a = (override[A].filament_scale == 1.0) ? command.a : (command.a * override[A].filament_scale);
-        targetPosition.a = (isRelative || extruderIsRelative) ? (currentPosition.a + a) : a;
+    if(gpx->command.flag & A_IS_SET) {
+        double a = (gpx->override[A].filament_scale == 1.0) ? gpx->command.a : (gpx->command.a * gpx->override[A].filament_scale);
+        gpx->target.position.a = (gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) ? (gpx->current.position.a + a) : a;
     }
     else {
-        targetPosition.a = currentPosition.a;
+        gpx->target.position.a = gpx->current.position.a;
     }
 
     // b
-    if(command.flag & B_IS_SET) {
-        double b = (override[B].filament_scale == 1.0) ? command.b : (command.b * override[B].filament_scale);
-        targetPosition.b = (isRelative || extruderIsRelative) ? (currentPosition.b + b) : b;
+    if(gpx->command.flag & B_IS_SET) {
+        double b = (gpx->override[B].filament_scale == 1.0) ? gpx->command.b : (gpx->command.b * gpx->override[B].filament_scale);
+        gpx->target.position.b = (gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) ? (gpx->current.position.b + b) : b;
     }
     else {
-        targetPosition.b = currentPosition.b;
+        gpx->target.position.b = gpx->current.position.b;
     }
     
     // update current feedrate
-    if(command.flag & F_IS_SET) {
-        currentFeedrate = command.f;
+    if(gpx->command.flag & F_IS_SET) {
+        gpx->current.feedrate = gpx->command.f;
     }
     
     // DITTO PRINTING
     
-    if(dittoPrinting) {
-        if(command.flag & A_IS_SET) {
-            targetPosition.b = targetPosition.a;
-            command.flag |= B_IS_SET;
+    if(gpx->flag.dittoPrinting) {
+        if(gpx->command.flag & A_IS_SET) {
+            gpx->target.position.b = gpx->target.position.a;
+            gpx->command.flag |= B_IS_SET;
         }
-        else if(command.flag & B_IS_SET) {
-            targetPosition.a = targetPosition.b;
-            command.flag |= A_IS_SET;
+        else if(gpx->command.flag & B_IS_SET) {
+            gpx->target.position.a = gpx->target.position.b;
+            gpx->command.flag |= A_IS_SET;
         }
     }
     
     // CHECK FOR COMMAND @ Z POS
     
     // check if there are more commands on the stack
-    if(macrosEnabled && commandAtIndex < commandAtLength) {
+    if(gpx->flag.macrosEnabled && gpx->commandAtIndex < gpx->commandAtLength) {
         // check if the next command will cross the z threshold
-        if(commandAt[commandAtIndex].z <= targetPosition.z) {
+        if(gpx->commandAt[gpx->commandAtIndex].z <= gpx->target.position.z) {
             // is this a temperature change macro?
-            if(commandAt[commandAtIndex].nozzle_temperature || commandAt[commandAtIndex].build_platform_temperature) {
-                unsigned nozzle_temperature = commandAt[commandAtIndex].nozzle_temperature;
-                unsigned build_platform_temperature = commandAt[commandAtIndex].build_platform_temperature;
+            if(gpx->commandAt[gpx->commandAtIndex].nozzle_temperature || gpx->commandAt[gpx->commandAtIndex].build_platform_temperature) {
+                unsigned nozzle_temperature = gpx->commandAt[gpx->commandAtIndex].nozzle_temperature;
+                unsigned build_platform_temperature = gpx->commandAt[gpx->commandAtIndex].build_platform_temperature;
                 // make sure the temperature has changed
                 if(nozzle_temperature) {
-                    if((currentExtruder == A || tool[A].nozzle_temperature) && tool[A].nozzle_temperature != nozzle_temperature) {
-                        set_nozzle_temperature(A, nozzle_temperature);
-                        tool[A].nozzle_temperature = override[A].active_temperature = nozzle_temperature;
+                    if((gpx->current.extruder == A || gpx->tool[A].nozzle_temperature) && gpx->tool[A].nozzle_temperature != nozzle_temperature) {
+                        CALL( set_nozzle_temperature(gpx, A, nozzle_temperature) );
+                        gpx->tool[A].nozzle_temperature = gpx->override[A].active_temperature = nozzle_temperature;
                     }
-                    if((currentExtruder == B || tool[B].nozzle_temperature) && tool[B].nozzle_temperature != nozzle_temperature) {
-                        set_nozzle_temperature(B, nozzle_temperature);
-                        tool[B].nozzle_temperature = override[B].active_temperature = nozzle_temperature;
+                    if((gpx->current.extruder == B || gpx->tool[B].nozzle_temperature) && gpx->tool[B].nozzle_temperature != nozzle_temperature) {
+                        CALL( set_nozzle_temperature(gpx, B, nozzle_temperature) );
+                        gpx->tool[B].nozzle_temperature = gpx->override[B].active_temperature = nozzle_temperature;
                     }
                 }
                 if(build_platform_temperature) {
-                    if(machine.a.has_heated_build_platform && tool[A].build_platform_temperature && tool[A].build_platform_temperature != build_platform_temperature) {
-                        set_build_platform_temperature(A, build_platform_temperature);
-                        tool[A].build_platform_temperature = override[A].build_platform_temperature = build_platform_temperature;
+                    if(gpx->machine.a.has_heated_build_platform && gpx->tool[A].build_platform_temperature && gpx->tool[A].build_platform_temperature != build_platform_temperature) {
+                        CALL( set_build_platform_temperature(gpx, A, build_platform_temperature) );
+                        gpx->tool[A].build_platform_temperature = gpx->override[A].build_platform_temperature = build_platform_temperature;
                     }
-                    else if(machine.b.has_heated_build_platform && tool[B].build_platform_temperature && tool[B].build_platform_temperature != build_platform_temperature) {
-                        set_build_platform_temperature(B, build_platform_temperature);
-                        tool[B].build_platform_temperature = override[B].build_platform_temperature = build_platform_temperature;
+                    else if(gpx->machine.b.has_heated_build_platform && gpx->tool[B].build_platform_temperature && gpx->tool[B].build_platform_temperature != build_platform_temperature) {
+                        CALL( set_build_platform_temperature(gpx, B, build_platform_temperature) );
+                        gpx->tool[B].build_platform_temperature = gpx->override[B].build_platform_temperature = build_platform_temperature;
                     }
                 }
-                commandAtIndex++;
+                gpx->commandAtIndex++;
             }
             // no its a pause macro
-            else if(commandAt[commandAtIndex].z <= targetPosition.z) {
-                int index = commandAt[commandAtIndex].filament_index;
+            else if(gpx->commandAt[gpx->commandAtIndex].z <= gpx->target.position.z) {
+                int index = gpx->commandAt[gpx->commandAtIndex].filament_index;
                 // override filament diameter
-                if(filament[index].diameter > 0.0001) {
-                    if(dittoPrinting) {
-                        set_filament_scale(A, filament[index].diameter);
-                        set_filament_scale(B, filament[index].diameter);
+                if(gpx->filament[index].diameter > 0.0001) {
+                    if(gpx->flag.dittoPrinting) {
+                        set_filament_scale(gpx, B, gpx->filament[index].diameter);
+                        set_filament_scale(gpx, A, gpx->filament[index].diameter);
                     }
                     else {
-                        set_filament_scale(currentExtruder, filament[index].diameter);
+                        set_filament_scale(gpx, gpx->current.extruder, gpx->filament[index].diameter);
                     }
                 }
                 // override nozzle temperature
-                if(filament[index].temperature) {
-                    unsigned temperature = filament[index].temperature;
-                    if(tool[currentExtruder].nozzle_temperature != temperature) {
-                        if(dittoPrinting) {
-                            set_nozzle_temperature(A, temperature);
-                            set_nozzle_temperature(B, temperature);
-                            tool[A].nozzle_temperature = tool[B].nozzle_temperature = temperature;
+                if(gpx->filament[index].temperature) {
+                    unsigned temperature = gpx->filament[index].temperature;
+                    if(gpx->tool[gpx->current.extruder].nozzle_temperature != temperature) {
+                        if(gpx->flag.dittoPrinting) {
+                            CALL( set_nozzle_temperature(gpx, B, temperature) );
+                            CALL( set_nozzle_temperature(gpx, A, temperature));
+                            gpx->tool[A].nozzle_temperature = gpx->tool[B].nozzle_temperature = temperature;
                         }
                         else {
-                            set_nozzle_temperature(currentExtruder, temperature);
-                            tool[currentExtruder].nozzle_temperature = temperature;
+                            CALL( set_nozzle_temperature(gpx, gpx->current.extruder, temperature) );
+                            gpx->tool[gpx->current.extruder].nozzle_temperature = temperature;
                         }
                     }
                 }
                 // override LED colour
-                if(filament[index].LED) {
-                    set_LED_RGB(filament[index].LED, 0);
+                if(gpx->filament[index].LED) {
+                    CALL( set_LED_RGB(gpx, gpx->filament[index].LED, 0) );
                 }
-                commandAtIndex++;
-                if(commandAtIndex < commandAtLength) {
-                    do_pause_at_zpos = COMMAND_QUE_MAX;
+                gpx->commandAtIndex++;
+                if(gpx->commandAtIndex < gpx->commandAtLength) {
+                    gpx->flag.doPauseAtZPos = COMMAND_QUE_MAX;
                 }
             }
         }
     }
-
-    return do_pause_at_zpos;
+    return rval;
 }
 
-static void update_current_position(void)
+static void update_current_position(Gpx *gpx)
 {
     // the current position to tracks where the print head currently is
-    if(targetPosition.z != currentPosition.z) {
+    if(gpx->target.position.z != gpx->current.position.z) {
         // calculate layer height
-        layer_height = fabs(targetPosition.z - currentPosition.z);
+        gpx->layerHeight = fabs(gpx->target.position.z - gpx->current.position.z);
         // check upper bounds
-        if(layer_height > (machine.nozzle_diameter * 0.85)) {
-            layer_height = machine.nozzle_diameter * 0.85;
+        if(gpx->layerHeight > (gpx->machine.nozzle_diameter * 0.85)) {
+            gpx->layerHeight = gpx->machine.nozzle_diameter * 0.85;
         }
     }
-    currentPosition = targetPosition;
-    positionKnown = 1;
+    gpx->current.position = gpx->target.position;
+    gpx->current.positionKnown = 1;
 }
 
 // TOOL CHANGE
 
-void do_tool_change(int timeout) {
+static int do_tool_change(Gpx *gpx, int timeout) {
+    int rval;
     // set the temperature of current tool to standby (if standby is different to active)
-    if(override[currentExtruder].standby_temperature
-       && override[currentExtruder].standby_temperature != tool[currentExtruder].nozzle_temperature) {
-        unsigned temperature = override[currentExtruder].standby_temperature;
-        set_nozzle_temperature(currentExtruder, temperature);
-        tool[currentExtruder].nozzle_temperature = temperature;
+    if(gpx->override[gpx->current.extruder].standby_temperature
+       && gpx->override[gpx->current.extruder].standby_temperature != gpx->tool[gpx->current.extruder].nozzle_temperature) {
+        unsigned temperature = gpx->override[gpx->current.extruder].standby_temperature;
+        CALL( set_nozzle_temperature(gpx, gpx->current.extruder, temperature) );
+        gpx->tool[gpx->current.extruder].nozzle_temperature = temperature;
     }
     // set the temperature of selected tool to active (if active is different to standby)
-    if(override[selectedExtruder].active_temperature
-       && override[selectedExtruder].active_temperature != tool[selectedExtruder].nozzle_temperature) {
-        unsigned temperature = override[selectedExtruder].active_temperature;
-        set_nozzle_temperature(selectedExtruder, temperature);
-        tool[selectedExtruder].nozzle_temperature = temperature;
+    if(gpx->override[gpx->target.extruder].active_temperature
+       && gpx->override[gpx->target.extruder].active_temperature != gpx->tool[gpx->target.extruder].nozzle_temperature) {
+        unsigned temperature = gpx->override[gpx->target.extruder].active_temperature;
+        CALL( set_nozzle_temperature(gpx, gpx->target.extruder, temperature) );
+        gpx->tool[gpx->target.extruder].nozzle_temperature = temperature;
         // wait for nozzle to head up
-        wait_for_extruder(selectedExtruder, timeout);
+        // CALL( wait_for_extruder(gpx, gpx->target.extruder, timeout) );
     }
     // switch any active G10 offset (G54 or G55)
-    if(currentOffset == currentExtruder + 1) {
-        currentOffset = selectedExtruder + 1;
+    if(gpx->current.offset == gpx->current.extruder + 1) {
+        gpx->current.offset = gpx->target.extruder + 1;
     }
     // change current toolhead in order to apply the calibration offset
-    change_extruder_offset(selectedExtruder);
+    CALL( change_extruder_offset(gpx, gpx->target.extruder) );
     // set current extruder so changes in E are expressed as changes to A or B
-    currentExtruder = selectedExtruder;
+    gpx->current.extruder = gpx->target.extruder;
+    return 0;
 }
 
 // PARSER PRE-PROCESSOR
@@ -1827,8 +2207,9 @@ static char *normalize_comment(char *p) {
 #define MACRO_IS(token) strcmp(token, macro) == 0
 #define NAME_IS(n) strcasecmp(name, n) == 0
 
-static void parse_macro(const char* macro, char *p)
+static int parse_macro(Gpx *gpx, const char* macro, char *p)
 {
+    int rval = 0;
     char *name = NULL;
     double z = 0.0;
     double diameter = 0.0;
@@ -1881,113 +2262,103 @@ static void parse_macro(const char* macro, char *p)
             }
         }
         else {
-            fprintf(stderr, "(line %u) Syntax error: unrecognised macro parameter" EOL, lineNumber);
+            SHOW( fprintf(stderr, "(line %u) Syntax error: unrecognised macro parameter" EOL, gpx->lineNumber) );
             break;
         }
     }
     // ;@printer <TYPE> <PACKING_DENSITY> <DIAMETER>mm <HBP-TEMP>c #<LED-COLOUR>
     if(MACRO_IS("machine") || MACRO_IS("printer") || MACRO_IS("slicer")) {
         if(name) {
-            if(NAME_IS("c3") == 0) { if(machine.ordinal != 1) machine = cupcake_G3; }
-            else if(NAME_IS("c4") == 0) { if(machine.ordinal != 2) machine = cupcake_G4; }
-            else if(NAME_IS("cp4") == 0) { if(machine.ordinal != 3) machine = cupcake_P4; }
-            else if(NAME_IS("cpp") == 0) { if(machine.ordinal != 4) machine = cupcake_PP; }
-            else if(NAME_IS("t6") == 0) { if(machine.ordinal != 5) machine = thing_o_matic_7; }
-            else if(NAME_IS("t7") == 0) { if(machine.ordinal != 5) machine = thing_o_matic_7; }
-            else if(NAME_IS("t7d") == 0) { if(machine.ordinal != 6) machine = thing_o_matic_7D; }
-            else if(NAME_IS("r1") == 0) { if(machine.ordinal != 7) machine = replicator_1; }
-            else if(NAME_IS("r1d") == 0) { if( machine.ordinal != 8) machine = replicator_1D; }
-            else if(NAME_IS("r2") == 0) { if(machine.ordinal != 9) machine = replicator_2; }
-            else if(NAME_IS("r2h") == 0) { if(machine.ordinal != 10) machine = replicator_2H; }
-            else if(NAME_IS("r2x") == 0) { if(machine.ordinal != 11) machine = replicator_2X; }
-            else {
-                fprintf(stderr, "(line %u) Semantic error: @printer macro with unrecognised type '%s'" EOL, lineNumber, name);
+            if(gpx_set_machine(gpx, name)) {
+                SHOW( fprintf(stderr, "(line %u) Semantic error: @%s macro with unrecognised type '%s'" EOL, gpx->lineNumber, macro, name) );
             }
-            override[A].packing_density = machine.nominal_packing_density;
-            override[B].packing_density = machine.nominal_packing_density;
+            gpx->override[A].packing_density = gpx->machine.nominal_packing_density;
+            gpx->override[B].packing_density = gpx->machine.nominal_packing_density;
         }
         if(z > 0.0001) {
-            machine.nominal_packing_density = z;
+            gpx->machine.nominal_packing_density = z;
         }
-        if(diameter > 0.0001) machine.nominal_filament_diameter = diameter;
+        if(diameter > 0.0001) gpx->machine.nominal_filament_diameter = diameter;
         if(build_platform_temperature) {
-            if(machine.a.has_heated_build_platform) override[A].build_platform_temperature = build_platform_temperature;
-            else if(machine.b.has_heated_build_platform) override[B].build_platform_temperature = build_platform_temperature;
+            if(gpx->machine.a.has_heated_build_platform) gpx->override[A].build_platform_temperature = build_platform_temperature;
+            else if(gpx->machine.b.has_heated_build_platform) gpx->override[B].build_platform_temperature = build_platform_temperature;
             else {
-                fprintf(stderr, "(line %u) Semantic warning: @printer macro cannot override non-existant heated build platform" EOL, lineNumber);
+                SHOW( fprintf(stderr, "(line %u) Semantic warning: @%s macro cannot override non-existant heated build platform" EOL, gpx->lineNumber, macro) );
             }
         }
-        if(LED) set_LED_RGB(LED, 0);
+        if(LED) {
+            CALL( set_LED_RGB(gpx, LED, 0) );
+        }
     }
     // ;@enable ditto
     // ;@enable progress
     else if(MACRO_IS("enable")) {
         if(name) {
             if(NAME_IS("ditto")) {
-                if(machine.extruder_count == 1) {
-                    fputs("Configuration error: ditto printing cannot access non-existant second extruder" EOL, stderr);
-                    dittoPrinting = 0;
+                if(gpx->machine.extruder_count == 1) {
+                    SHOW( fprintf(stderr, "(line %u) Semantic warning: ditto printing cannot access non-existant second extruder" EOL, gpx->lineNumber) );
+                    gpx->flag.dittoPrinting = 0;
                 }
                 else {
-                    dittoPrinting = 1;
+                    gpx->flag.dittoPrinting = 1;
                 }
             }
-            else if(NAME_IS("progress")) buildProgress = 1;
+            else if(NAME_IS("progress")) gpx->flag.buildProgress = 1;
             else {
-                fprintf(stderr, "(line %u) Semantic error: @enable macro with unrecognised parameter '%s'" EOL, lineNumber, name);
+                SHOW( fprintf(stderr, "(line %u) Semantic error: @enable macro with unrecognised parameter '%s'" EOL, gpx->lineNumber, name) );
             }
         }
         else {
-            fprintf(stderr, "(line %u) Syntax error: @enable macro with missing parameter" EOL, lineNumber);
+            SHOW( fprintf(stderr, "(line %u) Syntax error: @enable macro with missing parameter" EOL, gpx->lineNumber) );
         }
     }
     // ;@filament <NAME> <DIAMETER>mm <TEMP>c #<LED-COLOUR>
     else if(MACRO_IS("filament")) {
         if(name) {
-            add_filament(name, diameter, nozzle_temperature, LED);
+            add_filament(gpx, name, diameter, nozzle_temperature, LED);
         }
         else {
-            fprintf(stderr, "(line %u) Semantic error: @filament macro with missing name" EOL, lineNumber);
+            SHOW( fprintf(stderr, "(line %u) Semantic error: @filament macro with missing name" EOL, gpx->lineNumber) );
         }
     }
     // ;@right <NAME> <PACKING_DENSITY> <DIAMETER>mm <TEMP>c
     else if(MACRO_IS("right")) {
         if(name) {
-            int index = find_filament(name);
+            int index = find_filament(gpx, name);
             if(index > 0) {
-                if(filament[index].diameter > 0.0001) set_filament_scale(A, filament[index].diameter);
-                if(filament[index].temperature) override[A].active_temperature = filament[index].temperature;
-                return;
+                if(gpx->filament[index].diameter > 0.0001) set_filament_scale(gpx, A, gpx->filament[index].diameter);
+                if(gpx->filament[index].temperature) gpx->override[A].active_temperature = gpx->filament[index].temperature;
+                return 0;
             }
         }
-        if(z > 0.0001) override[A].packing_density = z;
-        if(diameter > 0.0001) set_filament_scale(A, diameter);
-        if(nozzle_temperature) override[A].active_temperature = nozzle_temperature;
+        if(z > 0.0001) gpx->override[A].packing_density = z;
+        if(diameter > 0.0001) set_filament_scale(gpx, A, diameter);
+        if(nozzle_temperature) gpx->override[A].active_temperature = nozzle_temperature;
     }
     // ;@left <NAME> <PACKING_DENSITY> <DIAMETER>mm <TEMP>c
     else if(MACRO_IS("left")) {
         if(name) {
-            int index = find_filament(name);
+            int index = find_filament(gpx, name);
             if(index > 0) {
-                if(filament[index].diameter > 0.0001) set_filament_scale(B, filament[index].diameter);
-                if(filament[index].temperature) override[B].active_temperature = filament[index].temperature;
-                return;
+                if(gpx->filament[index].diameter > 0.0001) set_filament_scale(gpx, B, gpx->filament[index].diameter);
+                if(gpx->filament[index].temperature) gpx->override[B].active_temperature = gpx->filament[index].temperature;
+                return 0;
             }
         }
-        if(z > 0.0001) override[A].packing_density = z;
-        if(diameter > 0.0001) set_filament_scale(B, diameter);
-        if(nozzle_temperature) override[B].active_temperature = nozzle_temperature;
+        if(z > 0.0001) gpx->override[A].packing_density = z;
+        if(diameter > 0.0001) set_filament_scale(gpx, B, diameter);
+        if(nozzle_temperature) gpx->override[B].active_temperature = nozzle_temperature;
     }
     // ;@pause <ZPOS> <NAME>
     else if(MACRO_IS("pause")) {
         if(z > 0.0001) {
-            add_command_at(z, name, 0, 0);
+            CALL( add_command_at(gpx, z, name, 0, 0) );
         }
         else if(diameter > 0.0001) {
-            add_command_at(diameter, name, 0, 0);
+            CALL( add_command_at(gpx, diameter, name, 0, 0) );
         }
         else {
-            fprintf(stderr, "(line %u) Semantic error: @pause macro with missing zPos" EOL, lineNumber);            
+            SHOW( fprintf(stderr, "(line %u) Semantic error: @pause macro with missing zPos" EOL, gpx->lineNumber) );
         }
     }
     // ;@temp <ZPOS> <TEMP>c
@@ -1995,1224 +2366,285 @@ static void parse_macro(const char* macro, char *p)
     else if(MACRO_IS("temp") || MACRO_IS("temperature")) {
         if(nozzle_temperature || build_platform_temperature) {
             if(z > 0.0001) {
-                add_command_at(z, NULL, nozzle_temperature, build_platform_temperature);
+                CALL( add_command_at(gpx, z, NULL, nozzle_temperature, build_platform_temperature) );
             }
             else if(diameter > 0.0001) {
-                add_command_at(diameter, NULL, nozzle_temperature, build_platform_temperature);
+                CALL( add_command_at(gpx, diameter, NULL, nozzle_temperature, build_platform_temperature) );
             }
             else {
-                fprintf(stderr, "(line %u) Semantic error: @%s macro with missing zPos" EOL, lineNumber, macro);
+                SHOW( fprintf(stderr, "(line %u) Semantic error: @%s macro with missing zPos" EOL, gpx->lineNumber, macro) );
             }
         }
         else {
-            fprintf(stderr, "(line %u) Semantic error: @%s macro with missing temperature" EOL, lineNumber, macro);
+            SHOW( fprintf(stderr, "(line %u) Semantic error: @%s macro with missing temperature" EOL, gpx->lineNumber, macro) );
         }
     }
     // ;@start <NAME> <TEMP>c
     else if(MACRO_IS("start")) {
         if(nozzle_temperature || build_platform_temperature) {
             if(nozzle_temperature) {
-                if(tool[A].nozzle_temperature && tool[A].nozzle_temperature != nozzle_temperature) {
-                    set_nozzle_temperature(A, nozzle_temperature);
-                    tool[A].nozzle_temperature = override[A].active_temperature = nozzle_temperature;
+                if(gpx->tool[A].nozzle_temperature && gpx->tool[A].nozzle_temperature != nozzle_temperature) {
+                    if(program_is_running()) {
+                        CALL( set_nozzle_temperature(gpx, A, nozzle_temperature) );
+                    }
+                    gpx->tool[A].nozzle_temperature = gpx->override[A].active_temperature = nozzle_temperature;
                 }
                 else {
-                    override[A].active_temperature = nozzle_temperature;
+                    gpx->override[A].active_temperature = nozzle_temperature;
                 }
-                if(tool[B].nozzle_temperature && tool[B].nozzle_temperature != nozzle_temperature) {
-                    set_nozzle_temperature(B, nozzle_temperature);
-                    tool[B].nozzle_temperature = override[B].active_temperature = nozzle_temperature;
+                if(gpx->tool[B].nozzle_temperature && gpx->tool[B].nozzle_temperature != nozzle_temperature) {
+                    if(program_is_running()) {
+                        CALL( set_nozzle_temperature(gpx, B, nozzle_temperature) );
+                    }
+                    gpx->tool[B].nozzle_temperature = gpx->override[B].active_temperature = nozzle_temperature;
                 }
                 else {
-                    override[B].active_temperature = nozzle_temperature;
+                    gpx->override[B].active_temperature = nozzle_temperature;
                 }
             }
             if(build_platform_temperature) {
-                if(machine.a.has_heated_build_platform && tool[A].build_platform_temperature && tool[A].build_platform_temperature != build_platform_temperature) {
-                    set_build_platform_temperature(A, build_platform_temperature);
-                    tool[A].build_platform_temperature = override[A].build_platform_temperature = build_platform_temperature;
+                if(gpx->machine.a.has_heated_build_platform && gpx->tool[A].build_platform_temperature && gpx->tool[A].build_platform_temperature != build_platform_temperature) {
+                    if(program_is_running()) {
+                        CALL( set_build_platform_temperature(gpx, A, build_platform_temperature) );
+                    }
+                    gpx->tool[A].build_platform_temperature = gpx->override[A].build_platform_temperature = build_platform_temperature;
                 }
-                else if(machine.b.has_heated_build_platform && tool[B].build_platform_temperature && tool[B].build_platform_temperature != build_platform_temperature) {
-                    set_build_platform_temperature(B, build_platform_temperature);
-                    tool[B].build_platform_temperature = override[B].build_platform_temperature = build_platform_temperature;
+                else if(gpx->machine.b.has_heated_build_platform && gpx->tool[B].build_platform_temperature && gpx->tool[B].build_platform_temperature != build_platform_temperature) {
+                    if(program_is_running()) {
+                        CALL( set_build_platform_temperature(gpx, B, build_platform_temperature) );
+                    }
+                    gpx->tool[B].build_platform_temperature = gpx->override[B].build_platform_temperature = build_platform_temperature;
                 }
             }
         }
         else if(name) {
-            int index = find_filament(name);
+            int index = find_filament(gpx, name);
             if(index > 0) {
-                if(filament[index].diameter > 0.0001) {
-                    if(dittoPrinting) {
-                        set_filament_scale(A, filament[index].diameter);
-                        set_filament_scale(B, filament[index].diameter);
+                if(gpx->filament[index].diameter > 0.0001) {
+                    if(gpx->flag.dittoPrinting) {
+                        set_filament_scale(gpx, B, gpx->filament[index].diameter);
+                        set_filament_scale(gpx, A, gpx->filament[index].diameter);
                     }
                     else {
-                        set_filament_scale(currentExtruder, filament[index].diameter);
+                        set_filament_scale(gpx, gpx->current.extruder, gpx->filament[index].diameter);
                     }
                 }
-                if(filament[index].LED) set_LED_RGB(filament[index].LED, 0);
-                nozzle_temperature = filament[index].temperature;
+                if(gpx->filament[index].LED) {
+                    CALL( set_LED_RGB(gpx, gpx->filament[index].LED, 0) );
+                }
+                nozzle_temperature = gpx->filament[index].temperature;
                 if(nozzle_temperature) {
-                    if(tool[A].nozzle_temperature && tool[A].nozzle_temperature != nozzle_temperature) {
-                        set_nozzle_temperature(A, nozzle_temperature);
-                        tool[A].nozzle_temperature = override[A].active_temperature = nozzle_temperature;
+                    if(gpx->tool[A].nozzle_temperature && gpx->tool[A].nozzle_temperature != nozzle_temperature) {
+                        if(program_is_running()) {
+                            CALL( set_nozzle_temperature(gpx, A, nozzle_temperature) );
+                        }
+                        gpx->tool[A].nozzle_temperature = gpx->override[A].active_temperature = nozzle_temperature;
                     }
                     else {
-                        override[A].active_temperature = nozzle_temperature;
+                        gpx->override[A].active_temperature = nozzle_temperature;
                     }
-                    if(tool[B].nozzle_temperature && tool[B].nozzle_temperature != nozzle_temperature) {
-                        set_nozzle_temperature(B, nozzle_temperature);
-                        tool[B].nozzle_temperature = override[B].active_temperature = nozzle_temperature;
+                    if(gpx->tool[B].nozzle_temperature && gpx->tool[B].nozzle_temperature != nozzle_temperature) {
+                        if(program_is_running()) {
+                            CALL( set_nozzle_temperature(gpx, B, nozzle_temperature) );
+                        }
+                        gpx->tool[B].nozzle_temperature = gpx->override[B].active_temperature = nozzle_temperature;
                     }
                     else {
-                        override[B].active_temperature = nozzle_temperature;
+                        gpx->override[B].active_temperature = nozzle_temperature;
                     }
                 }
             }
             else {
-                fprintf(stderr, "(line %u) Semantic error: @start with undefined filament name '%s', use a @filament macro to define it" EOL, lineNumber, name ? name : "");
+                SHOW( fprintf(stderr, "(line %u) Semantic error: @start with undefined filament name '%s', use a @filament macro to define it" EOL, gpx->lineNumber, name ? name : "") );
             }
         }
     }
     // ;@body
     else if(MACRO_IS("body")) {
-        if(pausePending) {
-            pause_at_zpos(commandAt[0].z);
-            pausePending = 0;
+        if(gpx->flag.pausePending) {
+            CALL( pause_at_zpos(gpx, gpx->commandAt[0].z) );
+            gpx->flag.pausePending = 0;
         }
-        macrosEnabled = 1;
+        gpx->flag.macrosEnabled = 1;
     }
     // ;@header
     // ;@footer
     else if(MACRO_IS("header") && MACRO_IS("footer")) {
-        macrosEnabled = 0;
+        gpx->flag.macrosEnabled = 0;
     }
+    return 0;
 }
 
-static void convert(char *buildname, long filesize)
+/*
+ 
+ SIMPLE .INI FILE PARSER
+
+ ini.c is released under the New BSD license (see LICENSE.txt). Go to the project
+ home page for more info: http://code.google.com/p/inih/
+
+ Parse given INI-style file. May have [section]s, name=value pairs
+ (whitespace stripped), and comments starting with ';' (semicolon). Section
+ is "" if name=value pair parsed before any section heading. name:value
+ pairs are also supported as a concession to Python's ConfigParser.
+ 
+ For each name=value pair parsed, call handler function with given user
+ pointer as well as section, name, and value (data only valid for duration
+ of handler call). Handler should return 0 on success, nonzero on error.
+ 
+ Returns 0 on success, line number of first error on parse error (doesn't
+ stop on first error), -1 on file open error.
+
+*/
+
+#define INI_SECTION_MAX 64
+#define INI_NAME_MAX 64
+
+/* Nonzero to allow multi-line value parsing, in the style of Python's
+ ConfigParser. If allowed, ini_parse() will call the handler with the same
+ name for each subsequent line parsed. */
+
+#ifndef INI_ALLOW_MULTILINE
+#define INI_ALLOW_MULTILINE 1
+#endif
+
+/* Nonzero to allow a UTF-8 BOM sequence (0xEF 0xBB 0xBF) at the start of
+ the file. See http://code.google.com/p/inih/issues/detail?id=21 */
+
+#ifndef INI_ALLOW_BOM
+#define INI_ALLOW_BOM 1
+#endif
+
+/* Strip whitespace chars off end of given string, in place. Return s. */
+static char* rstrip(char* s)
 {
-    unsigned progress = 0;
-    int i;
-    int overflow = 0;
-    int next_line = 0;
-    int command_emitted = 0;
-    int do_pause_at_zpos = 0;
-
-    while(fgets(buffer, BUFFER_MAX, in) != NULL) {
-        // detect input buffer overflow and ignore overflow input
-        if(overflow) {
-            if(strlen(buffer) != BUFFER_MAX - 1) {
-                overflow = 0;
-            }
-            continue;
-        }
-        if(strlen(buffer) == BUFFER_MAX - 1) {
-            overflow = 1;
-            fprintf(stderr, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, lineNumber, BUFFER_MAX);
-        }
-        // reset flag state
-        command.flag = 0;
-        char *digits;
-        char *p = buffer; // current parser location
-        while(isspace(*p)) p++;
-        // check for line number
-        if(*p == 'n' || *p == 'N') {
-            digits = p;
-            p = normalize_word(p);
-            if(*p == 0) {
-                fprintf(stderr, "(line %u) Syntax error: line number command word 'N' is missing digits" EOL, lineNumber);
-                next_line = lineNumber + 1;
-            }
-            else {
-                next_line = lineNumber = atoi(digits);
-            }
-        }
-        else {
-            next_line = lineNumber + 1;
-        }
-        // parse command words in command line
-        while(*p != 0) {
-            if(isalpha(*p)) {
-                int c = *p;
-                digits = p;
-                p = normalize_word(p);
-                switch(c) {
-                        
-                        // PARAMETERS
-                        
-                        // Xnnn	 X coordinate, usually to move to
-                    case 'x':
-                    case 'X':
-                        command.x = strtod(digits, NULL);
-                        command.flag |= X_IS_SET;
-                        break;
-                        
-                        // Ynnn	 Y coordinate, usually to move to
-                    case 'y':
-                    case 'Y':
-                        command.y = strtod(digits, NULL);
-                        command.flag |= Y_IS_SET;
-                        break;
-                        
-                        // Znnn	 Z coordinate, usually to move to
-                    case 'z':
-                    case 'Z':
-                        command.z = strtod(digits, NULL);
-                        command.flag |= Z_IS_SET;
-                        break;
-                        
-                        // Annn	 Length of extrudate in mm.
-                    case 'a':
-                    case 'A':
-                        command.a = strtod(digits, NULL);
-                        command.flag |= A_IS_SET;
-                        break;
-                        
-                        // Bnnn	 Length of extrudate in mm.
-                    case 'b':
-                    case 'B':
-                        command.b = strtod(digits, NULL);
-                        command.flag |= B_IS_SET;
-                        break;
-                        
-                        // Ennn	 Length of extrudate in mm.
-                    case 'e':
-                    case 'E':
-                        command.e = strtod(digits, NULL);
-                        command.flag |= E_IS_SET;
-                        break;
-                        
-                        // Fnnn	 Feedrate in mm per minute.
-                    case 'f':
-                    case 'F':
-                        command.f = strtod(digits, NULL);
-                        command.flag |= F_IS_SET;
-                        break;
-                        
-                        // Pnnn	 Command parameter, such as a time in milliseconds
-                    case 'p':
-                    case 'P':
-                        command.p = strtod(digits, NULL);
-                        command.flag |= P_IS_SET;
-                        break;
-                        
-                        // Rnnn	 Command Parameter, such as RPM
-                    case 'r':
-                    case 'R':
-                        command.r = strtod(digits, NULL);
-                        command.flag |= R_IS_SET;
-                        break;
-                        
-                        // Snnn	 Command parameter, such as temperature
-                    case 's':
-                    case 'S':
-                        command.s = strtod(digits, NULL);
-                        command.flag |= S_IS_SET;
-                        break;
-                        
-                        // COMMANDS
-                        
-                        // Gnnn GCode command, such as move to a point
-                    case 'g':
-                    case 'G':
-                        command.g = atoi(digits);
-                        command.flag |= G_IS_SET;
-                        break;
-                        // Mnnn	 RepRap-defined command
-                    case 'm':
-                    case 'M':
-                        command.m = atoi(digits);
-                        command.flag |= M_IS_SET;
-                        break;
-                        // Tnnn	 Select extruder nnn.
-                    case 't':
-                    case 'T':
-                        command.t = atoi(digits);
-                        command.flag |= T_IS_SET;
-                        break;
-                        
-                    default:
-                        fprintf(stderr, "(line %u) Syntax warning: unrecognised command word '%c'" EOL, lineNumber, c);
-                }
-            }
-            else if(*p == ';') {
-                if(*(p + 1) == '@') {
-                    char *s = p + 2;
-                    if(isalpha(*s)) {
-                        char *macro = s;
-                        // skip any no space characters
-                        while(*s && !isspace(*s)) s++;
-                        // null terminate
-                        if(*s) *s++ = 0;
-                        parse_macro(macro, normalize_comment(s));
-                        *p = 0;
-                        break;
-                    }
-                }
-                // Comment
-                command.comment = normalize_comment(p + 1);
-                command.flag |= COMMENT_IS_SET;
-                *p = 0;
-                break;
-            }
-            else if(*p == '(') {
-                if(*(p + 1) == '@') {
-                    char *s = p + 2;
-                    if(isalpha(*s)) {
-                        char *macro = s;
-                        char *e = strrchr(p + 1, ')');
-                        // skip any no space characters
-                        while(*s && !isspace(*s)) s++;
-                        // null terminate
-                        if(*s) *s++ = 0;
-                        if(e) *e = 0;
-                        parse_macro(macro, normalize_comment(s));
-                        *p = 0;
-                        break;
-                    }
-                }
-                // Comment
-                char *s = strchr(p + 1, '(');
-                char *e = strchr(p + 1, ')');
-                // check for nested comment
-                if(s && e && s < e) {
-                    fprintf(stderr, "(line %u) Syntax warning: nested comment detected" EOL, lineNumber);
-                    e = strrchr(p + 1, ')');
-                }
-                if(e) {
-                    *e = 0;
-                    command.comment = normalize_comment(p + 1);
-                    command.flag |= COMMENT_IS_SET;
-                    p = e + 1;
-                }
-                else {
-                    fprintf(stderr, "(line %u) Syntax warning: comment is missing closing ')'" EOL, lineNumber);
-                    command.comment = normalize_comment(p + 1);
-                    command.flag |= COMMENT_IS_SET;
-                    *p = 0;
-                    break;
-                }
-            }
-            else if(*p == '*') {
-                // Checksum
-                *p = 0;
-                break;
-            }
-            else if(iscntrl(*p)) {
-                break;
-            }
-            else {
-                fprintf(stderr, "(line %u) Syntax error: unrecognised gcode '%s'" EOL, lineNumber, p);
-                break;
-            }
-        }
-        
-        // revert tool selection to current extruder (Makerbot Tn is not sticky)
-        if(!reprapFlavor) selectedExtruder = currentExtruder;
-        
-        // change the extruder selection (in the virtual tool carosel)
-        if(command.flag & T_IS_SET && !dittoPrinting) {
-            unsigned tool_id = (unsigned)command.t;
-            if(tool_id < machine.extruder_count) {
-                selectedExtruder = tool_id;
-            }
-            else {
-                fprintf(stderr, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, lineNumber, tool_id);
-            }
-        }
-        
-        // we treat E as short hand for A or B being set, depending on the state of the currentExtruder
-        
-        if(command.flag & E_IS_SET) {
-            if(currentExtruder == 0) {
-                // a = e
-                command.flag |= A_IS_SET;
-                command.a = command.e;
-            }
-            else {
-                // b = e
-                command.flag |= B_IS_SET;
-                command.b = command.e;
-            }
-        }
-        
-        // INTERPRET COMMAND
-        
-        if(command.flag & G_IS_SET) {
-            switch(command.g) {
-                    // G0 - Rapid Positioning
-                case 0:
-                    if(command.flag & F_IS_SET) {
-                        do_pause_at_zpos += calculate_target_position();
-                        queue_ext_point(currentFeedrate);
-                        update_current_position();
-                        command_emitted++;
-                    }
-                    else {
-                        Point3d delta;
-                        do_pause_at_zpos += calculate_target_position();
-                        if(command.flag & X_IS_SET) delta.x = fabs(targetPosition.x - currentPosition.x);
-                        if(command.flag & Y_IS_SET) delta.y = fabs(targetPosition.y - currentPosition.y);
-                        if(command.flag & Z_IS_SET) delta.z = fabs(targetPosition.z - currentPosition.z);
-                        double length = magnitude(command.flag & XYZ_BIT_MASK, (Ptr5d)&delta);
-                        double candidate, feedrate = DBL_MAX;
-                        if(command.flag & X_IS_SET && delta.x != 0.0) {
-                            feedrate = machine.x.max_feedrate * length / delta.x;
-                        }
-                        if(command.flag & Y_IS_SET && delta.y != 0.0) {
-                            candidate = machine.y.max_feedrate * length / delta.y;
-                            if(feedrate > candidate) {
-                                feedrate = candidate;
-                            }
-                        }
-                        if(command.flag & Z_IS_SET && delta.z != 0.0) {
-                            candidate = machine.z.max_feedrate * length / delta.z;
-                            if(feedrate > candidate) {
-                                feedrate = candidate;
-                            }
-                        }
-                        if(feedrate == DBL_MAX) {
-                            feedrate = machine.x.max_feedrate;
-                        }
-                        queue_ext_point(feedrate);
-                        update_current_position();
-                        command_emitted++;
-                    }
-                    break;
-                    
-                    // G1 - Coordinated Motion
-                case 1:
-                    do_pause_at_zpos += calculate_target_position();
-                    queue_ext_point(currentFeedrate);
-                    update_current_position();
-                    command_emitted++;
-                    break;
-                    
-                    // G2 - Clockwise Arc
-                    // G3 - Counter Clockwise Arc
-                    
-                    // G4 - Dwell
-                case 4:
-                    if(command.flag & P_IS_SET) {
-#if ENABLE_SIMULATED_RPM
-                        if(tool[currentExtruder].motor_enabled && tool[currentExtruder].rpm) {
-                            do_pause_at_zpos += calculate_target_position();
-                            queue_new_point(command.p);
-                            command_emitted++;
-                        }
-                        else
-#endif
-                        {
-                            delay(command.p);
-                            command_emitted++;
-                        }
-                        
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax error: G4 is missing delay parameter, use Pn where n is milliseconds" EOL, lineNumber);
-                    }
-                    break;
-                    
-                    // G10 - Create Coordinate System Offset from the Absolute one
-                case 10:
-                    if(command.flag & P_IS_SET && command.p >= 1.0 && command.p <= 6.0) {
-                        i = (int)command.p;
-                        if(command.flag & X_IS_SET) offset[i].x = command.x;
-                        if(command.flag & Y_IS_SET) offset[i].y = command.y;
-                        if(command.flag & Z_IS_SET) offset[i].z = command.z;
-                        // set standby temperature
-                        if(command.flag & R_IS_SET) {
-                            unsigned temperature = (unsigned)command.r;
-                            if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
-                            switch(i) {
-                                case 1:
-                                    override[A].standby_temperature = temperature;
-                                    break;
-                                case 2:
-                                    override[B].standby_temperature = temperature;
-                                    break;
-                            }
-                        }
-                        // set tool temperature
-                        if(command.flag & S_IS_SET) {
-                            unsigned temperature = (unsigned)command.s;
-                            if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
-                            switch(i) {
-                                case 1:
-                                    override[A].active_temperature = temperature;
-                                    break;
-                                case 2:
-                                    override[B].active_temperature = temperature;
-                                    break;
-                            }
-                        }
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax error: G10 is missing coordiante system, use Pn where n is 1-6" EOL, lineNumber);
-                    }
-                    break;
-                    
-                    // G21 - Use Milimeters as Units (IGNORED)
-                    // G71 - Use Milimeters as Units (IGNORED)
-                case 21:
-                case 71:
-                    break;
-                    
-                    // G53 - Set absolute coordinate system
-                case 53:
-                    currentOffset = 0;
-                    break;
-                    
-                    // G54 - Use coordinate system from G10 P1
-                case 54:
-                    currentOffset = 1;
-                    break;
-                    
-                    // G55 - Use coordinate system from G10 P2
-                case 55:
-                    currentOffset = 2;
-                    break;
-                    
-                    // G56 - Use coordinate system from G10 P3
-                case 56:
-                    currentOffset = 3;
-                    break;
-                    
-                    // G57 - Use coordinate system from G10 P4
-                case 57:
-                    currentOffset = 4;
-                    break;
-                    
-                    // G58 - Use coordinate system from G10 P5
-                case 58:
-                    currentOffset = 5;
-                    break;
-                    
-                    // G59 - Use coordinate system from G10 P6
-                case 59:
-                    currentOffset = 6;
-                    break;
-                    
-                    // G90 - Absolute Positioning
-                case 90:
-                    isRelative = 0;
-                    break;
-                    
-                    // G91 - Relative Positioning
-                case 91:
-                    if(positionKnown) {
-                        isRelative = 1;
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Semantic error: G91 switch to relitive positioning prior to first absolute move" EOL, lineNumber);
-                        exit(1);
-                    }
-                    break;
-                    
-                    // G92 - Define current position on axes
-                case 92: {
-                    if(command.flag & X_IS_SET) currentPosition.x = command.x;
-                    if(command.flag & Y_IS_SET) currentPosition.y = command.y;
-                    if(command.flag & Z_IS_SET) currentPosition.z = command.z;
-                    if(command.flag & A_IS_SET) currentPosition.a = command.a;
-                    if(command.flag & B_IS_SET) currentPosition.b = command.b;
-                    set_position();
-                    command_emitted++;
-                    // check if we know where we are
-                    int mask = machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;
-                    if((command.flag & mask) == mask) positionKnown = 1;
-                    break;
-                }
-                    
-                    // G130 - Set given axes potentiometer Value
-                case 130:
-                    if(command.flag & X_IS_SET) set_pot_value(0, command.x < 0 ? 0 : command.x > 127 ? 127 : (unsigned)command.x);
-                    if(command.flag & Y_IS_SET) set_pot_value(1, command.y < 0 ? 0 : command.y > 127 ? 127 : (unsigned)command.y);
-                    if(command.flag & Z_IS_SET) set_pot_value(2, command.z < 0 ? 0 : command.z > 127 ? 127 : (unsigned)command.z);
-                    if(command.flag & A_IS_SET) set_pot_value(3, command.a < 0 ? 0 : command.a > 127 ? 127 : (unsigned)command.a);
-                    if(command.flag & B_IS_SET) set_pot_value(4, command.b < 0 ? 0 : command.b > 127 ? 127 : (unsigned)command.b);
-                    break;
-                    
-                    // G161 - Home given axes to minimum
-                case 161:
-                    if(command.flag & F_IS_SET) currentFeedrate = command.f;
-                    home_axes(ENDSTOP_IS_MIN);
-                    command_emitted++;
-                    positionKnown = 0;
-                    excess.a = 0;
-                    excess.b = 0;
-                    break;
-                    // G28 - Home given axes to maximum
-                    // G162 - Home given axes to maximum
-                case 28:
-                case 162:
-                    if(command.flag & F_IS_SET) currentFeedrate = command.f;
-                    home_axes(ENDSTOP_IS_MAX);
-                    command_emitted++;
-                    positionKnown = 0;
-                    excess.a = 0;
-                    excess.b = 0;
-                    break;
-                default:
-                    fprintf(stderr, "(line %u) Syntax warning: unsupported gcode command 'G%u'" EOL, lineNumber, command.g);
-            }
-        }
-        else if(command.flag & M_IS_SET) {
-            switch(command.m) {
-                    // M2 - End program
-                case 2:
-                    if(program_is_running()) {
-                        end_program();
-                        set_build_progress(100);
-                        end_build();
-                        set_steppers(AXES_BIT_MASK, 0);
-                    }
-                    exit(0);
-                    
-                    // M6 - Tool change AND wait for extruder AND build platfrom to reach (or exceed) temperature
-                case 6:
-                    if(!dittoPrinting && selectedExtruder != currentExtruder) {
-                        int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                        do_tool_change(timeout);
-                        command_emitted++;
-                    }
-                    
-                    // M116 - Wait for extruder AND build platfrom to reach (or exceed) temperature
-                case 116: {
-                    int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                    // changing the
-                    if(dittoPrinting) {
-                        if(tool[A].nozzle_temperature > 0) {
-                            wait_for_extruder(A, timeout);
-                        }
-                        if(tool[B].nozzle_temperature > 0) {
-                            wait_for_extruder(B, timeout);
-                        }
-                        command_emitted++;
-                    }
-                    else {
-                        // any tool changes have already occured
-                        if(tool[selectedExtruder].nozzle_temperature > 0) {
-                            wait_for_extruder(selectedExtruder, timeout);
-                            command_emitted++;
-                        }
-                    }
-                    // if we have a HBP wait for that too
-                    if(machine.a.has_heated_build_platform && tool[A].build_platform_temperature > 0) {
-                        wait_for_build_platform(A, timeout);
-                        command_emitted++;
-                    }
-                    if(machine.b.has_heated_build_platform && tool[B].build_platform_temperature > 0) {
-                        wait_for_build_platform(B, timeout);
-                        command_emitted++;
-                    }
-                    break;
-                }
-                    
-                    // M17 - Enable axes steppers
-                case 17:
-                    if(command.flag & AXES_BIT_MASK) {
-                        set_steppers(command.flag & AXES_BIT_MASK, 1);
-                        command_emitted++;
-                        if(command.flag & A_IS_SET) tool[A].motor_enabled = 1;
-                        if(command.flag & B_IS_SET) tool[B].motor_enabled = 1;
-                    }
-                    else {
-                        set_steppers(machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 1);
-                        command_emitted++;
-                        tool[A].motor_enabled = 1;
-                        if(machine.extruder_count == 2) tool[B].motor_enabled = 1;
-                    }
-                    break;
-                    
-                    // M18 - Disable axes steppers
-                case 18:
-                    if(command.flag & AXES_BIT_MASK) {
-                        set_steppers(command.flag & AXES_BIT_MASK, 0);
-                        command_emitted++;
-                        if(command.flag & A_IS_SET) tool[A].motor_enabled = 0;
-                        if(command.flag & B_IS_SET) tool[B].motor_enabled = 0;
-                    }
-                    else {
-                        set_steppers(machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 0);
-                        command_emitted++;
-                        tool[A].motor_enabled = 0;
-                        if(machine.extruder_count == 2) tool[B].motor_enabled = 0;
-                    }
-                    break;
-                    
-                    // M70 - Display message on LCD
-                case 70:
-                    if(command.flag & COMMENT_IS_SET) {
-                        unsigned vPos = command.flag & Y_IS_SET ? (unsigned)command.y : 0;
-                        if(vPos > 3) vPos = 3;
-                        unsigned hPos = command.flag & X_IS_SET ? (unsigned)command.x : 0;
-                        if(hPos > 19) hPos = 19;
-                        if(command.flag & P_IS_SET) {
-                            display_message(command.comment, vPos, hPos, command.p, 0);
-                        }
-                        else {
-                            display_message(command.comment, vPos, hPos, 0, 0);
-                        }
-                        command_emitted++;
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax error: M70 is missing message text, use (text) where text is message" EOL, lineNumber);
-                    }
-                    break;
-                    
-                    // M71 - Display message and wait for button press
-                case 71: {
-                    unsigned vPos = command.flag & Y_IS_SET ? (unsigned)command.y : 0;
-                    if(vPos > 3) vPos = 3;
-                    unsigned hPos = command.flag & X_IS_SET ? (unsigned)command.x : 0;
-                    if(hPos > 19) hPos = 19;
-                    if(command.flag & COMMENT_IS_SET) {
-                        if(command.flag & P_IS_SET) {
-                            display_message(command.comment, vPos, hPos, command.p, 1);
-                        }
-                        else {
-                            display_message(command.comment, vPos, hPos, 0, 1);
-                        }
-                    }
-                    else {
-                        if(command.flag & P_IS_SET) {
-                            display_message("Press M to continue", vPos, hPos, command.p, 1);
-                        }
-                        else {
-                            display_message("Press M to continue", vPos, hPos, 0, 1);
-                        }
-                    }
-                    command_emitted++;
-                    break;
-                }
-                    
-                    // M72 - Queue a song or play a tone
-                case 72:
-                    if(command.flag & P_IS_SET) {
-                        unsigned song_id = (unsigned)command.p;
-                        if(song_id > 2) song_id = 2;
-                        queue_song(song_id);
-                        command_emitted++;
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax warning: M72 is missing song number, use Pn where n is 0-2" EOL, lineNumber);
-                    }
-                    break;
-                    
-                    // M73 - Manual set build percentage
-                case 73:
-                    if(command.flag & P_IS_SET) {
-                        unsigned percent = (unsigned) command.p;
-                        if(percent > 100) percent = 100;
-                        if(program_is_ready()) {
-                            start_program();
-                            start_build(buildname);
-                            set_build_progress(0);
-                            // start extruder in a known state
-                            change_extruder_offset(currentExtruder);
-                        }
-                        else if(program_is_running()) {
-                            if(percent == 100) {
-                                // disable macros in footer
-                                macrosEnabled = 0;
-                                end_program();
-                                set_build_progress(100);
-                                end_build();
-                            }
-                            else {
-                                // enable macros in object body
-                                if(!macrosEnabled && percent > 0) {
-                                    if(pausePending) {
-                                        pause_at_zpos(commandAt[0].z);
-                                        pausePending = 0;
-                                    }
-                                    macrosEnabled = 1;
-                                }
-                                if(filesize == 0 || buildProgress == 0) {
-                                    set_build_progress(percent);
-                                }
-                            }
-                        }
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax warning: M73 is missing build percentage, use Pn where n is 0-100" EOL, lineNumber);
-                    }
-                    break;
-                    
-                    // M82 - set extruder to absolute mode
-                case 82:
-                    extruderIsRelative = 0;
-                    break;
-                    
-                    // M83 - set extruder to relative mode
-                case 83:
-                    extruderIsRelative = 1;
-                    break;
-                    
-                    // M84 - Stop idle hold
-                case 84:
-                    set_steppers(machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 0);
-                    command_emitted++;
-                    tool[A].motor_enabled = 0;
-                    if(machine.extruder_count == 2) tool[B].motor_enabled = 0;
-                    break;
-                    
-                    // M101 - Turn extruder on, forward
-                    // M102 - Turn extruder on, reverse
-                case 101:
-                case 102:
-                    if(dittoPrinting) {
-                        set_steppers(A_IS_SET|B_IS_SET, 1);
-                        command_emitted++;
-                        tool[A].motor_enabled = tool[B].motor_enabled = command.m == 101 ? 1 : -1;
-                    }
-                    else {
-                        set_steppers(selectedExtruder == 0 ? A_IS_SET : B_IS_SET, 1);
-                        command_emitted++;
-                        tool[selectedExtruder].motor_enabled = command.m == 101 ? 1 : -1;
-                    }
-                    break;
-                    
-                    // M103 - Turn extruder off
-                case 103:
-                    if(dittoPrinting) {
-                        set_steppers(A_IS_SET|B_IS_SET, 1);
-                        command_emitted++;
-                        tool[A].motor_enabled = tool[B].motor_enabled = 0;
-                    }
-                    else {
-                        set_steppers(selectedExtruder == 0 ? A_IS_SET : B_IS_SET, 0);
-                        command_emitted++;
-                        tool[selectedExtruder].motor_enabled = 0;
-                    }
-                    break;
-                    
-                    // M104 - Set extruder temperature
-                case 104:
-                    if(command.flag & S_IS_SET) {
-                        unsigned temperature = (unsigned)command.s;
-                        if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
-                        if(dittoPrinting) {
-                            if(temperature && override[currentExtruder].active_temperature) {
-                                temperature = override[currentExtruder].active_temperature;
-                            }
-                            set_nozzle_temperature(A, temperature);
-                            set_nozzle_temperature(B, temperature);
-                            command_emitted++;
-                            tool[A].nozzle_temperature = tool[B].nozzle_temperature = temperature;
-                        }
-                        else {
-                            if(temperature && override[selectedExtruder].active_temperature) {
-                                temperature = override[selectedExtruder].active_temperature;
-                            }
-                            set_nozzle_temperature(selectedExtruder, temperature);
-                            command_emitted++;
-                            tool[selectedExtruder].nozzle_temperature = temperature;
-                        }
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax error: M104 is missing temperature, use Sn where n is 0-280" EOL, lineNumber);
-                    }
-                    break;
-                    
-                    // M106 - Turn cooling fan on
-                case 106: {
-                    int state = (command.flag & S_IS_SET) ? ((unsigned)command.s ? 1 : 0) : 1;
-                    if(reprapFlavor) {
-                        if(dittoPrinting) {
-                            set_valve(A, state);
-                            set_valve(B, state);
-                            command_emitted++;
-                        }
-                        else {
-                            set_valve(selectedExtruder, state);
-                            command_emitted++;
-                        }
-                    }
-                    else {
-                        if(dittoPrinting) {
-                            set_fan(A, state);
-                            set_fan(B, state);
-                            command_emitted++;
-                        }
-                        else {
-                            set_fan(selectedExtruder, state);
-                            command_emitted++;
-                        }
-                    }
-                    break;
-                }
-                    
-                    // M107 - Turn cooling fan off
-                case 107:
-                    if(reprapFlavor) {
-                        if(dittoPrinting) {
-                            set_valve(A, 0);
-                            set_valve(B, 0);
-                            command_emitted++;
-                        }
-                        else {
-                            set_valve(selectedExtruder, 0);
-                            command_emitted++;
-                        }
-                    }
-                    else {
-                        if(dittoPrinting) {
-                            set_fan(A, 0);
-                            set_fan(B, 0);
-                            command_emitted++;
-                        }
-                        else {
-                            set_fan(selectedExtruder, 0);
-                            command_emitted++;
-                        }
-                    }
-                    break;
-                    
-                    // M108 - set extruder motor 5D 'simulated' RPM
-                case 108:
-#if ENABLE_SIMULATED_RPM
-                    if(command.flag & R_IS_SET) {
-                        if(dittoPrinting) {
-                            tool[A].rpm = tool[B].rpm = command.r;
-                        }
-                        else {
-                            tool[selectedExtruder].rpm = command.r;
-                        }
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax error: M108 is missing motor RPM, use Rn where n is 0-5" EOL, lineNumber);
-                    }
-#endif
-                    break;
-                    
-                    
-                    // M109 - Set Extruder Temperature and Wait
-                case 109:
-                    if(reprapFlavor) {
-                        if(command.flag & S_IS_SET) {
-                            int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                            unsigned temperature = (unsigned)command.s;
-                            if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
-                            if(dittoPrinting) {
-                                unsigned tempB = temperature;
-                                // set extruder temperatures
-                                if(temperature) {
-                                    if(override[A].active_temperature) {
-                                        temperature = override[A].active_temperature;
-                                    }
-                                    if(override[B].active_temperature) {
-                                        tempB = override[B].active_temperature;
-                                    }
-                                }
-                                set_nozzle_temperature(A, temperature);
-                                set_nozzle_temperature(B, tempB);
-                                tool[A].nozzle_temperature = temperature;
-                                tool[B].nozzle_temperature = tempB;
-                                // wait for extruders to reach (or exceed) temperature
-                                if(tool[A].nozzle_temperature > 0) {
-                                    wait_for_extruder(A, timeout);
-                                }
-                                if(tool[B].nozzle_temperature > 0) {
-                                    wait_for_extruder(B, timeout);
-                                }
-                                command_emitted++;
-                            }
-                            else {
-                                // set extruder temperature
-                                if(temperature && override[selectedExtruder].active_temperature) {
-                                    temperature = override[selectedExtruder].active_temperature;
-                                }
-                                set_nozzle_temperature(selectedExtruder, temperature);
-                                tool[selectedExtruder].nozzle_temperature = temperature;
-                                // wait for extruder to reach (or exceed) temperature
-                                if(tool[selectedExtruder].nozzle_temperature > 0) {
-                                    wait_for_extruder(selectedExtruder, timeout);
-                                }
-                                command_emitted++;
-                            }
-                        }
-                        else {
-                            fprintf(stderr, "(line %u) Syntax error: M109 is missing temperature, use Sn where n is 0-280" EOL, lineNumber);
-                        }
-                        break;
-                    }
-                    // fall through to M140 for Makerbot/ReplicatorG flavor
-                    
-                    // M140 - Set Build Platform Temperature
-                case 140:
-                    if(machine.a.has_heated_build_platform || machine.b.has_heated_build_platform) {
-                        if(command.flag & S_IS_SET) {
-                            unsigned temperature = (unsigned)command.s;
-                            if(temperature > HBP_MAX) temperature = HBP_MAX;
-                            unsigned tool_id = machine.a.has_heated_build_platform ? A : B;
-                            if(command.flag & T_IS_SET) {
-                                tool_id = selectedExtruder;
-                            }
-                            if(tool_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform) {
-                                if(temperature && override[tool_id].build_platform_temperature) {
-                                    temperature = override[tool_id].build_platform_temperature;
-                                }
-                                set_build_platform_temperature(tool_id, temperature);
-                                command_emitted++;
-                                tool[tool_id].build_platform_temperature = temperature;
-                            }
-                            else {
-                                fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, lineNumber, command.m, tool_id);
-                            }
-                        }
-                        else {
-                            fprintf(stderr, "(line %u) Syntax error: M%u is missing temperature, use Sn where n is 0-120" EOL, lineNumber, command.m);
-                        }
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, lineNumber, command.m);
-                    }
-                    break;
-                    
-                    // M126 - Turn blower fan on (valve open)
-                case 126: {
-                    int state = (command.flag & S_IS_SET) ? ((unsigned)command.s ? 1 : 0) : 1;
-                    if(dittoPrinting) {
-                        set_valve(A, state);
-                        set_valve(B, state);
-                        command_emitted++;
-                    }
-                    else {
-                        set_valve(selectedExtruder, state);
-                        command_emitted++;
-                    }
-                    break;
-                }
-                    
-                    // M127 - Turn blower fan off (valve close)
-                case 127:
-                    if(dittoPrinting) {
-                        set_valve(A, 0);
-                        set_valve(B, 0);
-                        command_emitted++;
-                    }
-                    else {
-                        set_valve(selectedExtruder, 0);
-                        command_emitted++;
-                    }
-                    break;
-                    
-                    // M131 - Store Current Position to EEPROM
-                case 131:
-                    if(command.flag & AXES_BIT_MASK) {
-                        store_home_positions();
-                        command_emitted++;
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax error: M131 is missing axes, use X Y Z A B" EOL, lineNumber);
-                    }
-                    break;
-                    
-                    // M132 - Load Current Position from EEPROM
-                case 132:
-                    if(command.flag & AXES_BIT_MASK) {
-                        recall_home_positions();
-                        command_emitted++;
-                        positionKnown = 0;
-                        excess.a = 0;
-                        excess.b = 0;
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax error: M132 is missing axes, use X Y Z A B" EOL, lineNumber);
-                    }
-                    break;
-                    
-                    // M133 - Wait for extruder
-                case 133: {
-                    int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                    // changing the
-                    if(dittoPrinting) {
-                        if(tool[A].nozzle_temperature > 0) {
-                            wait_for_extruder(A, timeout);
-                        }
-                        if(tool[B].nozzle_temperature > 0) {
-                            wait_for_extruder(B, timeout);
-                        }
-                        command_emitted++;
-                    }
-                    else {
-                        // any tool changes have already occured
-                        if(tool[selectedExtruder].nozzle_temperature > 0) {
-                            wait_for_extruder(selectedExtruder, timeout);
-                            command_emitted++;
-                        }
-                    }
-                    break;
-                }
-                    
-                    // M134
-                    // M190 - Wait for build platform to reach (or exceed) temperature
-                case 134:
-                case 190: {
-                    if(machine.a.has_heated_build_platform || machine.b.has_heated_build_platform) {
-                        int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                        unsigned tool_id = machine.a.has_heated_build_platform ? A : B;
-                        if(command.flag & T_IS_SET) {
-                            tool_id = selectedExtruder;
-                        }
-                        if(tool_id ? machine.b.has_heated_build_platform : machine.a.has_heated_build_platform
-                           && tool[tool_id].build_platform_temperature > 0) {
-                            wait_for_build_platform(tool_id, timeout);
-                            command_emitted++;
-                        }
-                        else {
-                            fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, lineNumber, command.m, tool_id);
-                        }
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, lineNumber, command.m);
-                    }
-                    break;
-                }
-                    
-                    // M135 - Change tool
-                case 135:
-                    if(!dittoPrinting && selectedExtruder != currentExtruder) {
-                        int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                        do_tool_change(timeout);
-                        command_emitted++;
-                    }
-                    break;
-                    
-                    // M136 - Build start notification
-                case 136:
-                    if(program_is_ready()) {
-                        start_program();
-                        start_build(buildname);
-                        // start extruder in a known state
-                        change_extruder_offset(currentExtruder);
-                    }
-                    break;
-                    
-                    // M137 - Build end notification
-                case 137:
-                    if(program_is_running()) {
-                        end_program();
-                        end_build();
-                    }
-                    break;
-                    
-                    // M300 - Set Beep (SP)
-                case 300: {
-                    unsigned frequency = 300;
-                    if(command.flag & S_IS_SET) frequency = (unsigned)command.s & 0xFFFF;
-                    unsigned milliseconds = 1000;
-                    if(command.flag & P_IS_SET) milliseconds = (unsigned)command.p & 0xFFFF;
-                    set_beep(frequency, milliseconds);
-                    command_emitted++;
-                    break;
-                }
-                    
-                    // M320 - Acceleration on for subsequent instructions
-                case 320:
-                    set_acceleration(1);
-                    command_emitted++;
-                    break;
-                    
-                    // M321 - Acceleration off for subsequent instructions
-                case 321:
-                    set_acceleration(0);
-                    command_emitted++;
-                    break;
-                    
-                    // M322 - Pause @ zPos
-                case 322:
-                    if(command.flag & Z_IS_SET) {
-                        float conditional_z = offset[currentOffset].z;
-                        
-                        if(macrosEnabled) {
-                            conditional_z += userOffset.z;
-                        }
-                        
-                        double z = isRelative ? (currentPosition.z + command.z) : (command.z + conditional_z);
-                        pause_at_zpos(z);
-                    }
-                    else {
-                        fprintf(stderr, "(line %u) Syntax warning: M322 is missing Z axis" EOL, lineNumber);
-                    }
-                    command_emitted++;
-                    break;
-                    
-                    // M420 - Set RGB LED value (REB - P)
-                case 420: {
-                    unsigned red = 0;
-                    if(command.flag & R_IS_SET) red = (unsigned)command.r & 0xFF;
-                    unsigned green = 0;
-                    if(command.flag & E_IS_SET) green = (unsigned)command.e & 0xFF;
-                    unsigned blue = 0;
-                    if(command.flag & B_IS_SET) blue = (unsigned)command.b & 0xFF;
-                    unsigned blink = 0;
-                    if(command.flag & P_IS_SET) blink = (unsigned)command.p & 0xFF;
-                    set_LED(red, green, blue, blink);
-                    command_emitted++;
-                    break;
-                }
-                    
-                default:
-                    fprintf(stderr, "(line %u) Syntax warning: unsupported mcode command 'M%u'" EOL, lineNumber, command.m);
-            }
-        }
-        else {
-            // X,Y,Z,A,B,E,F
-            if(command.flag & (AXES_BIT_MASK | F_IS_SET)) {
-                do_pause_at_zpos += calculate_target_position();
-                queue_ext_point(currentFeedrate);
-                update_current_position();
-                command_emitted++;
-            }
-            // Tn
-            else if(!dittoPrinting && selectedExtruder != currentExtruder) {
-                int timeout = command.flag & P_IS_SET ? (int)command.p : 0xFFFF;
-                do_tool_change(timeout);
-                command_emitted++;
-            }
-        }
-        // check for pending pause @ zPos
-        if(do_pause_at_zpos) {
-            do_pause_at_zpos--;
-            // issue next pause @ zPos after command buffer is flushed
-            if(do_pause_at_zpos == 0) {
-                pause_at_zpos(commandAt[commandAtIndex].z);
-            }
-        }
-        // update progress
-        if(filesize && buildProgress && command_emitted) {
-            unsigned percent = (unsigned)round(100.0 * (double)ftell(in) / (double)filesize);
-            if(percent > progress) {
-                if(program_is_ready()) {
-                    start_program();
-                    start_build(buildname);
-                    set_build_progress(0);
-                    // start extruder in a known state
-                    change_extruder_offset(currentExtruder);
-                }
-                else if(percent < 100 && program_is_running()) {
-                    set_build_progress(percent);
-                    progress = percent;
-                }
-                command_emitted = 0;
-            }
-        }
-        lineNumber = next_line;
-    }
-    
-    if(program_is_running()) {
-        end_program();
-        set_build_progress(100);
-        end_build();
-    }
-    set_steppers(AXES_BIT_MASK, 0);
-
+    char* p = s + strlen(s);
+    while (p > s && isspace((unsigned char)(*--p))) *p = '\0';
+    return s;
 }
 
-// INI FILE HANDLER
+/* Return pointer to first non-whitespace char in given string. */
+static char* lskip(const char* s)
+{
+    while (*s && isspace((unsigned char)(*s))) s++;
+    return (char*)s;
+}
+
+/* Return pointer to first char c or ';' comment in given string, or pointer to
+ null at end of string if neither found. ';' must be prefixed by a whitespace
+ character to register as a comment. */
+static char* find_char_or_comment(const char* s, char c)
+{
+    int was_whitespace = 0;
+    while (*s && *s != c && !(was_whitespace && *s == ';')) {
+        was_whitespace = isspace((unsigned char)(*s));
+        s++;
+    }
+    return (char*)s;
+}
+
+/* Version of strncpy that ensures dest (size bytes) is null-terminated. */
+static char* strncpy0(char* dest, const char* src, size_t size)
+{
+    strncpy(dest, src, size);
+    dest[size - 1] = '\0';
+    return dest;
+}
+
+/* See documentation in header file. */
+static int ini_parse_file(Gpx* gpx, FILE* file, int (*handler)(Gpx*, const char*, const char*, char*))
+{
+    /* Uses a fair bit of stack (use heap instead if you need to) */
+    char section[INI_SECTION_MAX] = "";
+    char prev_name[INI_NAME_MAX] = "";
+    
+    char* start;
+    char* end;
+    char* name;
+    char* value;
+    int error = 0;
+    gpx->lineNumber = 0;
+
+    /* Scan through file line by line */
+    while(fgets(gpx->buffer.in, BUFFER_MAX, file) != NULL) {
+        gpx->lineNumber++;
+        
+        start = gpx->buffer.in;
+#if INI_ALLOW_BOM
+        if(gpx->lineNumber == 1 && (unsigned char)start[0] == 0xEF &&
+            (unsigned char)start[1] == 0xBB &&
+            (unsigned char)start[2] == 0xBF) {
+            start += 3;
+        }
+#endif
+        start = lskip(rstrip(start));
+        
+        if(*start == ';' || *start == '#') {
+            /* Per Python ConfigParser, allow '#' comments at start of line */
+        }
+#if INI_ALLOW_MULTILINE
+        else if(*prev_name && *start && start > gpx->buffer.in) {
+            /* Non-black line with leading whitespace, treat as continuation
+             of previous name's value (as per Python ConfigParser). */
+            if (handler(gpx, section, prev_name, start) && !error)
+                error = gpx->lineNumber;
+        }
+#endif
+        else if(*start == '[') {
+            /* A "[section]" line */
+            end = find_char_or_comment(start + 1, ']');
+            if(*end == ']') {
+                *end = '\0';
+                strncpy0(section, start + 1, sizeof(section));
+                *prev_name = '\0';
+            }
+            else if(!error) {
+                /* No ']' found on section line */
+                error = gpx->lineNumber;
+            }
+        }
+        else if(*start && *start != ';') {
+            /* Not a comment, must be a name[=:]value pair */
+            end = find_char_or_comment(start, '=');
+            if(*end != '=') {
+                end = find_char_or_comment(start, ':');
+            }
+            if(*end == '=' || *end == ':') {
+                *end = '\0';
+                name = rstrip(start);
+                value = lskip(end + 1);
+                end = find_char_or_comment(value, '\0');
+                if (*end == ';')
+                    *end = '\0';
+                rstrip(value);
+                
+                /* Valid name[=:]value pair found, call handler */
+                strncpy0(prev_name, name, sizeof(prev_name));
+                if(handler(gpx, section, name, value) && !error)
+                    error = gpx->lineNumber;
+            }
+            else if(!error) {
+                /* No '=' or ':' found on name[=:]value line */
+                error = gpx->lineNumber;
+            }
+        }
+    }    
+    return error;
+}
+
+/* See documentation in header file. */
+
+static int ini_parse(Gpx* gpx, const char* filename,
+                     int (*handler)(Gpx*, const char*, const char*, char*))
+{
+    FILE* file;
+    int error;
+    
+    file = fopen(filename, "r");
+    if(!file) return -1;
+    error = ini_parse_file(gpx, file, handler);
+    fclose(file);
+    return error;
+}
 
 // Custom machine definition ini handler
 
@@ -3220,8 +2652,9 @@ static void convert(char *buildname, long filesize)
 #define PROPERTY_IS(n) strcasecmp(property, n) == 0
 #define VALUE_IS(v) strcasecmp(value, v) == 0
 
-static int config_handler(unsigned lineno, const char* section, const char* property, char* value)
+int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* value)
 {
+    int rval;
     if(SECTION_IS("") || SECTION_IS("macro")) {
         if(PROPERTY_IS("slicer")
            || PROPERTY_IS("filament")
@@ -3229,559 +2662,1486 @@ static int config_handler(unsigned lineno, const char* section, const char* prop
            || PROPERTY_IS("start")
            || PROPERTY_IS("temp")
            || PROPERTY_IS("temperature")) {
-            parse_macro(property, value);
+            CALL( parse_macro(gpx, property, value) );
         }
         else if(PROPERTY_IS("verbose")) {
-            verboseMode = atoi(value);
+            gpx->flag.verboseMode = atoi(value);
         }
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("printer") || SECTION_IS("slicer")) {
-        if(PROPERTY_IS("ditto_printing")) dittoPrinting = atoi(value);
-        else if(PROPERTY_IS("build_progress")) buildProgress = atoi(value);
-        else if(PROPERTY_IS("packing_density")) machine.nominal_packing_density = strtod(value, NULL);
-        else if(PROPERTY_IS("recalculate_5d")) rewrite5D = atoi(value);
+        if(PROPERTY_IS("ditto_printing")) gpx->flag.dittoPrinting = atoi(value);
+        else if(PROPERTY_IS("build_progress")) gpx->flag.buildProgress = atoi(value);
+        else if(PROPERTY_IS("packing_density")) gpx->machine.nominal_packing_density = strtod(value, NULL);
+        else if(PROPERTY_IS("recalculate_5d")) gpx->flag.rewrite5D = atoi(value);
         else if(PROPERTY_IS("nominal_filament_diameter")
                 || PROPERTY_IS("slicer_filament_diameter")
                 || PROPERTY_IS("filament_diameter")) {
-            machine.nominal_filament_diameter = strtod(value, NULL);
+            gpx->machine.nominal_filament_diameter = strtod(value, NULL);
         }
         else if(PROPERTY_IS("machine_type")) {
-            // use on-board machine definition
-            if(VALUE_IS("c3")) {
-                machine = cupcake_G3;
-                if(verboseMode) fputs("Loading machine definition: Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
+            // only load/clobber the on-board machine definition if the one specified is different
+            if(gpx_set_machine(gpx, value)) {
+                SHOW( fprintf(stderr, "(line %u) Configuration error: unrecognised machine type '%s'" EOL, gpx->lineNumber, value) );
+                return gpx->lineNumber;
             }
-            else if(VALUE_IS("c4")) {
-                machine = cupcake_G4;
-                if(verboseMode) fputs("Loading machine definition: Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-            }
-            else if(VALUE_IS("cp4")) {
-                machine = cupcake_P4;
-                if(verboseMode) fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-            }
-            else if(VALUE_IS("cpp")) {
-                machine = cupcake_PP;
-                if(verboseMode) fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, stderr);
-            }
-            else if(VALUE_IS("t6")) {
-                machine = thing_o_matic_7;
-                if(verboseMode) fputs("Loading machine definition: TOM Mk6 - single extruder" EOL, stderr);
-            }
-            else if(VALUE_IS("t7")) {
-                machine = thing_o_matic_7;
-                if(verboseMode) fputs( "Loading machine definition: TOM Mk7 - single extruder" EOL, stderr);
-            }
-            else if(VALUE_IS("t7d")) {
-                machine = thing_o_matic_7D;
-                if(verboseMode) fputs("Loading machine definition: TOM Mk7 - dual extruder" EOL, stderr);
-            }
-            else if(VALUE_IS("r1")) {
-                machine = replicator_1;
-                if(verboseMode) fputs("Loading machine definition: Replicator 1 - single extruder" EOL, stderr);
-            }
-            else if(VALUE_IS("r1d")) {
-                machine = replicator_1D;
-                if(verboseMode) fputs("Loading machine definition: Replicator 1 - dual extruder" EOL, stderr);
-            }
-            else if(VALUE_IS("r2")) {
-                machine = replicator_2;
-                if(verboseMode) fputs("Loading machine definition: Replicator 2" EOL, stderr);
-            }
-            else if(VALUE_IS("r2h")) {
-                machine = replicator_2H;
-                if(verboseMode) fputs("Loading machine definition: Replicator 2 with HBP" EOL, stderr);
-            }
-            else if(VALUE_IS("r2x")) {
-                machine = replicator_2X;
-                if(verboseMode) fputs("Loading machine definition: Replicator 2X" EOL, stderr);
-            }
-            else {
-                fprintf(stderr, "(line %u) Configuration error: unrecognised machine type '%s'" EOL, lineno, value);
-                return 0;
-            }
-            override[A].packing_density = machine.nominal_packing_density;
-            override[B].packing_density = machine.nominal_packing_density;
+            gpx->override[A].packing_density = gpx->machine.nominal_packing_density;
+            gpx->override[B].packing_density = gpx->machine.nominal_packing_density;
         }
         else if(PROPERTY_IS("gcode_flavor")) {
             // use on-board machine definition
-            if(VALUE_IS("reprap")) reprapFlavor = 1;
-            else if(VALUE_IS("makerbot")) reprapFlavor = 0;
+            if(VALUE_IS("reprap")) gpx->flag.reprapFlavor = 1;
+            else if(VALUE_IS("makerbot")) gpx->flag.reprapFlavor = 0;
             else {
-                fprintf(stderr, "(line %u) Configuration error: unrecognised GCODE flavor '%s'" EOL, lineno, value);
-                return 0;
+                SHOW( fprintf(stderr, "(line %u) Configuration error: unrecognised GCODE flavor '%s'" EOL, gpx->lineNumber, value) );
+                return gpx->lineNumber;
             }
         }
         else if(PROPERTY_IS("build_platform_temperature")) {
-            if(machine.a.has_heated_build_platform) override[A].build_platform_temperature = atoi(value);
-            else if(machine.b.has_heated_build_platform) override[B].build_platform_temperature = atoi(value);
+            if(gpx->machine.a.has_heated_build_platform) gpx->override[A].build_platform_temperature = atoi(value);
+            else if(gpx->machine.b.has_heated_build_platform) gpx->override[B].build_platform_temperature = atoi(value);
         }
         else if(PROPERTY_IS("sd_card_path")) {
-            sdCardPath = strdup(value);
+            gpx->sdCardPath = strdup(value);
         }
         else if(PROPERTY_IS("verbose")) {
-            verboseMode = atoi(value);
+            gpx->flag.verboseMode = atoi(value);
         }
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("x")) {
-        if(PROPERTY_IS("max_feedrate")) machine.x.max_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("home_feedrate")) machine.x.home_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("steps_per_mm")) machine.x.steps_per_mm = strtod(value, NULL);
-        else if(PROPERTY_IS("endstop")) machine.x.endstop = atoi(value);
+        if(PROPERTY_IS("max_feedrate")) gpx->machine.x.max_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("home_feedrate")) gpx->machine.x.home_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("steps_per_mm")) gpx->machine.x.steps_per_mm = strtod(value, NULL);
+        else if(PROPERTY_IS("endstop")) gpx->machine.x.endstop = atoi(value);
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("y")) {
-        if(PROPERTY_IS("max_feedrate")) machine.y.max_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("home_feedrate")) machine.y.home_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("steps_per_mm")) machine.y.steps_per_mm = strtod(value, NULL);
-        else if(PROPERTY_IS("endstop")) machine.y.endstop = atoi(value);
+        if(PROPERTY_IS("max_feedrate")) gpx->machine.y.max_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("home_feedrate")) gpx->machine.y.home_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("steps_per_mm")) gpx->machine.y.steps_per_mm = strtod(value, NULL);
+        else if(PROPERTY_IS("endstop")) gpx->machine.y.endstop = atoi(value);
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("z")) {
-        if(PROPERTY_IS("max_feedrate")) machine.z.max_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("home_feedrate")) machine.z.home_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("steps_per_mm")) machine.z.steps_per_mm = strtod(value, NULL);
-        else if(PROPERTY_IS("endstop")) machine.z.endstop = atoi(value);
+        if(PROPERTY_IS("max_feedrate")) gpx->machine.z.max_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("home_feedrate")) gpx->machine.z.home_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("steps_per_mm")) gpx->machine.z.steps_per_mm = strtod(value, NULL);
+        else if(PROPERTY_IS("endstop")) gpx->machine.z.endstop = atoi(value);
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("a")) {
-        if(PROPERTY_IS("max_feedrate")) machine.a.max_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("steps_per_mm")) machine.a.steps_per_mm = strtod(value, NULL);
-        else if(PROPERTY_IS("motor_steps")) machine.a.motor_steps = strtod(value, NULL);
-        else if(PROPERTY_IS("has_heated_build_platform")) machine.a.has_heated_build_platform = atoi(value);
+        if(PROPERTY_IS("max_feedrate")) gpx->machine.a.max_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("steps_per_mm")) gpx->machine.a.steps_per_mm = strtod(value, NULL);
+        else if(PROPERTY_IS("motor_steps")) gpx->machine.a.motor_steps = strtod(value, NULL);
+        else if(PROPERTY_IS("has_heated_build_platform")) gpx->machine.a.has_heated_build_platform = atoi(value);
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("right")) {
         if(PROPERTY_IS("active_temperature")
-           || PROPERTY_IS("nozzle_temperature")) override[A].active_temperature = atoi(value);
-        else if(PROPERTY_IS("standby_temperature")) override[A].standby_temperature = atoi(value);
-        else if(PROPERTY_IS("build_platform_temperature")) override[A].build_platform_temperature = atoi(value);
-        else if(PROPERTY_IS("actual_filament_diameter")) override[A].actual_filament_diameter = strtod(value, NULL);
-        else if(PROPERTY_IS("packing_density")) override[A].packing_density = strtod(value, NULL);
+           || PROPERTY_IS("nozzle_temperature")) gpx->override[A].active_temperature = atoi(value);
+        else if(PROPERTY_IS("standby_temperature")) gpx->override[A].standby_temperature = atoi(value);
+        else if(PROPERTY_IS("build_platform_temperature")) gpx->override[A].build_platform_temperature = atoi(value);
+        else if(PROPERTY_IS("actual_filament_diameter")) gpx->override[A].actual_filament_diameter = strtod(value, NULL);
+        else if(PROPERTY_IS("packing_density")) gpx->override[A].packing_density = strtod(value, NULL);
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("b")) {
-        if(PROPERTY_IS("max_feedrate")) machine.b.max_feedrate = strtod(value, NULL);
-        else if(PROPERTY_IS("steps_per_mm")) machine.b.steps_per_mm = strtod(value, NULL);
-        else if(PROPERTY_IS("motor_steps")) machine.b.motor_steps = strtod(value, NULL);
-        else if(PROPERTY_IS("has_heated_build_platform")) machine.b.has_heated_build_platform = atoi(value);
+        if(PROPERTY_IS("max_feedrate")) gpx->machine.b.max_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("steps_per_mm")) gpx->machine.b.steps_per_mm = strtod(value, NULL);
+        else if(PROPERTY_IS("motor_steps")) gpx->machine.b.motor_steps = strtod(value, NULL);
+        else if(PROPERTY_IS("has_heated_build_platform")) gpx->machine.b.has_heated_build_platform = atoi(value);
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("left")) {
         if(PROPERTY_IS("active_temperature")
-           || PROPERTY_IS("nozzle_temperature")) override[B].active_temperature = atoi(value);
-        else if(PROPERTY_IS("standby_temperature")) override[B].standby_temperature = atoi(value);
-        else if(PROPERTY_IS("build_platform_temperature")) override[B].build_platform_temperature = atoi(value);
-        else if(PROPERTY_IS("actual_filament_diameter")) override[B].actual_filament_diameter = strtod(value, NULL);
-        else if(PROPERTY_IS("packing_density")) override[B].packing_density = strtod(value, NULL);
+           || PROPERTY_IS("nozzle_temperature")) gpx->override[B].active_temperature = atoi(value);
+        else if(PROPERTY_IS("standby_temperature")) gpx->override[B].standby_temperature = atoi(value);
+        else if(PROPERTY_IS("build_platform_temperature")) gpx->override[B].build_platform_temperature = atoi(value);
+        else if(PROPERTY_IS("actual_filament_diameter")) gpx->override[B].actual_filament_diameter = strtod(value, NULL);
+        else if(PROPERTY_IS("packing_density")) gpx->override[B].packing_density = strtod(value, NULL);
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("machine")) {
         if(PROPERTY_IS("nominal_filament_diameter")
-           || PROPERTY_IS("slicer_filament_diameter")) machine.nominal_filament_diameter = strtod(value, NULL);
-        else if(PROPERTY_IS("packing_density")) machine.nominal_packing_density = strtod(value, NULL);
-        else if(PROPERTY_IS("nozzle_diameter")) machine.nozzle_diameter = strtod(value, NULL);
-        else if(PROPERTY_IS("extruder_count")) machine.extruder_count = atoi(value);
-        else if(PROPERTY_IS("timeout")) machine.timeout = atoi(value);
+           || PROPERTY_IS("slicer_filament_diameter")) gpx->machine.nominal_filament_diameter = strtod(value, NULL);
+        else if(PROPERTY_IS("packing_density")) gpx->machine.nominal_packing_density = strtod(value, NULL);
+        else if(PROPERTY_IS("nozzle_diameter")) gpx->machine.nozzle_diameter = strtod(value, NULL);
+        else if(PROPERTY_IS("extruder_count")) gpx->machine.extruder_count = atoi(value);
+        else if(PROPERTY_IS("timeout")) gpx->machine.timeout = atoi(value);
         else goto SECTION_ERROR;
     }
     else {
-        fprintf(stderr, "(line %u) Configuration error: unrecognised section [%s]" EOL, lineno, section);
-        return 0;
+        SHOW( fprintf(stderr, "(line %u) Configuration error: unrecognised section [%s]" EOL, gpx->lineNumber, section) );
+        return gpx->lineNumber;
     }
-    return 1;
+    return 0;
     
 SECTION_ERROR:
-    fprintf(stderr, "(line %u) Configuration error: [%s] section contains unrecognised property %s=..." EOL, lineno, section, property);
-    return 0;
+    SHOW( fprintf(stderr, "(line %u) Configuration error: [%s] section contains unrecognised property %s = %s" EOL, gpx->lineNumber, section, property, value) );
+    return gpx->lineNumber;
 }
 
-// display usage and exit
-
-static void usage()
+int gpx_read_config(Gpx *gpx, const char *filename)
 {
-    fputs("GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
-
-    fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, stderr);
-    fputs("it under the terms of the GNU General Public License as published by" EOL, stderr);
-    fputs("the Free Software Foundation; either version 2 of the License, or" EOL, stderr);
-    fputs("(at your option) any later version." EOL, stderr);
-    
-    fputs(EOL "This program is distributed in the hope that it will be useful," EOL, stderr);
-    fputs("but WITHOUT ANY WARRANTY; without even the implied warranty of" EOL, stderr);
-    fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, stderr);
-    fputs("GNU General Public License for more details." EOL, stderr);
-    
-    fputs(EOL "Usage: gpx [-dgprsvw] [-f F] [-x X] [-y Y] [-z Z] [-m M] [-c C] IN [OUT]" EOL, stderr);
-    fputs(EOL "Options:" EOL EOL, stderr);
-    fputs("\t-d\tsimulated ditto printing" EOL, stderr);
-    fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, stderr);
-    fputs("\t-p\toverride build percentage" EOL, stderr);
-    fputs("\t-r\tReprap GCODE flavor" EOL, stderr);
-    fputs("\t-s\tenable stdin and stdout support for command pipes" EOL, stderr);
-    fputs("\t-v\tverose mode" EOL, stderr);
-    fputs("\t-w\trewrite 5d extrusion values" EOL, stderr);
-    fputs(EOL "F is the actual filament diameter" EOL, stderr);
-    fputs(EOL "X,Y & Z are the coordinate system offsets for the conversion" EOL EOL, stderr);
-    fputs("\tX = the x axis offset" EOL, stderr);
-    fputs("\tY = the y axis offset" EOL, stderr);
-    fputs("\tZ = the z axis offset" EOL, stderr);
-    fputs(EOL "M is the predefined machine type" EOL EOL, stderr);
-    fputs("\tc3  = Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-    fputs("\tc4  = Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-    fputs("\tcp4 = Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-    fputs("\tcpp = Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, stderr);
-    fputs("\tt6  = TOM Mk6 - single extruder" EOL, stderr);
-    fputs("\tt7  = TOM Mk7 - single extruder" EOL, stderr);
-    fputs("\tt7d = TOM Mk7 - dual extruder" EOL, stderr);
-    fputs("\tr1  = Replicator 1 - single extruder" EOL, stderr);
-    fputs("\tr1d = Replicator 1 - dual extruder" EOL, stderr);
-    fputs("\tr2  = Replicator 2 (default config)" EOL, stderr);
-    fputs("\tr2h = Replicator 2 with HBP" EOL, stderr);
-    fputs("\tr2x = Replicator 2X" EOL, stderr);
-    fputs(EOL "C is the filename of a custom machine definition (ini)" EOL, stderr);
-    fputs(EOL "IN is the name of the sliced gcode input filename" EOL, stderr);
-    fputs(EOL "OUT is the name of the x3g output filename" EOL, stderr);
-    fputs(EOL "Examples:" EOL, stderr);
-    fputs("\tgpx -p -m r2 my-sliced-model.gcode" EOL, stderr);
-    fputs("\tgpx -c custom-tom.ini example.gcode /volumes/things/example.x3g" EOL, stderr);
-    fputs("\tgpx -x 3 -y -3 offset-model.gcode" EOL EOL, stderr);
-
-    exit(1);
+    return ini_parse(gpx, filename, gpx_set_property);
 }
 
-// GPX program entry point
-
-int main(int argc, char * argv[])
+void gpx_register_callback(Gpx *gpx, int (*callbackHandler)(Gpx*, void*), void *callbackData)
 {
-    long filesize = 0;
-    int c, i;
-    int standard_io = 0;
-    char *config = NULL;
-    double filament_diameter = 0;
-    char *buildname = "GPX " GPX_VERSION;
+    gpx->callbackHandler = callbackHandler;
+    gpx->callbackData = callbackData;
+}
 
-    initialize_globals();
-    
-    // READ GPX.INI
-    
-    // if present, read the gpx.ini file from the program directory
-    {
-        char *appname = argv[0];
-        // check for .exe extension
-        char *dot = strrchr(appname, '.');
-        if(dot) {
-            long l = dot - appname;
-            memcpy(buffer, appname, l);
-            appname = buffer + l;
-        }
-        // or just append .ini if no extension is present
-        else {
-            size_t sl = strlen(appname);
-            memcpy(buffer, appname, sl);
-            appname = buffer + sl;
-        }
-        *appname++ = '.';
-        *appname++ = 'i';
-        *appname++ = 'n';
-        *appname++ = 'i';
-        *appname++ = '\0';
-        appname = buffer;
-        i = ini_parse(appname, config_handler);
-        if(i == 0) {
-            if(verboseMode) fprintf(stderr, "Loaded config: %s" EOL, appname);
-        }
-        else if (i > 0) {
-            fprintf(stderr, "(ini line %u) Configuration syntax error in gpx.ini: unrecognised paremeters" EOL, i);
-            usage();
-        }
-    }
+void gpx_start_build(Gpx *gpx, char *buildName)
+{
+    if(buildName) gpx->buildName = buildName;
 
-    // READ COMMAND LINE
-    
-    // get the command line options
-    while ((c = getopt(argc, argv, "c:dgf:m:prsvwx:y:z:")) != -1) {
-        switch (c) {
-            case 'c':
-                config = optarg;
-                break;
-            case 'd':
-                dittoPrinting = 1;
-                break;
-            case 'g':
-                reprapFlavor = 0;
-                break;
-            case 'f':
-                filament_diameter = strtod(optarg, NULL);
-                break;
-            case 'm':
-                // only load/clobber the machine definition if the one specified on the command line is different
-                if(strcasecmp(optarg, "c3") == 0) {
-                    if(machine.ordinal != 1) {
-                        machine = cupcake_G3;
-                        if(verboseMode) fputs("Loading machine definition: Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m c3" EOL, stderr);
-                }
-                else if(strcasecmp(optarg, "c4") == 0) {
-                    if(machine.ordinal != 2) {
-                        machine = cupcake_G4;
-                        if(verboseMode) fputs("Loading machine definition: Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m c4" EOL, stderr);
-                }
-                else if(strcasecmp(optarg, "cp4") == 0) {
-                    if(machine.ordinal != 3) {
-                        machine = cupcake_P4;
-                        if(verboseMode) fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m cp4" EOL, stderr);
-                }
-                else if(strcasecmp(optarg, "cpp") == 0) {
-                    if(machine.ordinal != 4) {
-                        machine = cupcake_PP;
-                        if(verboseMode) fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m cpp" EOL, stderr);
-                }
-                else if(strcasecmp(optarg, "t6") == 0) {
-                    if(machine.ordinal != 5) {
-                        machine = thing_o_matic_7;
-                        if(verboseMode) fputs("Loading machine definition: TOM Mk6 - single extruder" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m t6" EOL, stderr);
-                }
-                else if(strcasecmp(optarg, "t7") == 0) {
-                    if(machine.ordinal != 5) {
-                        machine = thing_o_matic_7;
-                        if(verboseMode) fputs("Loading machine definition: TOM Mk7 - single extruder" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m t7" EOL, stderr);
-                }
-                else if(strcasecmp(optarg, "t7d") == 0) {
-                    if(machine.ordinal != 6) {
-                        machine = thing_o_matic_7D;
-                        if(verboseMode) fputs("Loading machine definition: TOM Mk7 - dual extruder" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m t7d" EOL, stderr);
-                }
-                else if(strcasecmp(optarg, "r1") == 0) {
-                    if(machine.ordinal != 7) {
-                        machine = replicator_1;
-                        if(verboseMode) fputs("Loading machine definition: Replicator 1 - single extruder" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m r1" EOL, stderr);
-                }
-                else if(strcasecmp(optarg, "r1d") == 0) {
-                    if(machine.ordinal != 8) {
-                        machine = replicator_1D;
-                        if(verboseMode) fputs("Loading machine definition: Replicator 1 - dual extruder" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m r1d" EOL, stderr);
-                }
-                else if(strcasecmp(optarg, "r2") == 0) {
-                    if(machine.ordinal != 9) {
-                        machine = replicator_2;
-                        if(verboseMode) fputs("Loading machine definition: Replicator 2" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m r2" EOL, stderr);
-                }
-                else if(strcasecmp(optarg, "r2h") == 0) {
-                    if(machine.ordinal != 10) {
-                        machine = replicator_2H;
-                        if(verboseMode) fputs("Loading machine definition: Replicator 2 with HBP" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m r2h" EOL, stderr);
-                }
-                else if(strcasecmp(optarg, "r2x") == 0) {
-                    if(machine.ordinal != 11) {
-                        machine = replicator_2X;
-                        if(verboseMode) fputs("Loading machine definition: Replicator 2X" EOL, stderr);
-                    }
-                    else if(verboseMode) fputs("Ignoring duplicate machine definition: -m r2x" EOL, stderr);
-                }
-                else usage();
-                override[A].packing_density = machine.nominal_packing_density;
-                override[B].packing_density = machine.nominal_packing_density;
-                break;
-            case 'p':
-                buildProgress = 1;
-                break;
-            case 'r':
-                reprapFlavor = 1;
-                break;
-            case 's':
-                standard_io = 1;
-                break;
-            case 'v':
-                verboseMode = 1;
-                break;
-            case 'w':
-                rewrite5D = 1;
-                break;
-            case 'x':
-                userOffset.x = strtod(optarg, NULL);
-                break;
-            case 'y':
-                userOffset.y = strtod(optarg, NULL);
-                break;
-            case 'z':
-                userOffset.z = strtod(optarg, NULL);
-                break;
-            case '?':
-            default:
-                usage();
-        }
-    }
-    
-    // READ CONFIGURATION
-    
-    if(config) {
-        i = ini_parse(config, config_handler);
-        if(i == 0) {
-            if(verboseMode) fprintf(stderr, "Loaded config: %s" EOL, config);
-        }
-        else if (i < 0) {
-            fprintf(stderr, "Command line error: cannot load configuration file '%s'" EOL, config);
-            usage();
-        }
-        else if (i > 0) {
-            fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, config);
-            usage();
-        }
-    }
-    
-    argc -= optind;
-    argv += optind;
-    
-    // OPEN FILES FOR INPUT AND OUTPUT
-    
-    // open the input filename if one is provided
-    if(argc > 0) {
-        char *filename = argv[0];
-        if((in = fopen(filename, "rw")) == NULL) {
-            perror("Error opening input");
-            in = stdin;
-            exit(1);
-        }
-        // assign build name
-        buildname = strrchr(filename, PATH_DELIM);
-        if(buildname) {
-            buildname++;
-        }
-        else {
-            buildname = filename;
-        }
-        filesize = get_filesize(in);
-        argc--;
-        argv++;
-        // use the output filename if one is provided
-        if(argc > 0) {
-            filename = argv[0];
-        }
-        else {
-            // or use the input filename with a .x3g extension
-            char *dot = strrchr(filename, '.');
-            if(dot) {
-                long l = dot - filename;
-                memcpy(buffer, filename, l);
-                filename = buffer + l;
-            }
-            // or just append one if no .gcode extension is present
-            else {
-                size_t sl = strlen(filename);
-                memcpy(buffer, filename, sl);
-                filename = buffer + sl;
-            }
-            *filename++ = '.';
-            *filename++ = 'x';
-            *filename++ = '3';
-            *filename++ = 'g';
-            *filename++ = '\0';
-            filename = buffer;
-        }
-        if((out = fopen(filename, "wb")) == NULL) {
-            perror("Error creating output");
-            out = stdout;
-            exit(1);
-        }
-        if(verboseMode) fprintf(stderr, "Writing to: %s" EOL, filename);
-        // write a second copy to the SD Card
-        if(sdCardPath) {
-            char sd_filename[300];
-            long sl = strlen(sdCardPath);
-            if(sdCardPath[sl - 1] == PATH_DELIM) {
-                sdCardPath[--sl] = 0;
-            }
-            char *delim = strrchr(filename, PATH_DELIM);
-            if(delim) {
-                memcpy(sd_filename, sdCardPath, sl);
-                long l = strlen(delim);
-                memcpy(sd_filename + sl, delim, l);
-                sd_filename[sl + l] = 0;
-            }
-            else {
-                memcpy(sd_filename, sdCardPath, sl);
-                sd_filename[sl++] = PATH_DELIM;
-                long l = strlen(filename);
-                memcpy(sd_filename + sl, filename, l);
-                sd_filename[sl + l] = 0;                
-            }
-            out2 = fopen(sd_filename, "wb");
-            if(out2) {
-                if(verboseMode) fprintf(stderr, "Writing to: %s" EOL, sd_filename);
-            }
-        }
-    }
-    else if(!standard_io) {
-        usage();
-    }
-    
-    if(dittoPrinting && machine.extruder_count == 1) {
-        fputs("Configuration error: ditto printing cannot access non-existant second extruder" EOL, stderr);
-        dittoPrinting = 0;
-    }
-    
-    if(filament_diameter > 0.0001) {
-        override[A].actual_filament_diameter = filament_diameter;
-        override[B].actual_filament_diameter = filament_diameter;
+    if(gpx->flag.dittoPrinting && gpx->machine.extruder_count == 1) {
+        SHOW( fputs("Configuration error: ditto printing cannot access non-existant second extruder" EOL, stderr) );
+        gpx->flag.dittoPrinting = 0;
     }
     
     // CALCULATE FILAMENT SCALING
     
-    if(override[A].actual_filament_diameter > 0.0001
-       && override[A].actual_filament_diameter != machine.nominal_filament_diameter) {
-        set_filament_scale(A, override[A].actual_filament_diameter);
+    if(gpx->override[A].actual_filament_diameter > 0.0001
+       && gpx->override[A].actual_filament_diameter != gpx->machine.nominal_filament_diameter) {
+        set_filament_scale(gpx, A, gpx->override[A].actual_filament_diameter);
     }
     
-    if(override[B].actual_filament_diameter > 0.0001
-       && override[B].actual_filament_diameter != machine.nominal_filament_diameter) {
-        set_filament_scale(B, override[B].actual_filament_diameter);
+    if(gpx->override[B].actual_filament_diameter > 0.0001
+       && gpx->override[B].actual_filament_diameter != gpx->machine.nominal_filament_diameter) {
+        set_filament_scale(gpx, B, gpx->override[B].actual_filament_diameter);
     }
-    
-    // READ INPUT AND CONVERT TO OUTPUT
-    
-    // at this point we have read the command line, set the machine definition
-    // and both the input and output files are open, so its time to parse the
-    // gcode input and convert it to x3g output
-    convert(buildname, filesize);
-    
-    // PRINT STATISTICS
-    
-    if(verboseMode) {
-        long seconds = round(runningTime);
-        long minutes = seconds / 60;        
+}
+
+void gpx_end_build(Gpx *gpx)
+{
+    if(gpx->flag.verboseMode) {
+        long seconds = round(gpx->accumulated.time);
+        long minutes = seconds / 60;
         long hours = minutes / 60;
         minutes %= 60;
         seconds %= 60;
-        fprintf(stderr, "Extrusion length: %#0.3f metres" EOL, round(aLength + bLength) / 1000);
+        fprintf(stderr, "Extrusion length: %#0.3f metres" EOL, round(gpx->accumulated.a + gpx->accumulated.b) / 1000);
         fputs("Estimated print time: ", stderr);
         if(hours) fprintf(stderr, "%lu hours ", hours);
         if(minutes) fprintf(stderr, "%lu minutes ", minutes);
         fprintf(stderr, "%lu seconds" EOL, seconds);
+        fprintf(stderr, "X3G output filesize: %lu bytes" EOL, gpx->accumulated.bytes);
     }
-
-    exit(0);
 }
 
+int gpx_convert_line(Gpx *gpx, char *gcode_line)
+{
+    int i, rval;
+    int next_line = 0;
+    int command_emitted = 0;
+
+    // reset flag state
+    gpx->command.flag = 0;
+    char *digits;
+    char *p = gcode_line; // current parser location
+    while(isspace(*p)) p++;
+    // check for line number
+    if(*p == 'n' || *p == 'N') {
+        digits = p;
+        p = normalize_word(p);
+        if(*p == 0) {
+            SHOW( fprintf(stderr, "(line %u) Syntax error: line number command word 'N' is missing digits" EOL, gpx->lineNumber) );
+            next_line = gpx->lineNumber + 1;
+        }
+        else {
+            next_line = gpx->lineNumber = atoi(digits);
+        }
+    }
+    else {
+        next_line = gpx->lineNumber + 1;
+    }
+    // parse command words in command line
+    while(*p != 0) {
+        if(isalpha(*p)) {
+            int c = *p;
+            digits = p;
+            p = normalize_word(p);
+            switch(c) {
+                    
+                    // PARAMETERS
+                    
+                    // Xnnn	 X coordinate, usually to move to
+                case 'x':
+                case 'X':
+                    gpx->command.x = strtod(digits, NULL);
+                    gpx->command.flag |= X_IS_SET;
+                    break;
+                    
+                    // Ynnn	 Y coordinate, usually to move to
+                case 'y':
+                case 'Y':
+                    gpx->command.y = strtod(digits, NULL);
+                    gpx->command.flag |= Y_IS_SET;
+                    break;
+                    
+                    // Znnn	 Z coordinate, usually to move to
+                case 'z':
+                case 'Z':
+                    gpx->command.z = strtod(digits, NULL);
+                    gpx->command.flag |= Z_IS_SET;
+                    break;
+                    
+                    // Annn	 Length of extrudate in mm.
+                case 'a':
+                case 'A':
+                    gpx->command.a = strtod(digits, NULL);
+                    gpx->command.flag |= A_IS_SET;
+                    break;
+                    
+                    // Bnnn	 Length of extrudate in mm.
+                case 'b':
+                case 'B':
+                    gpx->command.b = strtod(digits, NULL);
+                    gpx->command.flag |= B_IS_SET;
+                    break;
+                    
+                    // Ennn	 Length of extrudate in mm.
+                case 'e':
+                case 'E':
+                    gpx->command.e = strtod(digits, NULL);
+                    gpx->command.flag |= E_IS_SET;
+                    break;
+                    
+                    // Fnnn	 Feedrate in mm per minute.
+                case 'f':
+                case 'F':
+                    gpx->command.f = strtod(digits, NULL);
+                    gpx->command.flag |= F_IS_SET;
+                    break;
+                    
+                    // Pnnn	 Command parameter, such as a time in milliseconds
+                case 'p':
+                case 'P':
+                    gpx->command.p = strtod(digits, NULL);
+                    gpx->command.flag |= P_IS_SET;
+                    break;
+                    
+                    // Rnnn	 Command Parameter, such as RPM
+                case 'r':
+                case 'R':
+                    gpx->command.r = strtod(digits, NULL);
+                    gpx->command.flag |= R_IS_SET;
+                    break;
+                    
+                    // Snnn	 Command parameter, such as temperature
+                case 's':
+                case 'S':
+                    gpx->command.s = strtod(digits, NULL);
+                    gpx->command.flag |= S_IS_SET;
+                    break;
+                    
+                    // COMMANDS
+                    
+                    // Gnnn GCode command, such as move to a point
+                case 'g':
+                case 'G':
+                    gpx->command.g = atoi(digits);
+                    gpx->command.flag |= G_IS_SET;
+                    break;
+                    // Mnnn	 RepRap-defined command
+                case 'm':
+                case 'M':
+                    gpx->command.m = atoi(digits);
+                    gpx->command.flag |= M_IS_SET;
+                    break;
+                    // Tnnn	 Select extruder nnn.
+                case 't':
+                case 'T':
+                    gpx->command.t = atoi(digits);
+                    gpx->command.flag |= T_IS_SET;
+                    break;
+                    
+                default:
+                    SHOW( fprintf(stderr, "(line %u) Syntax warning: unrecognised command word '%c'" EOL, gpx->lineNumber, c) );
+            }
+        }
+        else if(*p == ';') {
+            if(*(p + 1) == '@') {
+                char *s = p + 2;
+                if(isalpha(*s)) {
+                    char *macro = s;
+                    // skip any no space characters
+                    while(*s && !isspace(*s)) s++;
+                    // null terminate
+                    if(*s) *s++ = 0;
+                    CALL( parse_macro(gpx, macro, normalize_comment(s)) );
+                    *p = 0;
+                    break;
+                }
+            }
+            // Comment
+            gpx->command.comment = normalize_comment(p + 1);
+            gpx->command.flag |= COMMENT_IS_SET;
+            *p = 0;
+            break;
+        }
+        else if(*p == '(') {
+            if(*(p + 1) == '@') {
+                char *s = p + 2;
+                if(isalpha(*s)) {
+                    char *macro = s;
+                    char *e = strrchr(p + 1, ')');
+                    // skip any no space characters
+                    while(*s && !isspace(*s)) s++;
+                    // null terminate
+                    if(*s) *s++ = 0;
+                    if(e) *e = 0;
+                    CALL( parse_macro(gpx, macro, normalize_comment(s)) );
+                    *p = 0;
+                    break;
+                }
+            }
+            // Comment
+            char *s = strchr(p + 1, '(');
+            char *e = strchr(p + 1, ')');
+            // check for nested comment
+            if(s && e && s < e) {
+                SHOW( fprintf(stderr, "(line %u) Syntax warning: nested comment detected" EOL, gpx->lineNumber) );
+                e = strrchr(p + 1, ')');
+            }
+            if(e) {
+                *e = 0;
+                gpx->command.comment = normalize_comment(p + 1);
+                gpx->command.flag |= COMMENT_IS_SET;
+                p = e + 1;
+            }
+            else {
+                SHOW( fprintf(stderr, "(line %u) Syntax warning: comment is missing closing ')'" EOL, gpx->lineNumber) );
+                gpx->command.comment = normalize_comment(p + 1);
+                gpx->command.flag |= COMMENT_IS_SET;
+                *p = 0;
+                break;
+            }
+        }
+        else if(*p == '*') {
+            // Checksum
+            *p = 0;
+            break;
+        }
+        else if(iscntrl(*p)) {
+            break;
+        }
+        else {
+            SHOW( fprintf(stderr, "(line %u) Syntax error: unrecognised gcode '%s'" EOL, gpx->lineNumber, p) );
+            break;
+        }
+    }
+    
+    // revert tool selection to current extruder (Makerbot Tn is not sticky)
+    if(!gpx->flag.reprapFlavor) gpx->target.extruder = gpx->current.extruder;
+    
+    // change the extruder selection (in the virtual tool carosel)
+    if(gpx->command.flag & T_IS_SET && !gpx->flag.dittoPrinting) {
+        unsigned tool_id = (unsigned)gpx->command.t;
+        if(tool_id < gpx->machine.extruder_count) {
+            gpx->target.extruder = tool_id;
+        }
+        else {
+            SHOW( fprintf(stderr, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, gpx->lineNumber, tool_id) );
+        }
+    }
+    
+    // we treat E as short hand for A or B being set, depending on the state of the gpx->current.extruder
+    
+    if(gpx->command.flag & E_IS_SET) {
+        if(gpx->current.extruder == 0) {
+            // a = e
+            gpx->command.flag |= A_IS_SET;
+            gpx->command.a = gpx->command.e;
+        }
+        else {
+            // b = e
+            gpx->command.flag |= B_IS_SET;
+            gpx->command.b = gpx->command.e;
+        }
+    }
+    
+    // INTERPRET COMMAND
+    
+    if(gpx->command.flag & G_IS_SET) {
+        switch(gpx->command.g) {
+                // G0 - Rapid Positioning
+            case 0:
+                if(gpx->command.flag & F_IS_SET) {
+                    CALL( calculate_target_position(gpx) );
+                    CALL( queue_ext_point(gpx, 0.0) );
+                    update_current_position(gpx);
+                    command_emitted++;
+                }
+                else {
+                    Point3d delta;
+                    CALL( calculate_target_position(gpx) );
+                    if(gpx->command.flag & X_IS_SET) delta.x = fabs(gpx->target.position.x - gpx->current.position.x);
+                    if(gpx->command.flag & Y_IS_SET) delta.y = fabs(gpx->target.position.y - gpx->current.position.y);
+                    if(gpx->command.flag & Z_IS_SET) delta.z = fabs(gpx->target.position.z - gpx->current.position.z);
+                    double length = magnitude(gpx->command.flag & XYZ_BIT_MASK, (Ptr5d)&delta);
+                    double candidate, feedrate = DBL_MAX;
+                    if(gpx->command.flag & X_IS_SET && delta.x != 0.0) {
+                        feedrate = gpx->machine.x.max_feedrate * length / delta.x;
+                    }
+                    if(gpx->command.flag & Y_IS_SET && delta.y != 0.0) {
+                        candidate = gpx->machine.y.max_feedrate * length / delta.y;
+                        if(feedrate > candidate) {
+                            feedrate = candidate;
+                        }
+                    }
+                    if(gpx->command.flag & Z_IS_SET && delta.z != 0.0) {
+                        candidate = gpx->machine.z.max_feedrate * length / delta.z;
+                        if(feedrate > candidate) {
+                            feedrate = candidate;
+                        }
+                    }
+                    if(feedrate == DBL_MAX) {
+                        feedrate = gpx->machine.x.max_feedrate;
+                    }
+                    CALL( queue_ext_point(gpx, feedrate) );
+                    update_current_position(gpx);
+                    command_emitted++;
+                }
+                break;
+                
+                // G1 - Coordinated Motion
+            case 1:
+                CALL( calculate_target_position(gpx) );
+                CALL( queue_ext_point(gpx, 0.0) );
+                update_current_position(gpx);
+                command_emitted++;
+                break;
+                
+                // G2 - Clockwise Arc
+                // G3 - Counter Clockwise Arc
+                
+                // G4 - Dwell
+            case 4:
+                if(gpx->command.flag & P_IS_SET) {
+#if ENABLE_SIMULATED_RPM
+                    if(gpx->tool[gpx->current.extruder].motor_enabled && gpx->tool[gpx->current.extruder].rpm) {
+                        CALL( calculate_target_position(gpx) );
+                        CALL( queue_new_point(gpx, gpx->command.p) );
+                        command_emitted++;
+                    }
+                    else
+#endif
+                    {
+                        CALL( delay(gpx, gpx->command.p) );
+                        command_emitted++;
+                    }
+                    
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Syntax error: G4 is missing delay parameter, use Pn where n is milliseconds" EOL, gpx->lineNumber) );
+                }
+                break;
+                
+                // G10 - Create Coordinate System Offset from the Absolute one
+            case 10:
+                if(gpx->command.flag & P_IS_SET && gpx->command.p >= 1.0 && gpx->command.p <= 6.0) {
+                    i = (int)gpx->command.p;
+                    if(gpx->command.flag & X_IS_SET) gpx->offset[i].x = gpx->command.x;
+                    if(gpx->command.flag & Y_IS_SET) gpx->offset[i].y = gpx->command.y;
+                    if(gpx->command.flag & Z_IS_SET) gpx->offset[i].z = gpx->command.z;
+                    // set standby temperature
+                    if(gpx->command.flag & R_IS_SET) {
+                        unsigned temperature = (unsigned)gpx->command.r;
+                        if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
+                        switch(i) {
+                            case 1:
+                                gpx->override[A].standby_temperature = temperature;
+                                break;
+                            case 2:
+                                gpx->override[B].standby_temperature = temperature;
+                                break;
+                        }
+                    }
+                    // set tool temperature
+                    if(gpx->command.flag & S_IS_SET) {
+                        unsigned temperature = (unsigned)gpx->command.s;
+                        if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
+                        switch(i) {
+                            case 1:
+                                gpx->override[A].active_temperature = temperature;
+                                break;
+                            case 2:
+                                gpx->override[B].active_temperature = temperature;
+                                break;
+                        }
+                    }
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Syntax error: G10 is missing coordiante system, use Pn where n is 1-6" EOL, gpx->lineNumber) );
+                }
+                break;
+                
+                // G21 - Use Milimeters as Units (IGNORED)
+                // G71 - Use Milimeters as Units (IGNORED)
+            case 21:
+            case 71:
+                break;
+                
+                // G53 - Set absolute coordinate system
+            case 53:
+                gpx->current.offset = 0;
+                break;
+                
+                // G54 - Use coordinate system from G10 P1
+            case 54:
+                gpx->current.offset = 1;
+                break;
+                
+                // G55 - Use coordinate system from G10 P2
+            case 55:
+                gpx->current.offset = 2;
+                break;
+                
+                // G56 - Use coordinate system from G10 P3
+            case 56:
+                gpx->current.offset = 3;
+                break;
+                
+                // G57 - Use coordinate system from G10 P4
+            case 57:
+                gpx->current.offset = 4;
+                break;
+                
+                // G58 - Use coordinate system from G10 P5
+            case 58:
+                gpx->current.offset = 5;
+                break;
+                
+                // G59 - Use coordinate system from G10 P6
+            case 59:
+                gpx->current.offset = 6;
+                break;
+                
+                // G90 - Absolute Positioning
+            case 90:
+                gpx->flag.relativeCoordinates = 0;
+                break;
+                
+                // G91 - Relative Positioning
+            case 91:
+                if(gpx->current.positionKnown) {
+                    gpx->flag.relativeCoordinates = 1;
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Semantic error: G91 switch to relitive positioning prior to first absolute move" EOL, gpx->lineNumber) );
+                    return -1;
+                }
+                break;
+                
+                // G92 - Define current position on axes
+            case 92: {
+                if(gpx->command.flag & X_IS_SET) gpx->current.position.x = gpx->command.x;
+                if(gpx->command.flag & Y_IS_SET) gpx->current.position.y = gpx->command.y;
+                if(gpx->command.flag & Z_IS_SET) gpx->current.position.z = gpx->command.z;
+                if(gpx->command.flag & A_IS_SET) gpx->current.position.a = gpx->command.a;
+                if(gpx->command.flag & B_IS_SET) gpx->current.position.b = gpx->command.b;
+                CALL( set_position(gpx) );
+                command_emitted++;
+                // check if we know where we are
+                int mask = gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;
+                if((gpx->command.flag & mask) == mask) gpx->current.positionKnown = 1;
+                break;
+            }
+                
+                // G130 - Set given axes potentiometer Value
+            case 130:
+                if(gpx->command.flag & X_IS_SET) {
+                    CALL( set_pot_value(gpx, 0, gpx->command.x < 0 ? 0 : gpx->command.x > 127 ? 127 : (unsigned)gpx->command.x) );
+                }
+                
+                if(gpx->command.flag & Y_IS_SET) {
+                    CALL( set_pot_value(gpx, 1, gpx->command.y < 0 ? 0 : gpx->command.y > 127 ? 127 : (unsigned)gpx->command.y) );
+                }
+                
+                if(gpx->command.flag & Z_IS_SET) {
+                    CALL( set_pot_value(gpx, 2, gpx->command.z < 0 ? 0 : gpx->command.z > 127 ? 127 : (unsigned)gpx->command.z) );
+                }
+                
+                if(gpx->command.flag & A_IS_SET) {
+                    CALL( set_pot_value(gpx, 3, gpx->command.a < 0 ? 0 : gpx->command.a > 127 ? 127 : (unsigned)gpx->command.a) );
+                }
+                
+                if(gpx->command.flag & B_IS_SET) {
+                    CALL( set_pot_value(gpx, 4, gpx->command.b < 0 ? 0 : gpx->command.b > 127 ? 127 : (unsigned)gpx->command.b) );
+                }
+                break;
+                
+                // G161 - Home given axes to minimum
+            case 161:
+                if(gpx->command.flag & F_IS_SET) gpx->current.feedrate = gpx->command.f;
+                CALL( home_axes(gpx, ENDSTOP_IS_MIN) );
+                command_emitted++;
+                gpx->current.positionKnown = 0;
+                gpx->excess.a = 0;
+                gpx->excess.b = 0;
+                break;
+                // G28 - Home given axes to maximum
+                // G162 - Home given axes to maximum
+            case 28:
+            case 162:
+                if(gpx->command.flag & F_IS_SET) gpx->current.feedrate = gpx->command.f;
+                CALL( home_axes(gpx, ENDSTOP_IS_MAX) );
+                command_emitted++;
+                gpx->current.positionKnown = 0;
+                gpx->excess.a = 0;
+                gpx->excess.b = 0;
+                break;
+            default:
+                SHOW( fprintf(stderr, "(line %u) Syntax warning: unsupported gcode command 'G%u'" EOL, gpx->lineNumber, gpx->command.g) );
+        }
+    }
+    else if(gpx->command.flag & M_IS_SET) {
+        switch(gpx->command.m) {
+                // M2 - End program
+            case 2:
+                if(program_is_running()) {
+                    end_program();
+                    CALL( set_build_progress(gpx, 100) );
+                    CALL( end_build(gpx) );
+                }
+                return 1;
+                
+                // M6 - Tool change (AND)
+                // M116 - Wait for extruder AND build platfrom to reach (or exceed) temperature
+            case 6:
+            case 116: {
+                int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : 0xFFFF;
+                if(!gpx->flag.dittoPrinting &&
+#if !ENABLE_TOOL_CHANGE_ON_WAIT
+                   gpx->command.m != 116 &&
+#endif
+                   gpx->target.extruder != gpx->current.extruder) {
+                    CALL( do_tool_change(gpx, timeout) );
+                    command_emitted++;
+                }
+                // wait for heated build platform
+                if(gpx->machine.a.has_heated_build_platform && gpx->tool[A].build_platform_temperature > 0) {
+                    CALL( wait_for_build_platform(gpx, A, timeout) );
+                    command_emitted++;
+                }
+                else if(gpx->machine.b.has_heated_build_platform && gpx->tool[B].build_platform_temperature > 0) {
+                    CALL( wait_for_build_platform(gpx, B, timeout) );
+                    command_emitted++;
+                }
+                // wait for extruder
+                if(gpx->flag.dittoPrinting) {
+                    if(gpx->tool[B].nozzle_temperature > 0) {
+                        CALL( wait_for_extruder(gpx, B, timeout) );
+                    }
+                    if(gpx->tool[A].nozzle_temperature > 0) {
+                        CALL( wait_for_extruder(gpx, A, timeout) );
+                    }
+                    command_emitted++;
+                }
+                else {
+                    if(gpx->tool[gpx->target.extruder].nozzle_temperature > 0) {
+                        CALL( wait_for_extruder(gpx, gpx->target.extruder, timeout) );
+                        command_emitted++;
+                    }
+                }
+                if(gpx->flag.verboseMode) {
+                    CALL( display_message(gpx, "GPX " GPX_VERSION, 0, 0, 0, 0) );
+                    CALL( display_message(gpx, "by Dr Henry Thomas", 1, 0, 1, 0) );
+                }
+                break;
+            }
+                
+                // M17 - Enable axes steppers
+            case 17:
+                if(gpx->command.flag & AXES_BIT_MASK) {
+                    CALL( set_steppers(gpx, gpx->command.flag & AXES_BIT_MASK, 1) );
+                    command_emitted++;
+                    if(gpx->command.flag & A_IS_SET) gpx->tool[A].motor_enabled = 1;
+                    if(gpx->command.flag & B_IS_SET) gpx->tool[B].motor_enabled = 1;
+                }
+                else {
+                    CALL( set_steppers(gpx, gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 1) );
+                    command_emitted++;
+                    gpx->tool[A].motor_enabled = 1;
+                    if(gpx->machine.extruder_count == 2) gpx->tool[B].motor_enabled = 1;
+                }
+                break;
+                
+                // M18 - Disable axes steppers
+            case 18:
+                if(gpx->command.flag & AXES_BIT_MASK) {
+                    CALL( set_steppers(gpx, gpx->command.flag & AXES_BIT_MASK, 0) );
+                    command_emitted++;
+                    if(gpx->command.flag & A_IS_SET) gpx->tool[A].motor_enabled = 0;
+                    if(gpx->command.flag & B_IS_SET) gpx->tool[B].motor_enabled = 0;
+                }
+                else {
+                    CALL( set_steppers(gpx, gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 0) );
+                    command_emitted++;
+                    gpx->tool[A].motor_enabled = 0;
+                    if(gpx->machine.extruder_count == 2) gpx->tool[B].motor_enabled = 0;
+                }
+                break;
+                
+                // M70 - Display message on LCD
+            case 70:
+                if(gpx->command.flag & COMMENT_IS_SET) {
+                    unsigned vPos = gpx->command.flag & Y_IS_SET ? (unsigned)gpx->command.y : 0;
+                    if(vPos > 3) vPos = 3;
+                    unsigned hPos = gpx->command.flag & X_IS_SET ? (unsigned)gpx->command.x : 0;
+                    if(hPos > 19) hPos = 19;
+                    int timeout = gpx->command.flag & P_IS_SET ? gpx->command.p : 0;
+                    CALL( display_message(gpx, gpx->command.comment, vPos, hPos, timeout, 0) );
+                    command_emitted++;
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Syntax error: M70 is missing message text, use (text) where text is message" EOL, gpx->lineNumber) );
+                }
+                break;
+                
+                // M71 - Display message and wait for button press
+            case 71: {
+                char *message = gpx->command.flag & COMMENT_IS_SET ? gpx->command.comment : "Press M to continue";
+                unsigned vPos = gpx->command.flag & Y_IS_SET ? (unsigned)gpx->command.y : 0;
+                if(vPos > 3) vPos = 3;
+                unsigned hPos = gpx->command.flag & X_IS_SET ? (unsigned)gpx->command.x : 0;
+                if(hPos > 19) hPos = 19;
+                int timeout = gpx->command.flag & P_IS_SET ? gpx->command.p : 0;
+                CALL( display_message(gpx, message, vPos, hPos, timeout, 1) );
+                command_emitted++;
+                break;
+            }
+                
+                // M72 - Queue a song or play a tone
+            case 72:
+                if(gpx->command.flag & P_IS_SET) {
+                    unsigned song_id = (unsigned)gpx->command.p;
+                    if(song_id > 2) song_id = 2;
+                    CALL( queue_song(gpx, song_id) );
+                    command_emitted++;
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Syntax warning: M72 is missing song number, use Pn where n is 0-2" EOL, gpx->lineNumber) );
+                }
+                break;
+                
+                // M73 - Manual set build percentage
+            case 73:
+                if(gpx->command.flag & P_IS_SET) {
+                    unsigned percent = (unsigned)gpx->command.p;
+                    if(percent > 100) percent = 100;
+                    if(program_is_ready()) {
+                        start_program();
+                        CALL( start_build(gpx, gpx->buildName) );
+                        CALL( set_build_progress(gpx, 0) );
+                        // start extruder in a known state
+                        CALL( change_extruder_offset(gpx, gpx->current.extruder) );
+                    }
+                    else if(program_is_running()) {
+                        if(percent == 100) {
+                            // disable macros in footer
+                            gpx->flag.macrosEnabled = 0;
+                            end_program();
+                            CALL( set_build_progress(gpx, 100) );
+                            CALL( end_build(gpx) );
+                            gpx->current.percent = 100;
+                        }
+                        else {
+                            // enable macros in object body
+                            if(!gpx->flag.macrosEnabled && percent > 0) {
+                                if(gpx->flag.pausePending) {
+                                    CALL( pause_at_zpos(gpx, gpx->commandAt[0].z) );
+                                    gpx->flag.pausePending = 0;
+                                }
+                                gpx->flag.macrosEnabled = 1;
+                            }
+                            if(percent && (gpx->total.time == 0.0 || gpx->flag.buildProgress == 0)) {
+                                CALL( set_build_progress(gpx, percent) );
+                                gpx->current.percent = percent;
+                            }
+                        }
+                    }
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Syntax warning: M73 is missing build percentage, use Pn where n is 0-100" EOL, gpx->lineNumber) );
+                }
+                break;
+                
+                // M82 - set extruder to absolute mode
+            case 82:
+                gpx->flag.extruderIsRelative = 0;
+                break;
+                
+                // M83 - set extruder to relative mode
+            case 83:
+                gpx->flag.extruderIsRelative = 1;
+                break;
+                
+                // M84 - Stop idle hold
+            case 84:
+                CALL( set_steppers(gpx, gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 0) );
+                command_emitted++;
+                gpx->tool[A].motor_enabled = 0;
+                if(gpx->machine.extruder_count == 2) gpx->tool[B].motor_enabled = 0;
+                break;
+                
+                // M101 - Turn extruder on, forward
+                // M102 - Turn extruder on, reverse
+            case 101:
+            case 102:
+                if(gpx->flag.dittoPrinting) {
+                    CALL( set_steppers(gpx, A_IS_SET|B_IS_SET, 1) );
+                    command_emitted++;
+                    gpx->tool[A].motor_enabled = gpx->tool[B].motor_enabled = gpx->command.m == 101 ? 1 : -1;
+                }
+                else {
+                    CALL( set_steppers(gpx, gpx->target.extruder == 0 ? A_IS_SET : B_IS_SET, 1) );
+                    command_emitted++;
+                    gpx->tool[gpx->target.extruder].motor_enabled = gpx->command.m == 101 ? 1 : -1;
+                }
+                break;
+                
+                // M103 - Turn extruder off
+            case 103:
+                if(gpx->flag.dittoPrinting) {
+                    CALL( set_steppers(gpx, A_IS_SET|B_IS_SET, 1) );
+                    command_emitted++;
+                    gpx->tool[A].motor_enabled = gpx->tool[B].motor_enabled = 0;
+                }
+                else {
+                    CALL( set_steppers(gpx, gpx->target.extruder == 0 ? A_IS_SET : B_IS_SET, 0) );
+                    command_emitted++;
+                    gpx->tool[gpx->target.extruder].motor_enabled = 0;
+                }
+                break;
+                
+                // M104 - Set extruder temperature
+            case 104:
+                if(gpx->command.flag & S_IS_SET) {
+                    unsigned temperature = (unsigned)gpx->command.s;
+                    if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
+                    if(gpx->flag.dittoPrinting) {
+                        if(temperature && gpx->override[gpx->current.extruder].active_temperature) {
+                            temperature = gpx->override[gpx->current.extruder].active_temperature;
+                        }
+                        CALL( set_nozzle_temperature(gpx, B, temperature) );
+                        CALL( set_nozzle_temperature(gpx, A, temperature) );
+                        command_emitted++;
+                        gpx->tool[A].nozzle_temperature = gpx->tool[B].nozzle_temperature = temperature;
+                    }
+                    else {
+                        if(temperature && gpx->override[gpx->target.extruder].active_temperature) {
+                            temperature = gpx->override[gpx->target.extruder].active_temperature;
+                        }
+                        CALL( set_nozzle_temperature(gpx, gpx->target.extruder, temperature) );
+                        command_emitted++;
+                        gpx->tool[gpx->target.extruder].nozzle_temperature = temperature;
+                    }
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Syntax error: M104 is missing temperature, use Sn where n is 0-280" EOL, gpx->lineNumber) );
+                }
+                break;
+                
+                // M106 - Turn cooling fan on
+            case 106: {
+                int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;
+                if(gpx->flag.reprapFlavor && gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+                    if(gpx->flag.dittoPrinting) {
+                        CALL( set_valve(gpx, B, state) );
+                        CALL( set_valve(gpx, A, state) );
+                        command_emitted++;
+                    }
+                    else {
+                        CALL( set_valve(gpx, gpx->target.extruder, state) );
+                        command_emitted++;
+                    }
+                }
+                else {
+                    if(gpx->flag.dittoPrinting) {
+                        CALL( set_fan(gpx, B, state) );
+                        CALL( set_fan(gpx, A, state) );
+                        command_emitted++;
+                    }
+                    else {
+                        CALL( set_fan(gpx, gpx->target.extruder, state) );
+                        command_emitted++;
+                    }
+                }
+                break;
+            }
+                
+                // M107 - Turn cooling fan off
+            case 107:
+                if(gpx->flag.reprapFlavor && gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+                    if(gpx->flag.dittoPrinting) {
+                        CALL( set_valve(gpx, B, 0) );
+                        CALL( set_valve(gpx, A, 0) );
+                        command_emitted++;
+                    }
+                    else {
+                        CALL( set_valve(gpx, gpx->target.extruder, 0) );
+                        command_emitted++;
+                    }
+                }
+                else {
+                    if(gpx->flag.dittoPrinting) {
+                        CALL( set_fan(gpx, B, 0) );
+                        CALL( set_fan(gpx, A, 0) );
+                        command_emitted++;
+                    }
+                    else {
+                        CALL( set_fan(gpx, gpx->target.extruder, 0) );
+                        command_emitted++;
+                    }
+                }
+                break;
+                
+                // M108 - set extruder motor 5D 'simulated' RPM
+            case 108:
+#if ENABLE_SIMULATED_RPM
+                if(gpx->command.flag & R_IS_SET) {
+                    if(gpx->flag.dittoPrinting) {
+                        gpx->tool[A].rpm = gpx->tool[B].rpm = gpx->command.r;
+                    }
+                    else {
+                        gpx->tool[gpx->target.extruder].rpm = gpx->command.r;
+                    }
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Syntax error: M108 is missing motor RPM, use Rn where n is 0-5" EOL, gpx->lineNumber) );
+                }
+#endif
+                break;
+                
+                
+                // M109 - Set Extruder Temperature and Wait
+            case 109:
+                if(gpx->flag.reprapFlavor) {
+                    if(gpx->command.flag & S_IS_SET) {
+                        int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : 0xFFFF;
+                        unsigned temperature = (unsigned)gpx->command.s;
+                        if(temperature > TEMPERATURE_MAX) temperature = TEMPERATURE_MAX;
+                        if(gpx->flag.dittoPrinting) {
+                            unsigned tempB = temperature;
+                            // set extruder temperatures
+                            if(temperature) {
+                                if(gpx->override[B].active_temperature) {
+                                    tempB = gpx->override[B].active_temperature;
+                                }
+                                if(gpx->override[A].active_temperature) {
+                                    temperature = gpx->override[A].active_temperature;
+                                }
+                            }
+                            CALL( set_nozzle_temperature(gpx, B, tempB) );
+                            CALL( set_nozzle_temperature(gpx, A, temperature) );
+                            gpx->tool[B].nozzle_temperature = tempB;
+                            gpx->tool[A].nozzle_temperature = temperature;
+                            // wait for extruders to reach (or exceed) temperature
+                            if(gpx->tool[B].nozzle_temperature > 0) {
+                                CALL( wait_for_extruder(gpx, B, timeout) );
+                            }
+                            if(gpx->tool[A].nozzle_temperature > 0) {
+                                CALL( wait_for_extruder(gpx, A, timeout) );
+                            }
+                            command_emitted++;
+                        }
+                        else {
+#if ENABLE_TOOL_CHANGE_ON_WAIT
+                            // because there is a wait we do a tool change
+                            if(gpx->target.extruder != gpx->current.extruder) {
+                                CALL( do_tool_change(gpx, timeout) );
+                            }
+#endif
+                            // set extruder temperature
+                            if(temperature && gpx->override[gpx->target.extruder].active_temperature) {
+                                temperature = gpx->override[gpx->target.extruder].active_temperature;
+                            }
+                            CALL( set_nozzle_temperature(gpx, gpx->target.extruder, temperature) );
+                            gpx->tool[gpx->target.extruder].nozzle_temperature = temperature;
+                            // wait for extruder to reach (or exceed) temperature
+                            if(gpx->tool[gpx->target.extruder].nozzle_temperature > 0) {
+                                CALL( wait_for_extruder(gpx, gpx->target.extruder, timeout) );
+                            }
+                            command_emitted++;
+                        }
+                    }
+                    else {
+                        SHOW( fprintf(stderr, "(line %u) Syntax error: M109 is missing temperature, use Sn where n is 0-280" EOL, gpx->lineNumber) );
+                    }
+                    break;
+                }
+                // fall through to M140 for Makerbot/ReplicatorG flavor
+                
+                // M140 - Set Build Platform Temperature
+            case 140:
+                if(gpx->machine.a.has_heated_build_platform || gpx->machine.b.has_heated_build_platform) {
+                    if(gpx->command.flag & S_IS_SET) {
+                        unsigned temperature = (unsigned)gpx->command.s;
+                        if(temperature > HBP_MAX) temperature = HBP_MAX;
+                        unsigned tool_id = gpx->machine.a.has_heated_build_platform ? A : B;
+                        if(gpx->command.flag & T_IS_SET) {
+                            tool_id = gpx->target.extruder;
+                        }
+                        if(tool_id ? gpx->machine.b.has_heated_build_platform : gpx->machine.a.has_heated_build_platform) {
+                            if(temperature && gpx->override[tool_id].build_platform_temperature) {
+                                temperature = gpx->override[tool_id].build_platform_temperature;
+                            }
+                            CALL( set_build_platform_temperature(gpx, tool_id, temperature) );
+                            command_emitted++;
+                            gpx->tool[tool_id].build_platform_temperature = temperature;
+                        }
+                        else {
+                            SHOW( fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, gpx->lineNumber, gpx->command.m, tool_id) );
+                        }
+                    }
+                    else {
+                        SHOW( fprintf(stderr, "(line %u) Syntax error: M%u is missing temperature, use Sn where n is 0-120" EOL, gpx->lineNumber, gpx->command.m) );
+                    }
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, gpx->lineNumber, gpx->command.m) );
+                }
+                break;
+                
+                // M126 - Turn blower fan on (valve open)
+            case 126: {
+                int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;
+                if(gpx->flag.dittoPrinting) {
+                    CALL( set_valve(gpx, B, state) );
+                    CALL( set_valve(gpx, A, state) );
+                    command_emitted++;
+                }
+                else {
+                    CALL( set_valve(gpx, gpx->target.extruder, state) );
+                    command_emitted++;
+                }
+                break;
+            }
+                
+                // M127 - Turn blower fan off (valve close)
+            case 127:
+                if(gpx->flag.dittoPrinting) {
+                    CALL( set_valve(gpx, B, 0) );
+                    CALL( set_valve(gpx, A, 0) );
+                    command_emitted++;
+                }
+                else {
+                    CALL( set_valve(gpx, gpx->target.extruder, 0) );
+                    command_emitted++;
+                }
+                break;
+                
+                // M131 - Store Current Position to EEPROM
+            case 131:
+                if(gpx->command.flag & AXES_BIT_MASK) {
+                    CALL( store_home_positions(gpx) );
+                    command_emitted++;
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Syntax error: M131 is missing axes, use X Y Z A B" EOL, gpx->lineNumber) );
+                }
+                break;
+                
+                // M132 - Load Current Position from EEPROM
+            case 132:
+                if(gpx->command.flag & AXES_BIT_MASK) {
+                    CALL( recall_home_positions(gpx) );
+                    command_emitted++;
+                    gpx->current.positionKnown = 0;
+                    gpx->excess.a = 0;
+                    gpx->excess.b = 0;
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Syntax error: M132 is missing axes, use X Y Z A B" EOL, gpx->lineNumber) );
+                }
+                break;
+                
+                // M133 - Wait for extruder
+            case 133: {
+                int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : 0xFFFF;
+                // changing the
+                if(gpx->flag.dittoPrinting) {
+                    if(gpx->tool[B].nozzle_temperature > 0) {
+                        CALL( wait_for_extruder(gpx, B, timeout) );
+                    }
+                    if(gpx->tool[A].nozzle_temperature > 0) {
+                        CALL( wait_for_extruder(gpx, A, timeout) );
+                    }
+                    command_emitted++;
+                }
+                else {
+#if ENABLE_TOOL_CHANGE_ON_WAIT
+                    // because there is a wait we do a tool change
+                    if(gpx->target.extruder != gpx->current.extruder) {
+                        CALL( do_tool_change(gpx, timeout) );
+                    }
+#endif
+                    // any tool changes have already occured
+                    if(gpx->tool[gpx->target.extruder].nozzle_temperature > 0) {
+                        CALL( wait_for_extruder(gpx, gpx->target.extruder, timeout) );
+                    }
+                    command_emitted++;
+                }
+                break;
+            }
+                
+                // M134
+                // M190 - Wait for build platform to reach (or exceed) temperature
+            case 134:
+            case 190: {
+                if(gpx->machine.a.has_heated_build_platform || gpx->machine.b.has_heated_build_platform) {
+                    int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : 0xFFFF;
+                    unsigned tool_id = gpx->machine.a.has_heated_build_platform ? A : B;
+                    if(gpx->command.flag & T_IS_SET) {
+                        tool_id = gpx->target.extruder;
+                    }
+                    if(tool_id ? gpx->machine.b.has_heated_build_platform : gpx->machine.a.has_heated_build_platform
+                       && gpx->tool[tool_id].build_platform_temperature > 0) {
+                        CALL( wait_for_build_platform(gpx, tool_id, timeout) );
+                        command_emitted++;
+                    }
+                    else {
+                        SHOW( fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, gpx->lineNumber, gpx->command.m, tool_id) );
+                    }
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, gpx->lineNumber, gpx->command.m) );
+                }
+                break;
+            }
+                
+                // M135 - Change tool
+            case 135:
+                if(!gpx->flag.dittoPrinting && gpx->target.extruder != gpx->current.extruder) {
+                    int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : 0xFFFF;
+                    CALL( do_tool_change(gpx, timeout) );
+                    command_emitted++;
+                }
+                break;
+                
+                // M136 - Build start notification
+            case 136:
+                if(program_is_ready()) {
+                    start_program();
+                    CALL( start_build(gpx, gpx->buildName) );
+                    CALL( set_build_progress(gpx, 0) );
+                    // start extruder in a known state
+                    CALL( change_extruder_offset(gpx, gpx->current.extruder) );
+                }
+                break;
+                
+                // M137 - Build end notification
+            case 137:
+                if(program_is_running()) {
+                    end_program();
+                    CALL( set_build_progress(gpx, 100) );
+                    CALL( end_build(gpx) );
+                    gpx->current.percent = 100;
+                }
+                break;
+                
+                // M300 - Set Beep (SP)
+            case 300: {
+                unsigned frequency = 300;
+                if(gpx->command.flag & S_IS_SET) frequency = (unsigned)gpx->command.s & 0xFFFF;
+                unsigned milliseconds = 1000;
+                if(gpx->command.flag & P_IS_SET) milliseconds = (unsigned)gpx->command.p & 0xFFFF;
+                CALL( set_beep(gpx, frequency, milliseconds) );
+                command_emitted++;
+                break;
+            }
+                
+                // M320 - Acceleration on for subsequent instructions
+            case 320:
+                CALL( set_acceleration(gpx, 1) );
+                command_emitted++;
+                break;
+                
+                // M321 - Acceleration off for subsequent instructions
+            case 321:
+                CALL( set_acceleration(gpx, 0) );
+                command_emitted++;
+                break;
+                
+                // M322 - Pause @ zPos
+            case 322:
+                if(gpx->command.flag & Z_IS_SET) {
+                    float conditional_z = gpx->offset[gpx->current.offset].z;
+                    
+                    if(gpx->flag.macrosEnabled) {
+                        conditional_z += gpx->userOffset.z;
+                    }
+                    
+                    double z = gpx->flag.relativeCoordinates ? (gpx->current.position.z + gpx->command.z) : (gpx->command.z + conditional_z);
+                    CALL( pause_at_zpos(gpx, z) );
+                }
+                else {
+                    SHOW( fprintf(stderr, "(line %u) Syntax warning: M322 is missing Z axis" EOL, gpx->lineNumber) );
+                }
+                command_emitted++;
+                break;
+                
+                // M420 - Set RGB LED value (REB - P)
+            case 420: {
+                unsigned red = 0;
+                if(gpx->command.flag & R_IS_SET) red = (unsigned)gpx->command.r & 0xFF;
+                unsigned green = 0;
+                if(gpx->command.flag & E_IS_SET) green = (unsigned)gpx->command.e & 0xFF;
+                unsigned blue = 0;
+                if(gpx->command.flag & B_IS_SET) blue = (unsigned)gpx->command.b & 0xFF;
+                unsigned blink = 0;
+                if(gpx->command.flag & P_IS_SET) blink = (unsigned)gpx->command.p & 0xFF;
+                CALL( set_LED(gpx, red, green, blue, blink) );
+                command_emitted++;
+                break;
+            }
+                
+            default:
+                SHOW( fprintf(stderr, "(line %u) Syntax warning: unsupported mcode command 'M%u'" EOL, gpx->lineNumber, gpx->command.m) );
+        }
+    }
+    else {
+        // X,Y,Z,A,B,E,F
+        if(gpx->command.flag & (AXES_BIT_MASK | F_IS_SET)) {
+            CALL( calculate_target_position(gpx) );
+            CALL( queue_ext_point(gpx, 0.0) );
+            update_current_position(gpx);
+            command_emitted++;
+        }
+        // Tn
+        else if(!gpx->flag.dittoPrinting && gpx->target.extruder != gpx->current.extruder) {
+            int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : 0xFFFF;
+            CALL( do_tool_change(gpx, timeout) );
+            command_emitted++;
+        }
+    }
+    // check for pending pause @ zPos
+    if(gpx->flag.doPauseAtZPos) {
+        gpx->flag.doPauseAtZPos--;
+        // issue next pause @ zPos after command buffer is flushed
+        if(gpx->flag.doPauseAtZPos == 0) {
+            CALL( pause_at_zpos(gpx, gpx->commandAt[gpx->commandAtIndex].z) );
+        }
+    }
+    // update progress
+    if(gpx->total.time > 0.0001 && gpx->accumulated.time > 0.0001 && gpx->flag.buildProgress && command_emitted) {
+        unsigned percent = (unsigned)round(100.0 * gpx->accumulated.time / gpx->total.time);
+        if(percent > gpx->current.percent) {
+            if(program_is_ready()) {
+                start_program();
+                CALL( start_build(gpx, gpx->buildName) );
+                CALL( set_build_progress(gpx, 0) );
+                // start extruder in a known state
+                CALL( change_extruder_offset(gpx, gpx->current.extruder) );
+            }
+            else if(percent < 100 && program_is_running()) {
+                CALL( set_build_progress(gpx, percent) );
+                gpx->current.percent = percent;
+            }
+            command_emitted = 0;
+        }
+    }
+    gpx->lineNumber = next_line;
+    return 0;
+}
+
+typedef struct tFile {
+    FILE *in;
+    FILE *out;
+    FILE *out2;
+} File;
+
+static int file_handler(Gpx *gpx, File *file)
+{
+    size_t bytes, length = gpx->buffer.ptr - gpx->buffer.out;
+    if(length) {
+        bytes = fwrite(gpx->buffer.out, 1, length, file->out);
+        if(bytes != length) return -1;
+        if(file->out2) {
+            bytes = fwrite(gpx->buffer.out, 1, length, file->out2);
+            if(bytes != length) return -1;            
+        }
+    }
+    return 0;
+}
+
+int gpx_convert_file(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
+{
+    int i, rval;
+    File file;
+    file.in = stdin;
+    file.out = stdout;
+    file.out2 = NULL;
+    int verboseMode = gpx->flag.verboseMode;
+    int showErrorMessages = gpx->flag.showErrorMessages;
+
+    if(file_in && file_in != stdin) {
+        // Multi-pass
+        file.in = file_in;
+        i = 0;
+        gpx->callbackHandler = NULL;
+        gpx->callbackData = NULL;
+    }
+    else {
+        // Single-pass
+        i = 1;
+        gpx->callbackHandler = (int (*)(Gpx*, void*))file_handler;;
+        gpx->callbackData = &file;
+    }
+    
+    if(file_out) {
+        file.out = file_out;
+    }
+    
+    file.out2 = file_out2;
+
+    for(;;) {
+        int overflow = 0;
+        
+        while(fgets(gpx->buffer.in, BUFFER_MAX, file.in) != NULL) {
+            // detect input buffer overflow and ignore overflow input
+            if(overflow) {
+                if(strlen(gpx->buffer.in) != BUFFER_MAX - 1) {
+                    overflow = 0;
+                }
+                continue;
+            }
+            if(strlen(gpx->buffer.in) == BUFFER_MAX - 1) {
+                overflow = 1;
+                SHOW( fprintf(stderr, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX) );
+            }
+            
+            rval = gpx_convert_line(gpx, gpx->buffer.in);
+            // normal exit
+            if(rval > 0) break;
+            // error
+            if(rval < 0) return rval;
+        }
+        
+        if(program_is_running()) {
+            end_program();
+            CALL( set_build_progress(gpx, 100) );
+            CALL( end_build(gpx) );
+        }
+
+        CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
+
+        gpx->total.length = gpx->accumulated.a + gpx->accumulated.b;
+        gpx->total.time = gpx->accumulated.time;
+        gpx->total.bytes = gpx->accumulated.bytes;
+
+        if(++i > 1) break;
+
+        // rewind for second pass
+        fseek(file.in, 0L, SEEK_SET);
+        gpx_initialize(gpx, 0);
+        
+        gpx->flag.verboseMode = 0;
+        gpx->flag.showErrorMessages = 0;
+        gpx->callbackHandler = (int (*)(Gpx*, void*))file_handler;
+        gpx->callbackData = &file;
+    }
+    gpx->flag.verboseMode = verboseMode;;
+    gpx->flag.showErrorMessages = showErrorMessages;;
+    return 0;
+}
+
+typedef struct tSio {
+    FILE *in;
+    int port;
+} Sio;
+
+static int port_handler(Gpx *gpx, Sio *sio)
+{
+    size_t bytes, length = gpx->buffer.ptr - gpx->buffer.out;
+    if(length) {
+        // #TODO write serial I/O
+    }
+    return 0;
+}
+
+int gpx_send_file(Gpx *gpx, FILE *file_in, int sio_port)
+{
+    int i, rval;
+    Sio sio;
+    sio.in = stdin;
+    sio.port = -1;
+    int verboseMode = gpx->flag.verboseMode;
+    int showErrorMessages = gpx->flag.showErrorMessages;
+
+    if(file_in && file_in != stdin) {
+        // Multi-pass
+        sio.in = file_in;
+        i = 0;
+        gpx->flag.framingEnabled = 0;
+        gpx->callbackHandler = NULL;
+        gpx->callbackData = NULL;
+    }
+    else {
+        // Single-pass
+        i = 1;
+        gpx->flag.framingEnabled = 1;
+        gpx->callbackHandler = (int (*)(Gpx*, void*))port_handler;;
+        gpx->callbackData = &sio;
+    }
+    
+    if(sio_port > 2) {
+        sio.port = sio_port;
+    }
+    
+    for(;;) {
+        int overflow = 0;
+        
+        while(fgets(gpx->buffer.in, BUFFER_MAX, sio.in) != NULL) {
+            // detect input buffer overflow and ignore overflow input
+            if(overflow) {
+                if(strlen(gpx->buffer.in) != BUFFER_MAX - 1) {
+                    overflow = 0;
+                }
+                continue;
+            }
+            if(strlen(gpx->buffer.in) == BUFFER_MAX - 1) {
+                overflow = 1;
+                SHOW( fprintf(stderr, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX) );
+            }
+            
+            rval = gpx_convert_line(gpx, gpx->buffer.in);
+            // normal exit
+            if(rval > 0) break;
+            // error
+            if(rval < 0) return rval;
+        }
+        
+        if(program_is_running()) {
+            end_program();
+            CALL( set_build_progress(gpx, 100) );
+            CALL( end_build(gpx) );
+        }
+        
+        CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
+        
+        gpx->total.length = gpx->accumulated.a + gpx->accumulated.b;
+        gpx->total.time = gpx->accumulated.time;
+        gpx->total.bytes = gpx->accumulated.bytes;
+        
+        if(++i > 1) break;
+        
+        // rewind for second pass
+        fseek(sio.in, 0L, SEEK_SET);
+        gpx_initialize(gpx, 0);
+        
+        gpx->flag.verboseMode = 0;
+        gpx->flag.showErrorMessages = 0;
+        gpx->flag.framingEnabled = 1;
+        gpx->callbackHandler = (int (*)(Gpx*, void*))port_handler;;
+        gpx->callbackData = &sio;
+    }
+    gpx->flag.verboseMode = verboseMode;;
+    gpx->flag.showErrorMessages = showErrorMessages;;
+    return 0;
+}

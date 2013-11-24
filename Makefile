@@ -4,7 +4,7 @@ CC_FLAGS = -w
 L_FLAGS = -lm
 
 # File names
-VERSION = 1.5
+VERSION = 2.0
 PLATFORM=osx
 ARCHIVE = gpx-$(PLATFORM)-$(VERSION)
 PREFIX = /usr/local
@@ -48,7 +48,7 @@ release: gpx
 	rm -f $(ARCHIVE).zip
 	rm -f $(ARCHIVE).dmg
 	mkdir $(ARCHIVE)
-	cp gpx *.ini *.gcode *.py $(ARCHIVE)
+	cp -r gpx examples scripts *.ini $(ARCHIVE)
 	tar cf - $(ARCHIVE) | gzip -9c > $(ARCHIVE).tar.gz
 	zip -r $(ARCHIVE).zip $(ARCHIVE)
 	test -f /usr/bin/hdiutil && hdiutil create -format UDZO -srcfolder $(ARCHIVE) $(ARCHIVE).dmg

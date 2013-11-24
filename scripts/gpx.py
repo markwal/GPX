@@ -1,5 +1,5 @@
 #Name: GPX
-#Info: GCode to x3g conversion post processor
+#Info: Cura x3g conversion post processor
 #Help: GPX
 #Depend: GCode
 #Type: postprocess

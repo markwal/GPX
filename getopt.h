@@ -17,8 +17,8 @@ Added documentation to this header, so know what everything does.
 
 */
 
-#ifndef getopt_h
-#define getopt_h
+#ifndef __getopt_h__
+#define __getopt_h__
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,4 +71,4 @@ int getopt(int argc, char **argv, char *opts);
 }
 #endif
 
-#endif
+#endif /* __getopt_h__ */
