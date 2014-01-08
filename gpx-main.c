@@ -24,6 +24,7 @@
 //  along with this program; if not, write to the Free Software Foundation,
 //  Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+#include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -84,20 +85,25 @@ static void usage()
     fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, stderr);
     fputs("GNU General Public License for more details." EOL, stderr);
     
-    fputs(EOL "Usage: gpx [-dgiprsvw] [-b B] [-c C] [-f F] [-m M] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, stderr);
+    fputs(EOL "Usage:" EOL, stderr);
+    fputs("gpx [-dgilpqrstvw] [-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, stderr);
     fputs(EOL "Options:" EOL, stderr);
     fputs("\t-d\tsimulated ditto printing" EOL, stderr);
     fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, stderr);
     fputs("\t-i\tenable stdin and stdout support for command line pipes" EOL, stderr);
+    fputs("\t-l\tlog to file" EOL, stderr);
     fputs("\t-p\toverride build percentage" EOL, stderr);
+    fputs("\t-q\tquiet mode" EOL, stderr);
     fputs("\t-r\tReprap GCODE flavor" EOL, stderr);
     fputs("\t-s\tenable USB serial I/O and send x3G output to 3D printer" EOL, stderr);
+    fputs("\t-t\ttruncate filename (DOS 8.3 format)" EOL, stderr);
     fputs("\t-v\tverose mode" EOL, stderr);
     fputs("\t-w\trewrite 5d extrusion values" EOL, stderr);
-    fputs(EOL "B is baudrate for serial I/O (default is 115200)" EOL, stderr);
-    fputs("C is the filename of a custom machine definition (ini)" EOL, stderr);
-    fputs("F is the actual filament diameter in the printer" EOL, stderr);
-    fputs(EOL "M is the predefined machine type:" EOL, stderr);
+    fputs(EOL "BAUDRATE: the baudrate for serial I/O (default is 115200)" EOL, stderr);
+    fputs("CONFIG: the filename of a custom machine definition (ini file)" EOL, stderr);
+    fputs("EEPROM: the filename of an eeprom settings definition (ini file)" EOL, stderr);
+    fputs("DIAMETER: the actual filament diameter in the printer" EOL, stderr);
+    fputs(EOL "MACHINE: the predefined machine type" EOL, stderr);
     fputs("\tc3  = Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
     fputs("\tc4  = Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
     fputs("\tcp4 = Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
@@ -110,12 +116,13 @@ static void usage()
     fputs("\tr2  = Replicator 2 (default)" EOL, stderr);
     fputs("\tr2h = Replicator 2 with HBP" EOL, stderr);
     fputs("\tr2x = Replicator 2X" EOL, stderr);
-    fputs(EOL "X,Y & Z are the coordinate system offsets for the conversion:" EOL, stderr);
+    fputs(EOL "SCALE: the coordinate system scale for the conversion (ABS = 1.0035)" EOL, stderr);
+    fputs("X,Y & Z: the coordinate system offsets for the conversion" EOL, stderr);
     fputs("\tX = the x axis offset" EOL, stderr);
     fputs("\tY = the y axis offset" EOL, stderr);
     fputs("\tZ = the z axis offset" EOL, stderr);
-    fputs(EOL "IN is the name of the sliced gcode input filename" EOL, stderr);
-    fputs("OUT is the name of the x3g output filename or the serial I/O port" EOL, stderr);
+    fputs(EOL "IN: the name of the sliced gcode input filename" EOL, stderr);
+    fputs("OUT: the name of the x3g output filename or the serial I/O port" EOL, stderr);
     fputs(EOL "Examples:" EOL, stderr);
     fputs("\tgpx -p -m r2 my-sliced-model.gcode" EOL, stderr);
     fputs("\tgpx -c custom-tom.ini example.gcode /volumes/things/example.x3g" EOL, stderr);
@@ -125,17 +132,88 @@ static void usage()
     exit(1);
 }
 
+static void sio_open(char *filename, speed_t baud_rate)
+{
+    struct termios tp;
+    // open and configure the serial port
+    if((sio_port = open(filename, O_RDWR | O_NOCTTY | O_NONBLOCK)) < 0) {
+        perror("Error opening port");
+        exit(-1);
+    }
+    
+    if(fcntl(sio_port, F_SETFL, O_RDWR) < 0) {
+        perror("Setting port descriptor flags");
+        exit(-1);
+    }
+    
+    if(tcgetattr(sio_port, &tp) < 0) {
+        perror("Error getting port attributes");
+        exit(-1);
+    }
+    
+    cfmakeraw(&tp);
+    
+    /*
+     // 8N1
+     tp.c_cflag &= ~PARENB;
+     tp.c_cflag &= ~CSTOPB;
+     tp.c_cflag &= ~CSIZE;
+     tp.c_cflag |= CS8;
+     
+     // no flow control
+     tp.c_cflag &= ~CRTSCTS;
+     
+     // disable hang-up-on-close to avoid reset
+     //tp.c_cflag &= ~HUPCL;
+     
+     // turn on READ & ignore ctrl lines
+     tp.c_cflag |= CREAD | CLOCAL;
+     
+     // turn off s/w flow ctrl
+     tp.c_cflag &= ~(IXON | IXOFF | IXANY);
+     
+     // make raw
+     tp.c_cflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+     tp.c_cflag &= ~OPOST;
+     
+     // see: http://unixwiz.net/techtips/termios-vmin-vtime.html
+     tp.c_cc[VMIN]  = 0;
+     tp.c_cc[VTIME] = 0;
+     */
+    
+    cfsetspeed(&tp, baud_rate);
+    // cfsetispeed(&tp, baud_rate);
+    // cfsetospeed(&tp, baud_rate);
+    
+    if(tcsetattr(sio_port, TCSANOW, &tp) < 0) {
+        perror("Error setting port attributes");
+        exit(-1);
+    }
+    
+    sleep(2);
+    if(tcflush(sio_port, TCIOFLUSH) < 0) {
+        perror("Error flushing port");
+        exit(-1);
+    }
+    
+    if(gpx.flag.verboseMode) fprintf(gpx.log, "Communicating via: %s" EOL, filename);
+}
+
+
 // GPX program entry point
 
 int main(int argc, char * argv[])
 {
     int c, i, rval;
+    int log_to_file = 0;
     int standard_io = 0;
+    int serial_io = 0;
+    int truncate_filename = 0;
     char *config = NULL;
+    char *eeprom = NULL;
     double filament_diameter = 0;
     char *buildname = "GPX " GPX_VERSION;
     char *filename;
-    struct termios tp;
     speed_t baud_rate = B115200;
     
     // default to standard I/O
@@ -171,7 +249,7 @@ int main(int argc, char * argv[])
         *appname++ = 'i';
         *appname++ = '\0';
         appname = gpx.buffer.out;
-        i = gpx_read_config(&gpx, appname);
+        i = gpx_load_config(&gpx, appname);
         if(i == 0) {
             if(gpx.flag.verboseMode) fprintf(stderr, "Loaded config: %s" EOL, appname);
         }
@@ -184,7 +262,7 @@ int main(int argc, char * argv[])
     // READ COMMAND LINE
     
     // get the command line options
-    while ((c = getopt(argc, argv, "b:c:dgf:im:prsvwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "b:c:de:gf:ilm:n:pqrstvwx:y:z:?")) != -1) {
         switch (c) {
             case 'b':
                 i = atoi(optarg);
@@ -222,12 +300,19 @@ int main(int argc, char * argv[])
                         usage();
                 }
                 if(gpx.flag.verboseMode) fprintf(stderr, "Setting baud rate to: %i bps" EOL, i);
+                // fall through
+            case 's':
+                serial_io = 1;
+                gpx.flag.framingEnabled = 1;
                 break;
             case 'c':
                 config = optarg;
                 break;
             case 'd':
                 gpx.flag.dittoPrinting = 1;
+                break;
+            case 'e':
+                eeprom = optarg;
                 break;
             case 'g':
                 gpx.flag.reprapFlavor = 0;
@@ -242,20 +327,29 @@ int main(int argc, char * argv[])
             case 'i':
                 standard_io = 1;
                 break;
+            case 'l':
+                gpx.flag.verboseMode = 1;
+                log_to_file = 1;
+                break;
             case 'm':
                 if(gpx_set_property(&gpx, "printer", "machine_type", optarg)) {
                     usage();
                 }
                 break;
+            case 'n':
+                gpx.user.scale = strtod(optarg, NULL);
+                break;
             case 'p':
                 gpx.flag.buildProgress = 1;
+                break;
+            case 'q':
+                gpx.flag.logMessages = 0;
                 break;
             case 'r':
                 gpx.flag.reprapFlavor = 1;
                 break;
-            case 's':
-                gpx.flag.serialIO = 1;
-                gpx.flag.framingEnabled = 1;
+            case 't':
+                truncate_filename = 1;
                 break;
             case 'v':
                 gpx.flag.verboseMode = 1;
@@ -264,13 +358,13 @@ int main(int argc, char * argv[])
                 gpx.flag.rewrite5D = 1;
                 break;
             case 'x':
-                gpx.userOffset.x = strtod(optarg, NULL);
+                gpx.user.offset.x = strtod(optarg, NULL);
                 break;
             case 'y':
-                gpx.userOffset.y = strtod(optarg, NULL);
+                gpx.user.offset.y = strtod(optarg, NULL);
                 break;
             case 'z':
-                gpx.userOffset.z = strtod(optarg, NULL);
+                gpx.user.offset.z = strtod(optarg, NULL);
                 break;
             case '?':
             default:
@@ -278,11 +372,44 @@ int main(int argc, char * argv[])
         }
     }
     
+    argc -= optind;
+    argv += optind;
+    
+    // LOG TO FILE
+    
+    if(log_to_file && argc > 0) {
+        filename = (argc > 1 && !serial_io) ? argv[1] : argv[0];
+        // or use the input filename with a .log extension
+        char *dot = strrchr(filename, '.');
+        if(dot) {
+            long l = dot - filename;
+            memcpy(gpx.buffer.out, filename, l);
+            filename = gpx.buffer.out + l;
+        }
+        // or just append one if no .gcode extension is present
+        else {
+            size_t sl = strlen(filename);
+            memcpy(gpx.buffer.out, filename, sl);
+            filename = gpx.buffer.out + sl;
+        }
+        *filename++ = '.';
+        *filename++ = 'l';
+        *filename++ = 'o';
+        *filename++ = 'g';
+        *filename++ = '\0';
+        filename = gpx.buffer.out;
+        
+        if((gpx.log = fopen(filename, "w+")) == NULL) {
+            gpx.log = stderr;
+            perror("Error opening log");
+        }
+    }
+    
     // READ CONFIGURATION
     
     if(config) {
-        if(gpx.flag.verboseMode) fprintf(stderr, "Reading custom config: %s" EOL, config);
-        i = gpx_read_config(&gpx, config);
+        if(gpx.flag.verboseMode) fprintf(gpx.log, "Loading custom config: %s" EOL, config);
+        i = gpx_load_config(&gpx, config);
         if (i < 0) {
             fprintf(stderr, "Command line error: cannot load configuration file '%s'" EOL, config);
             usage();
@@ -294,18 +421,27 @@ int main(int argc, char * argv[])
     }
     
     if(baud_rate == B57600 && gpx.machine.type >= MACHINE_TYPE_REPLICATOR_1) {
-        if(gpx.flag.verboseMode) fputs("WARNING: a 57600 bps baud rate will cause problems with Repicator 2/2X Mightyboards" EOL, stderr);
+        if(gpx.flag.verboseMode) fputs("WARNING: a 57600 bps baud rate will cause problems with Repicator 2/2X Mightyboards" EOL, gpx.log);
     }
-    
-    argc -= optind;
-    argv += optind;
     
     // OPEN FILES AND PORTS FOR INPUT AND OUTPUT
     
+    if(standard_io) {
+        if(serial_io) {
+            if(argc > 0) {
+                filename = argv[0];
+                sio_open(filename, baud_rate);
+            }
+            else {
+                fputs("Command line error: port required for serial I/O" EOL, stderr);
+                usage();
+            }
+        }
+    }
     // open the input filename if one is provided
-    if(argc > 0) {
+    else if(argc > 0) {
         filename = argv[0];
-        if(gpx.flag.verboseMode) fprintf(stderr, "Reading from: %s" EOL, filename);
+        if(gpx.flag.verboseMode) fprintf(gpx.log, "Reading from: %s" EOL, filename);
         if((file_in = fopen(filename, "rw")) == NULL) {
             perror("Error opening input");
             exit(1);
@@ -318,6 +454,7 @@ int main(int argc, char * argv[])
         else {
             buildname = filename;
         }
+        
         argc--;
         argv++;
         // use the output filename if one is provided
@@ -325,7 +462,7 @@ int main(int argc, char * argv[])
             filename = argv[0];
         }
         else {
-            if(gpx.flag.serialIO) {
+            if(serial_io) {
                 fputs("Command line error: port required for serial I/O" EOL, stderr);
                 usage();
             }
@@ -342,83 +479,46 @@ int main(int argc, char * argv[])
                 memcpy(gpx.buffer.out, filename, sl);
                 filename = gpx.buffer.out + sl;
             }
-            *filename++ = '.';
-            *filename++ = 'x';
-            *filename++ = '3';
-            *filename++ = 'g';
-            *filename++ = '\0';
+            if(truncate_filename) {
+                char *s = gpx.buffer.out;
+                for(i = 0; s < filename && i < 8; i++) {
+                    char c = *s;
+                    if(isalnum(c)) {
+                        *s++ = toupper(c);
+                    }
+                    else {
+                        *s++ = '_';
+                    }
+                }
+                *s++ = '.';
+                *s++ = 'X';
+                *s++ = '3';
+                *s++ = 'G';
+                *s++ = '\0';
+            }
+            else {
+                *filename++ = '.';
+                *filename++ = 'x';
+                *filename++ = '3';
+                *filename++ = 'g';
+                *filename++ = '\0';
+            }
             filename = gpx.buffer.out;
         }
-        if(gpx.flag.serialIO) {
-            // open and configure the serial port
-            if((sio_port = open(filename, O_RDWR | O_NOCTTY | O_NONBLOCK)) < 0) {
-                perror("Error opening port");
-                exit(-1);
-            }
-            
-            if(fcntl(sio_port, F_SETFL, O_RDWR) < 0) {
-                perror("Setting port descriptor flags");
-                exit(-1);
-            }
+        
+        // trim build name extension
+        char *dot = strrchr(buildname, '.');
+        if(dot) *dot = 0;
 
-            if(tcgetattr(sio_port, &tp) < 0) {
-                perror("Error getting port attributes");
-                exit(-1);
-            }
-            
-            cfmakeraw(&tp);
-            
-            /*
-            // 8N1
-            tp.c_cflag &= ~PARENB;
-            tp.c_cflag &= ~CSTOPB;
-            tp.c_cflag &= ~CSIZE;
-            tp.c_cflag |= CS8;
-
-            // no flow control
-            tp.c_cflag &= ~CRTSCTS;
-
-            // disable hang-up-on-close to avoid reset
-            //tp.c_cflag &= ~HUPCL; 
-            
-            // turn on READ & ignore ctrl lines
-            tp.c_cflag |= CREAD | CLOCAL;
-
-            // turn off s/w flow ctrl
-            tp.c_cflag &= ~(IXON | IXOFF | IXANY);
-
-            // make raw
-            tp.c_cflag &= ~(ICANON | ECHO | ECHOE | ISIG); 
-            tp.c_cflag &= ~OPOST;
-             
-            // see: http://unixwiz.net/techtips/termios-vmin-vtime.html
-            tp.c_cc[VMIN]  = 0;
-            tp.c_cc[VTIME] = 0;
-             */
-            
-            cfsetspeed(&tp, baud_rate);
-            // cfsetispeed(&tp, baud_rate);
-            // cfsetospeed(&tp, baud_rate);
-            
-            if(tcsetattr(sio_port, TCSANOW, &tp) < 0) {
-                perror("Error setting port attributes");
-                exit(-1);
-            }
-            
-            sleep(2);
-            if(tcflush(sio_port, TCIOFLUSH) < 0) {
-                perror("Error flushing port");
-                exit(-1);
-            }
-            
-            if(gpx.flag.verboseMode) fprintf(stderr, "Communicating via: %s" EOL, filename);
+        if(serial_io) {
+            sio_open(filename, baud_rate);
         }
         else {
             if((file_out = fopen(filename, "wb")) == NULL) {
                 perror("Error creating output");
                 exit(-1);
             }
-            if(gpx.flag.verboseMode) fprintf(stderr, "Writing to: %s" EOL, filename);
+            if(gpx.flag.verboseMode) fprintf(gpx.log, "Writing to: %s" EOL, filename);
             // write a second copy to the SD Card
             if(gpx.sdCardPath) {
                 long sl = strlen(gpx.sdCardPath);
@@ -440,31 +540,56 @@ int main(int argc, char * argv[])
                     gpx.buffer.out[sl + l] = 0;
                 }
                 file_out2 = fopen(gpx.buffer.out, "wb");
-                if(file_out2 && gpx.flag.verboseMode) fprintf(stderr, "Writing to: %s" EOL, gpx.buffer.out);
+                if(file_out2 && gpx.flag.verboseMode) fprintf(gpx.log, "Writing to: %s" EOL, gpx.buffer.out);
             }
         }
     }
-    else if(!standard_io) {
+    else {
         fputs("Command line error: provide an input file or enable standard I/O" EOL, stderr);
         usage();
     }
     
-    // at this point we have read the command line, set the machine definition
-    // and both the input and output files or ports are open, so its time to parse
-    // the gcode input and convert it to x3g output.
-    
-    // READ INPUT AND CONVERT TO OUTPUT
-    
-    gpx_start_build(&gpx, buildname);
-    
-    if(gpx.flag.serialIO) {
-        rval = gpx_send_file(&gpx, file_in, sio_port);
+    if(log_to_file) {
+        if(gpx.flag.buildProgress) fputs("Build progress: enabled" EOL, gpx.log);
+        if(gpx.flag.dittoPrinting) fputs("Ditto printing: enabled" EOL, gpx.log);
+        if(serial_io) fputs("Serial IO: enabled" EOL, gpx.log);
+        fprintf(gpx.log, "GCode flavor: %s" EOL, gpx.flag.reprapFlavor ? "Reprap" : "Makerbot");
+        if(gpx.flag.rewrite5D) fputs("Rewrite 5D: enabled" EOL, gpx.log);
     }
-    else {
-        rval = gpx_convert_file(&gpx, file_in, file_out, file_out2);
-    }
-    
-    gpx_end_build(&gpx);
 
+    /* at this point we have read the command line, set the machine definition
+       and both the input and output files or ports are open, so its time to parse
+       the gcode input and convert it to x3g output. */
+
+    if(serial_io) {
+        // READ CONFIG AND WRITE EEPROM SETTINGS
+        if(eeprom) {
+            if(gpx.flag.verboseMode) fprintf(gpx.log, "Loading eeprom config: %s" EOL, eeprom);
+            i = eeprom_load_config(&gpx, eeprom);
+            if (i < 0) {
+                fprintf(stderr, "Command line error: cannot load eeprom configuration file '%s'" EOL, eeprom);
+                usage();
+            }
+            else if (i > 0) {
+                fprintf(stderr, "(line %u) Eeprom configuration syntax error in %s: unrecognised paremeters" EOL, i, eeprom);
+                usage();
+            }
+            exit(SUCCESS);
+        }
+        else {
+            // READ INPUT AND SEND OUTPUT TO PRINTER
+            
+            gpx_start_convert(&gpx, buildname);
+            rval = gpx_convert_and_send(&gpx, file_in, sio_port);
+            gpx_end_convert(&gpx);
+        }
+    }
+    else {        
+        // READ INPUT AND CONVERT TO OUTPUT
+        
+        gpx_start_convert(&gpx, buildname);
+        rval = gpx_convert(&gpx, file_in, file_out, file_out2);
+        gpx_end_convert(&gpx);
+    }
     exit(rval);
 }

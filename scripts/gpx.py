@@ -1,10 +1,10 @@
 #Name: GPX
-#Info: Cura x3g conversion post processor
+#Info: GCode to x3g conversion post processor
 #Help: GPX
 #Depend: GCode
 #Type: postprocess
 #Param: gpxPath(str:/Applications/GPX) GPX path
-#Param: machineType(str:r2) Machine type
+#Param: flags(str:-m r2) Flags
 
 import platform
 import os
@@ -23,9 +23,5 @@ def getGpxAppName():
 x3gFile = profile.getPreference('lastFile')
 x3gFile = x3gFile[0:x3gFile.rfind('.')] + '.x3g'
 
-commandList = [getGpxAppName(), '-p', '-r']
-if machineType is not None and machineType != '':
-	commandList += ['-m', machineType]
-commandList += [filename, x3gFile]
+commandList = [getGpxAppName(), '-p', '-r', flags, filename, x3gFile]
 call(commandList)
-

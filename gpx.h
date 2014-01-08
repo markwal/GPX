@@ -35,7 +35,17 @@ extern "C" {
 #include <stdio.h>
     
 #define GPX_VERSION "2.0-alpha"
-    
+#define HOST_VERSION 50
+
+#define END_OF_FILE 1
+#define SUCCESS 0
+#define ERROR -1
+
+#define ESIOWRITE -2
+#define ESIOREAD -3
+#define ESIOFRAME -4
+#define ESIOCRC -5
+
 #define STREAM_VERSION_HIGH 0
 #define STREAM_VERSION_LOW 0
     
@@ -51,9 +61,14 @@ extern "C" {
     
 // BOUNDS CHECKING VARIABLES
     
-#define TEMPERATURE_MAX 280
+#define NOZZLE_MAX 280
+#define NOZZLE_TIME 0.6
 #define HBP_MAX 120
-    
+#define HBP_TIME 6
+#define AMBIENT_TEMP 24
+#define ACCELERATION_TIME 1.15
+
+#define MAX_TIMEOUT 0xFFFF
     
 #ifdef _WIN32
 #   define PATH_DELIM '\\'
@@ -247,16 +262,23 @@ extern "C" {
         
         struct {
             Point5d position;   // the current position of the extruder in 5D space
-            int positionKnown;  // is the current extruder position known
             double feedrate;    // the current feed rate
             int extruder;       // the currently selected extruder being used by the bot
             int offset;         // current G10 offset
             unsigned percent;   // current percent progress
         } current;
         
+        struct {
+            unsigned int positionKnown;  // axis bitfields for known positions of the extruder
+            unsigned int mask;
+        } axis;
+        
         Point2d excess;         // the accumulated rounding error in mm to step conversion
         Point3d offset[7];      // G10 offsets
-        Point3d userOffset;     // command line offset
+        struct {
+            Point3d offset;     // command line offset
+            double scale;       // command line scale
+        } user;
         Tool tool[2];           // tool state
         Override override[2];   // gcode override
         
@@ -280,23 +302,23 @@ extern "C" {
             unsigned dittoPrinting:1;   // enable ditto printing
             unsigned buildProgress:1;   // override build percent
             unsigned verboseMode:1;     // verbose output
+            unsigned logMessages:1;     // enable stderr message logging
             unsigned rewrite5D:1;       // calculate 5D E values rather than scaling them
-            unsigned serialIO:1;        // output to serial io port 
         
         // STATE
             unsigned programState:8;    // gcode program state used to trigger start and end code sequences
             unsigned doPauseAtZPos:8;   // signals that a pause is ready to be
             unsigned pausePending:1;    // signals a pause is pending before the macro script has started
-            unsigned macrosEnabled:1;   // M73 P1 or ;@body encountered signalling body start
+            unsigned macrosEnabled:1;   // M73 P1 or ;@body encountered signalling body start (so we don't pause during homing)
+            unsigned loadMacros:1;      // used by the multi-pass converter to maintain state
+            unsigned runMacros:1;       // used by the multi-pass converter to maintain state
             unsigned framingEnabled:1;  // enable framming of packets with header and crc
-            unsigned showErrorMessages:1;
         } flag;
 
 
         double layerHeight;     // the current layer height
         unsigned lineNumber;    // the current line number
         int longestDDA;
-        
         
         // STATISTICS
         
@@ -312,28 +334,34 @@ extern "C" {
             double time;
             unsigned long bytes;
         } total;
-        
+
         // CALLBACK
         
-        int (*callbackHandler)(Gpx *gpx, void *callbackData);
+        int (*callbackHandler)(Gpx *gpx, void *callbackData, char *buffer, size_t length);
         void *callbackData;
         
+        // LOGGING
+        
+        FILE *log;
     };
 
     void gpx_initialize(Gpx *gpx, int firstTime);
     int gpx_set_machine(Gpx *gpx, char *machine);
    
     int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* value);
-    int gpx_read_config(Gpx *gpx, const char *filename);
+    int gpx_load_config(Gpx *gpx, const char *filename);
 
-    void gpx_register_callback(Gpx *gpx, int (*callbackHandler)(Gpx *gpx, void *callbackData), void *callbackData);
+    void gpx_register_callback(Gpx *gpx, int (*callbackHandler)(Gpx *gpx, void *callbackData, char *buffer, size_t length), void *callbackData);
     
-    void gpx_start_build(Gpx *gpx, char *buildName);
-    void gpx_end_build(Gpx *gpx);
-    
+    void gpx_start_convert(Gpx *gpx, char *buildName);
+
     int gpx_convert_line(Gpx *gpx, char *gcode_line);
-    int gpx_convert_file(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2);
-    int gpx_send_file(Gpx *gpx, FILE *file_in, int sio_port);
+    int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2);
+    int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port);
+
+    void gpx_end_convert(Gpx *gpx);
+    
+    int eeprom_load_config(Gpx *gpx, const char *filename);
     
 #ifdef __cplusplus
 }
