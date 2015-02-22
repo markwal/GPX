@@ -857,16 +857,20 @@ static double largest_axis(int flag, Ptr5d vector)
 
 static int get_longest_dda(Gpx *gpx)
 {
+    // 7 February 2015
+    // The DDA here is the microseconds/step.  So a larger value is slower.
+    // We want the largest value, not the smallest value.  (Bug in original GPX)
+
     // calculate once
     int longestDDA = gpx->longestDDA;
     if(longestDDA == 0) {
         longestDDA = (int)(60 * 1000000.0 / (gpx->machine.x.max_feedrate * gpx->machine.x.steps_per_mm));
 
         int axisDDA = (int)(60 * 1000000.0 / (gpx->machine.y.max_feedrate * gpx->machine.y.steps_per_mm));
-        if(longestDDA < axisDDA) longestDDA = axisDDA;
+        if(longestDDA > axisDDA) longestDDA = axisDDA;
 
         axisDDA = (int)(60 * 1000000.0 / (gpx->machine.z.max_feedrate * gpx->machine.z.steps_per_mm));
-        if(longestDDA < axisDDA) longestDDA = axisDDA;
+        if(longestDDA > axisDDA) longestDDA = axisDDA;
         gpx->longestDDA = longestDDA;
     }
     return longestDDA;
@@ -1732,8 +1736,45 @@ static int set_steppers(Gpx *gpx, unsigned axes, unsigned state)
 
 static int queue_absolute_point(Gpx *gpx)
 {
+    double distance, feedrate;
     long longestDDA = gpx->longestDDA ? gpx->longestDDA : get_longest_dda(gpx);
     Point5d steps = mm_to_steps(gpx, &gpx->target.position, &gpx->excess);
+
+    feedrate = gpx->current.feedrate;
+
+    // 7 February 2015
+    // Fix issue #12 whereby an unaccelerated move may move far too fast
+
+    if (feedrate > 0) {
+	 // Seconds for the move is steps-needed / steps-per-mm / feedrate
+	 // DDA is then 60 * 1000000 * seconds / steps-needed
+	 // Thus DDA is 60 * 1000000 * steps-needed / (steps-per-mm * feedrate) / steps-needed
+         //      DDA = 60 * 1000000 / (steps-per-mm * feedrate)
+	 if (steps.x) {
+	      long DDA = (long)(60.0 * 1000000.0 / (gpx->machine.x.steps_per_mm * feedrate));
+	      if (DDA > longestDDA) longestDDA = DDA;
+	 }
+	 if (steps.y) {
+	      long DDA = (long)(60.0 * 1000000.0 / (gpx->machine.y.steps_per_mm * feedrate));
+	      if (DDA > longestDDA) longestDDA = DDA;
+	 }
+	 if (steps.z) {
+	      long DDA = (long)(60.0 * 1000000.0 / (gpx->machine.z.steps_per_mm * feedrate));
+	      if (DDA > longestDDA) longestDDA = DDA;
+	 }
+	 if (steps.a) {
+	      long DDA = (long)(60.0 * 1000000.0 / (gpx->machine.a.steps_per_mm * feedrate));
+	      if (DDA > longestDDA) longestDDA = DDA;
+	 }
+	 if (steps.b) {
+	      long DDA = (long)(60.0 * 1000000.0 / (gpx->machine.b.steps_per_mm * feedrate));
+	      if (DDA > longestDDA) longestDDA = DDA;
+	 }
+    }
+
+    // Safety measure: don't send a DDA interval of 0 -- that's telling
+    // the bot to step as fast as it possibly can
+    if (longestDDA <= 0) longestDDA = 200;
 
     begin_frame(gpx);
 
