@@ -126,8 +126,8 @@ static Machine thing_o_matic_7D = {
     {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // x axis
     {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
     {1000, 500, 200, ENDSTOP_IS_MAX},        // z axis
-    {1600, 50.235478806907409, 1600, 0}, // a extruder
-    {1600, 50.235478806907409, 1600, 1}, // b extruder
+    {1600, 50.235478806907409, 1600, 1}, // a extruder
+    {1600, 50.235478806907409, 1600, 0}, // b extruder
     1.75, // nominal filament diameter
     0.85, // nominal packing density
     0.4, // nozzle diameter
