@@ -32,8 +32,15 @@
 #include <termios.h>
 #include <unistd.h>
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
 #   include "getopt.h"
+    // strcasecmp() is not provided on Windows
+    // _stricmp() is equivalent but may require <string.h>
+#   define strcasecmp _stricmp
+#endif
+
+#if !defined(_WIN32) && !defined(_WIN64)
+#   include <unistd.h>
 #endif
 
 #include "gpx.h"
@@ -219,6 +226,7 @@ int main(int argc, char * argv[])
     char *buildname = "GPX " GPX_VERSION;
     char *filename;
     speed_t baud_rate = B115200;
+    int ini_loaded = 0;
 
     // default to standard I/O
     file_in = stdin;
@@ -231,12 +239,36 @@ int main(int argc, char * argv[])
 
     // READ GPX.INI
 
-    // if present, read the gpx.ini file from the program directory
+#if !defined(_WIN32) && !defined(_WIN64)
+    // if present, read the ~/.gpx.ini
     {
+	char fbuf[1024];
+        const char *home = getenv("HOME");
+	if (home && home[0]) {
+	     char fbuf[1024];
+	     snprintf(fbuf, sizeof(fbuf), "%s/.gpx.ini", home);
+	     if (!access(fbuf, R_OK))
+	     {
+		  i = gpx_load_config(&gpx, fbuf);
+		  if(i == 0) {
+		       ini_loaded = -1;
+		       if(gpx.flag.verboseMode) fprintf(stderr, "Loaded config: %s" EOL, fbuf);
+		  }
+		  else if (i > 0) {
+		       fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, fbuf);
+		       usage();
+		  }
+	     }
+	}
+    }
+#endif
+
+    // if present, read the gpx.ini file from the program directory
+    if(!ini_loaded) {
         char *appname = argv[0];
         // check for .exe extension
         char *dot = strrchr(appname, '.');
-        if(dot) {
+        if(dot && !strcasecmp(dot,".exe")) {
             long l = dot - appname;
             memcpy(gpx.buffer.out, appname, l);
             appname = gpx.buffer.out + l;
@@ -258,7 +290,7 @@ int main(int argc, char * argv[])
             if(gpx.flag.verboseMode) fprintf(stderr, "Loaded config: %s" EOL, appname);
         }
         else if (i > 0) {
-            fprintf(stderr, "(line %u) Configuration syntax error in gpx.ini: unrecognised paremeters" EOL, i);
+	    fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, appname);
             usage();
         }
     }
