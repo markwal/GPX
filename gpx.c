@@ -2909,7 +2909,7 @@ static char *normalize_comment(char *p) {
  COMMAND:= PRINTER | ENABLE | FILAMENT | EXTRUDER | SLICER | START| PAUSE
  COMMENT:= S+ '(' [^)]* ')' S+
  PRINTER:= ('printer' | 'machine' | 'slicer') (TYPE | PACKING_DENSITY | DIAMETER | TEMP | RGB)+
- TYPE:=  S+ ('c3' | 'c4' | 'cp4' | 'cpp' | 't6' | 't7' | 't7d' | 'r1' | 'r1d' | 'r2' | 'r2h' | 'r2x')
+ TYPE:=  S+ ('c3' | 'c4' | 'cp4' | 'cpp' | 'cxy' | 'cxysz' | 't6' | 't7' | 't7d' | 'r1' | 'r1d' | 'r2' | 'r2h' | 'r2x' | 'z' | 'zd' )
  PACKING_DENSITY:= S+ DIGIT+ ('.' DIGIT+)?
  DIAMETER:= S+ DIGIT+ ('.' DIGIT+)? 'm' 'm'?
  TEMP:= S+ DIGIT+ 'c'
