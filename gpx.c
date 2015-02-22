@@ -1683,6 +1683,40 @@ static int set_valve(Gpx *gpx, unsigned extruder_id, unsigned state)
     return SUCCESS;
 }
 
+// Action 27 - Enable / Disable Automated Build Platform (ABP)
+// Note: MBI usurped command code 27 when they introduced the
+//       "advanced version" command.  So, this is the OLD
+//       X3G command 27.
+
+static int set_abp(Gpx *gpx, unsigned extruder_id, unsigned state)
+{
+    assert(extruder_id < gpx->machine.extruder_count);
+    if(gpx->machine.type < MACHINE_TYPE_REPLICATOR_1) {
+
+        begin_frame(gpx);
+
+        write_8(gpx, 136);
+
+        // uint8: ID of the extruder to query
+        write_8(gpx, extruder_id);
+
+        // uint8: Action command to send to the extruder
+        write_8(gpx, 27);
+
+        // uint8: Length of the extruder command payload (N)
+        write_8(gpx, 1);
+
+        // uint8: 1 to enable, 0 to disable
+        write_8(gpx, state);
+
+        return end_frame(gpx);
+    }
+    else if(gpx->flag.logMessages) {
+	 SHOW( fprintf(gpx->log, "(line %u) Semantic warning: command to toggle the Automated Build Platform's conveyor (ABP); not supported on non-Gen 3 and Gen 4 electronics" EOL, gpx->lineNumber) );
+    }
+    return SUCCESS;
+}
+
 // Action 31 - Set build platform target temperature
 
 static int set_build_platform_temperature(Gpx *gpx, unsigned extruder_id, unsigned temperature)
