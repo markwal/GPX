@@ -4688,7 +4688,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 SHOW( fprintf(gpx->log, "(line %u) Syntax warning: unsupported mcode command 'M%u'" EOL, gpx->lineNumber, gpx->command.m) );
         }
     }
-    else {
+    else if(!(gpx->command.flag & COMMENT_IS_SET)) {
         // X,Y,Z,A,B,E,F
         if(gpx->command.flag & (AXES_BIT_MASK | F_IS_SET)) {
             CALL( calculate_target_position(gpx) );
