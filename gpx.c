@@ -54,7 +54,7 @@ static Machine cupcake_G3 = {
     {9600, 500, 11.767463, ENDSTOP_IS_MIN}, // y axis
     {450, 450, 320, ENDSTOP_IS_MIN},        // z axis
     {7200, 50.235478806907409, 400, 1}, // a extruder
-    {7200, 50.235478806907409, 400, 0}, // b extruder
+    {7200, 50.235478806907409, 400, 1}, // b extruder
     1.75, // nominal filament diameter
     0.85, // nominal packing density
     0.4, // nozzle diameter
@@ -68,7 +68,7 @@ static Machine cupcake_G4 = {
     {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
     {450, 450, 1280, ENDSTOP_IS_MIN},        // z axis
     {7200, 50.235478806907409, 400, 1}, // a extruder
-    {7200, 50.235478806907409, 400, 0}, // b extruder
+    {7200, 50.235478806907409, 400, 1}, // b extruder
     1.75, // nominal filament diameter
     0.85, // nominal packing density
     0.4, // nozzle diameter
@@ -82,7 +82,7 @@ static Machine cupcake_P4 = {
     {9600, 500, 94.13970462, ENDSTOP_IS_MIN}, // y axis
     {450, 450, 2560, ENDSTOP_IS_MIN},        // z axis
     {7200, 50.235478806907409, 400, 1}, // a extruder
-    {7200, 50.235478806907409, 400, 0}, // b extruder
+    {7200, 50.235478806907409, 400, 1}, // b extruder
     1.75, // nominal filament diameter
     0.85, // nominal packing density
     0.4, // nozzle diameter
@@ -96,7 +96,7 @@ static Machine cupcake_PP = {
     {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
     {450, 450, 1280, ENDSTOP_IS_MIN},        // z axis
     {7200, 100.470957613814818, 400, 1}, // a extruder
-    {7200, 100.470957613814818, 400, 0}, // b extruder
+    {7200, 100.470957613814818, 400, 1}, // b extruder
     1.75, // nominal filament diameter
     0.85, // nominal packing density
     0.4, // nozzle diameter
@@ -113,7 +113,7 @@ static Machine thing_o_matic_7 = {
     {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
     {1000, 500, 200, ENDSTOP_IS_MAX},        // z axis
     {1600, 50.235478806907409, 1600, 1}, // a extruder
-    {1600, 50.235478806907409, 1600, 0}, // b extruder
+    {1600, 50.235478806907409, 1600, 1}, // b extruder
     1.75, // nominal filament diameter
     0.85, // nominal packing density
     0.4, // nozzle diameter
@@ -127,7 +127,7 @@ static Machine thing_o_matic_7D = {
     {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
     {1000, 500, 200, ENDSTOP_IS_MAX},        // z axis
     {1600, 50.235478806907409, 1600, 1}, // a extruder
-    {1600, 50.235478806907409, 1600, 0}, // b extruder
+    {1600, 50.235478806907409, 1600, 1}, // b extruder
     1.75, // nominal filament diameter
     0.85, // nominal packing density
     0.4, // nozzle diameter
@@ -144,7 +144,7 @@ static Machine replicator_1 = {
     {18000, 2500, 94.139704, ENDSTOP_IS_MAX}, // y axis
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
     1.75, // nominal filament diameter
     0.85, // nominal packing density
     0.4, // nozzle diameter
@@ -158,7 +158,7 @@ static Machine replicator_1D = {
     {18000, 2500, 94.139704, ENDSTOP_IS_MAX}, // y axis
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
     1.75, // nominal filament diameter
     0.85, // nominal packing density
     0.4, // nozzle diameter
@@ -189,7 +189,7 @@ static Machine replicator_2H = {
     {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // y axis
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
     1.75, // nominal filament diameter
     0.97, // nominal packing density
     0.4, // nozzle diameter
