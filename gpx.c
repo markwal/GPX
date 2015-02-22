@@ -345,38 +345,38 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     int i;
     gpx->buffer.ptr = gpx->buffer.out;
     // we default to using pipes
-    
+
     // initialise machine
     if(firstTime) gpx->machine = replicator_2;
-    
+
     // initialise command
     gpx->command.x = 0.0;
     gpx->command.y = 0.0;
     gpx->command.z = 0.0;
     gpx->command.a = 0.0;
     gpx->command.b = 0.0;
-    
+
     gpx->command.e = 0.0;
     gpx->command.f = 0.0;
-    
+
     gpx->command.p = 0.0;
     gpx->command.r = 0.0;
     gpx->command.s = 0.0;
-    
+
 
     gpx->command.g = 0.0;
     gpx->command.m = 0.0;
     gpx->command.t = 0.0;
-    
+
     gpx->command.comment = "";
-        
+
     gpx->command.flag = 0;
-    
+
     // initialize target position
     gpx->target.position.x = 0.0;
     gpx->target.position.y = 0.0;
     gpx->target.position.z = 0.0;
-    
+
     gpx->target.position.a = 0.0;
     gpx->target.position.b = 0.0;
 
@@ -386,7 +386,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     gpx->current.position.x = 0.0;
     gpx->current.position.y = 0.0;
     gpx->current.position.z = 0.0;
-    
+
     gpx->current.position.a = 0.0;
     gpx->current.position.b = 0.0;
 
@@ -416,7 +416,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->user.offset.z = 0.0;
         gpx->user.scale = 1.0;
     }
-    
+
     for(i = 0; i < 2; i++) {
         gpx->tool[i].motor_enabled = 0;
 #if ENABLE_SIMULATED_RPM
@@ -424,7 +424,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
 #endif
         gpx->tool[i].nozzle_temperature = 0;
         gpx->tool[i].build_platform_temperature = 0;
-        
+
         gpx->override[i].actual_filament_diameter = 0;
         gpx->override[i].filament_scale = 1.0;
         gpx->override[i].packing_density = 1.0;
@@ -432,7 +432,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->override[i].active_temperature = 0;
         gpx->override[i].build_platform_temperature = 0;
     }
-    
+
     if(firstTime) {
         gpx->filament[0].colour = "_null_";
         gpx->filament[0].diameter = 0.0;
@@ -440,15 +440,15 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->filament[0].LED = 0;
         gpx->filamentLength = 1;
     }
-    
+
     if(firstTime) {
         gpx->commandAtIndex = 0;
         gpx->commandAtLength = 0;
     }
     gpx->commandAtZ = 0.0;
-    
+
     // SETTINGS
-    
+
     if(firstTime) {
         gpx->sdCardPath = NULL;
         gpx->buildName = "GPX " GPX_VERSION;
@@ -467,7 +467,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     }
 
     // STATE
-    
+
     gpx->flag.programState = 0;
     gpx->flag.doPauseAtZPos = 0;
     gpx->flag.pausePending = 0;
@@ -481,28 +481,28 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     gpx->longestDDA = 0;
     gpx->layerHeight = 0.34;
     gpx->lineNumber = 1;
-    
-    
+
+
     // STATISTICS
-    
+
     gpx->accumulated.a = 0.0;
     gpx->accumulated.b = 0.0;
     gpx->accumulated.time = 0.0;
     gpx->accumulated.bytes = 0;
-    
+
     if(firstTime) {
         gpx->total.length = 0.0;
         gpx->total.time = 0.0;
         gpx->total.bytes = 0;
     }
-    
+
     // CALLBACK
-    
+
     gpx->callbackHandler = NULL;
     gpx->callbackData = NULL;
-    
+
     // LOGGING
-    
+
     if(firstTime) gpx->log = stderr;
 }
 
@@ -640,31 +640,31 @@ static unsigned char calculate_crc(unsigned char *addr, long len)
         // 1
         if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
         else crc >>= 1;
-        
+
         // 2
         if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
         else crc >>= 1;
-        
+
         // 3
         if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
         else crc >>= 1;
-        
+
         // 4
         if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
         else crc >>= 1;
-        
+
         // 5
         if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
         else crc >>= 1;
-        
+
         // 6
         if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
         else crc >>= 1;
-        
+
         // 7
         if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
         else crc >>= 1;
-        
+
         // 8
         if (crc & 0x01) crc = (crc >> 1) ^ 0x8C;
         else crc >>= 1;
@@ -765,10 +765,10 @@ static int get_longest_dda(Gpx *gpx)
     int longestDDA = gpx->longestDDA;
     if(longestDDA == 0) {
         longestDDA = (int)(60 * 1000000.0 / (gpx->machine.x.max_feedrate * gpx->machine.x.steps_per_mm));
-    
+
         int axisDDA = (int)(60 * 1000000.0 / (gpx->machine.y.max_feedrate * gpx->machine.y.steps_per_mm));
         if(longestDDA < axisDDA) longestDDA = axisDDA;
-    
+
         axisDDA = (int)(60 * 1000000.0 / (gpx->machine.z.max_feedrate * gpx->machine.z.steps_per_mm));
         if(longestDDA < axisDDA) longestDDA = axisDDA;
         gpx->longestDDA = longestDDA;
@@ -795,7 +795,7 @@ static double get_home_feedrate(Gpx *gpx, int flag) {
 // return the maximum safe feedrate
 
 static double get_safe_feedrate(Gpx *gpx, int flag, Ptr5d delta) {
-    
+
     double feedrate = gpx->current.feedrate;
     if(feedrate == 0.0) {
         feedrate = gpx->machine.x.max_feedrate;
@@ -827,7 +827,7 @@ static double get_safe_feedrate(Gpx *gpx, int flag, Ptr5d delta) {
     if(distance == 0) {
         if(flag & A_IS_SET && feedrate > gpx->machine.a.max_feedrate) {
             feedrate = gpx->machine.a.max_feedrate;
-        }        
+        }
         if(flag & B_IS_SET && feedrate > gpx->machine.b.max_feedrate) {
             feedrate = gpx->machine.b.max_feedrate;
         }
@@ -860,7 +860,7 @@ static Point5d mm_to_steps(Gpx *gpx, Ptr5d mm, Ptr2d excess)
         result.a = round(value);
         // changes to excess
         excess->a = value - result.a;
-        
+
         value = (mm->b * gpx->machine.b.steps_per_mm) + excess->b;
         result.b = round(value);
         // changes to excess
@@ -868,7 +868,7 @@ static Point5d mm_to_steps(Gpx *gpx, Ptr5d mm, Ptr2d excess)
     }
     else {
         result.a = round(mm->a * gpx->machine.a.steps_per_mm);
-        result.b = round(mm->b * gpx->machine.b.steps_per_mm);        
+        result.b = round(mm->b * gpx->machine.b.steps_per_mm);
     }
     return result;
 }
@@ -909,12 +909,12 @@ static Point5d delta_steps(Gpx *gpx,Point5d deltaMM)
 static int get_version(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 0);
-    
+
     // uint16: host version
     write_16(gpx, HOST_VERSION);
-    
+
     return end_frame(gpx);
 }
 
@@ -924,9 +924,9 @@ static int get_version(Gpx *gpx)
 static int initialize_firmware(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 1);
-        
+
     return end_frame(gpx);
 }
 
@@ -935,9 +935,9 @@ static int initialize_firmware(Gpx *gpx)
 static int get_buffer_size(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 2);
-    
+
     return end_frame(gpx);
 }
 
@@ -946,9 +946,9 @@ static int get_buffer_size(Gpx *gpx)
 static int clear_buffer(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 3);
-    
+
     return end_frame(gpx);
 }
 
@@ -957,9 +957,9 @@ static int clear_buffer(Gpx *gpx)
 static int abort_immediately(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 7);
-    
+
     return end_frame(gpx);
 }
 
@@ -968,9 +968,9 @@ static int abort_immediately(Gpx *gpx)
 static int pause_resume(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 8);
-    
+
     return end_frame(gpx);
 }
 
@@ -981,21 +981,21 @@ static int pause_resume(Gpx *gpx)
 static int get_extruder_version(Gpx *gpx, unsigned extruder_id)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 10);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Query command to send to the extruder
     write_8(gpx, 0);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 2);
-    
+
     // uint16: host version
     write_16(gpx, HOST_VERSION);
-    
+
     return end_frame(gpx);
 }
 
@@ -1004,18 +1004,18 @@ static int get_extruder_version(Gpx *gpx, unsigned extruder_id)
 static int get_extruder_temperature(Gpx *gpx, unsigned extruder_id)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 10);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Query command to send to the extruder
     write_8(gpx, 2);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
@@ -1024,18 +1024,18 @@ static int get_extruder_temperature(Gpx *gpx, unsigned extruder_id)
 static int is_extruder_ready(Gpx *gpx, unsigned extruder_id)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 10);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Query command to send to the extruder
     write_8(gpx, 22);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
@@ -1044,18 +1044,18 @@ static int is_extruder_ready(Gpx *gpx, unsigned extruder_id)
 static int get_build_platform_temperature(Gpx *gpx, unsigned extruder_id)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 10);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Query command to send to the extruder
     write_8(gpx, 30);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
@@ -1064,18 +1064,18 @@ static int get_build_platform_temperature(Gpx *gpx, unsigned extruder_id)
 static int get_extruder_target_temperature(Gpx *gpx, unsigned extruder_id)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 10);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Query command to send to the extruder
     write_8(gpx, 32);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
@@ -1084,18 +1084,18 @@ static int get_extruder_target_temperature(Gpx *gpx, unsigned extruder_id)
 static int get_build_platform_target_temperature(Gpx *gpx, unsigned extruder_id)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 10);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Query command to send to the extruder
     write_8(gpx, 33);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
@@ -1104,18 +1104,18 @@ static int get_build_platform_target_temperature(Gpx *gpx, unsigned extruder_id)
 static int is_build_platform_ready(Gpx *gpx, unsigned extruder_id)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 10);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Query command to send to the extruder
     write_8(gpx, 35);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
@@ -1124,18 +1124,18 @@ static int is_build_platform_ready(Gpx *gpx, unsigned extruder_id)
 static int get_extruder_status(Gpx *gpx, unsigned extruder_id)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 10);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Query command to send to the extruder
     write_8(gpx, 36);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
@@ -1144,18 +1144,18 @@ static int get_extruder_status(Gpx *gpx, unsigned extruder_id)
 static int get_PID_state(Gpx *gpx, unsigned extruder_id)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 10);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Query command to send to the extruder
     write_8(gpx, 37);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
@@ -1164,9 +1164,9 @@ static int get_PID_state(Gpx *gpx, unsigned extruder_id)
 static int is_ready(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 11);
-    
+
     return end_frame(gpx);
 }
 
@@ -1175,15 +1175,15 @@ static int is_ready(Gpx *gpx)
 static int read_eeprom(Gpx *gpx, unsigned address, unsigned length)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 12);
-    
+
     // uint16: EEPROM memory offset to begin reading from
     write_16(gpx, address);
-    
+
     // uint8: Number of bytes to read, N.
     write_8(gpx, length);
-    
+
     return end_frame(gpx);
 }
 
@@ -1192,18 +1192,18 @@ static int read_eeprom(Gpx *gpx, unsigned address, unsigned length)
 static int write_eeprom(Gpx *gpx, unsigned address, char *data, unsigned length)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 13);
-    
+
     // uint16: EEPROM memory offset to begin writing to
     write_16(gpx, address);
-    
+
     // uint8: Number of bytes to write
     write_8(gpx, length);
-    
+
     // N bytes: Data to write to EEPROM
     write_bytes(gpx, data, length);
-    
+
     return end_frame(gpx);
 }
 
@@ -1212,9 +1212,9 @@ static int write_eeprom(Gpx *gpx, unsigned address, char *data, unsigned length)
 static int capture_to_file(Gpx *gpx, char *filename)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 14);
-    
+
     /* 1+N bytes: Filename to write to, in ASCII, terminated with a null character.
                   N can be 1-12 bytes long, not including the null character. */
     write_string(gpx, filename, strlen(filename));
@@ -1227,9 +1227,9 @@ static int capture_to_file(Gpx *gpx, char *filename)
 static int end_capture_to_file(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 15);
-    
+
     return end_frame(gpx);
 }
 
@@ -1238,13 +1238,13 @@ static int end_capture_to_file(Gpx *gpx)
 static int play_back_capture(Gpx *gpx, char *filename)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 16);
-    
+
     /* 1+N bytes: Filename to write to, in ASCII, terminated with a null character.
      N can be 1-12 bytes long, not including the null character. */
     write_string(gpx, filename, strlen(filename));
-    
+
     return end_frame(gpx);
 }
 
@@ -1253,9 +1253,9 @@ static int play_back_capture(Gpx *gpx, char *filename)
 static int reset(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 17);
-    
+
     return end_frame(gpx);
 }
 
@@ -1264,12 +1264,12 @@ static int reset(Gpx *gpx)
 static int get_next_filename(Gpx *gpx, unsigned restart)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 18);
-    
+
     // uint8: 0 if file listing should continue, 1 to restart listing.
     write_8(gpx, restart);
-    
+
     return end_frame(gpx);
 }
 
@@ -1278,9 +1278,9 @@ static int get_next_filename(Gpx *gpx, unsigned restart)
 static int get_build_name(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 20);
-    
+
     return end_frame(gpx);
 }
 
@@ -1289,9 +1289,9 @@ static int get_build_name(Gpx *gpx)
 static int get_extended_position(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 21);
-    
+
     return end_frame(gpx);
 }
 
@@ -1302,16 +1302,16 @@ static int extended_stop(Gpx *gpx, unsigned halt_steppers, unsigned clear_queue)
     unsigned flag = 0;
     if(halt_steppers) flag |= 0x1;
     if(clear_queue) flag |= 0x2;
-    
+
     begin_frame(gpx);
-    
+
     write_8(gpx, 22);
-    
+
     /* uint8: Bitfield indicating which subsystems to shut down.
               If bit 0 is set, halt all stepper motion.
               If bit 1 is set, clear the command queue. */
     write_8(gpx, flag);
-    
+
     return end_frame(gpx);
 }
 
@@ -1320,9 +1320,9 @@ static int extended_stop(Gpx *gpx, unsigned halt_steppers, unsigned clear_queue)
 static int get_motherboard_status(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 23);
-    
+
     return end_frame(gpx);
 }
 
@@ -1331,9 +1331,9 @@ static int get_motherboard_status(Gpx *gpx)
 static int get_build_statistics(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 24);
-    
+
     return end_frame(gpx);
 }
 
@@ -1342,12 +1342,12 @@ static int get_build_statistics(Gpx *gpx)
 static int get_advanced_version_number(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 27);
-    
+
     // uint16: Host version
     write_16(gpx, HOST_VERSION);
-    
+
     return end_frame(gpx);
 }
 
@@ -1399,29 +1399,29 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
             SHOW( fprintf(gpx->log, "(line %u) Semantic warning: Z axis homing to %s endstop" EOL, gpx->lineNumber, direction ? "maximum" : "minimum") );
         }
     }
-    
+
     // unit vector distance in mm
     double distance = magnitude(axes, &unitVector);
     // move duration in microseconds = distance / feedrate * 60,000,000
     double microseconds = distance / feedrate * 60000000.0;
     // time between steps for longest axis = microseconds / longestStep
     unsigned step_delay = (unsigned)round(microseconds / longestAxis);
-    
+
     gpx->accumulated.time += distance / feedrate * 60;
 
     begin_frame(gpx);
 
     write_8(gpx, direction == ENDSTOP_IS_MIN ? 131 :132);
-    
+
     // uint8: Axes bitfield. Axes whose bits are set will be moved.
     write_8(gpx, axes);
-    
+
     // uint32: Feedrate, in microseconds between steps on the max delta. (DDA)
     write_32(gpx, step_delay);
-    
+
     // uint16: Timeout, in seconds.
     write_16(gpx, gpx->machine.timeout);
-    
+
     return end_frame(gpx);
 }
 
@@ -1430,12 +1430,12 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
 static int delay(Gpx *gpx, unsigned milliseconds)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 133);
-    
+
     // uint32: delay, in milliseconds
     write_32(gpx, milliseconds);
-    
+
     return end_frame(gpx);
 }
 
@@ -1447,14 +1447,14 @@ static int delay(Gpx *gpx, unsigned milliseconds)
 static int change_extruder_offset(Gpx *gpx, unsigned extruder_id)
 {
     assert(extruder_id < gpx->machine.extruder_count);
-    
+
     begin_frame(gpx);
-    
+
     write_8(gpx, 134);
-    
+
     // uint8: ID of the extruder to switch to
     write_8(gpx, extruder_id);
-    
+
     return end_frame(gpx);
 }
 
@@ -1463,23 +1463,23 @@ static int change_extruder_offset(Gpx *gpx, unsigned extruder_id)
 static int wait_for_extruder(Gpx *gpx, unsigned extruder_id, unsigned timeout)
 {
     assert(extruder_id < gpx->machine.extruder_count);
-    
+
     begin_frame(gpx);
 
     write_8(gpx, 135);
-    
+
     // uint8: ID of the extruder to wait for
     write_8(gpx, extruder_id);
-    
+
     // uint16: delay between query packets sent to the extruder, in ms (nominally 100 ms)
     write_16(gpx, 100);
-    
+
     // uint16: Timeout before continuing without extruder ready, in seconds (nominally 1 minute)
     write_16(gpx, timeout);
-    
+
     return end_frame(gpx);
 }
- 
+
 // 136 - extruder action command
 
 // Action 03 - Set extruder target temperature
@@ -1487,28 +1487,28 @@ static int wait_for_extruder(Gpx *gpx, unsigned extruder_id, unsigned timeout)
 static int set_nozzle_temperature(Gpx *gpx, unsigned extruder_id, unsigned temperature)
 {
     assert(extruder_id < gpx->machine.extruder_count);
-    
+
     double tDelta = (double)temperature - (double)gpx->tool[extruder_id].nozzle_temperature - AMBIENT_TEMP;
     if(tDelta > 0.0) {
         gpx->accumulated.time += tDelta * NOZZLE_TIME;
     }
-    
+
     begin_frame(gpx);
 
     write_8(gpx, 136);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Action command to send to the extruder
     write_8(gpx, 3);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 2);
-    
+
     // int16: Desired target temperature, in Celsius
     write_16(gpx, temperature);
-    
+
     return end_frame(gpx);
 }
 
@@ -1517,23 +1517,23 @@ static int set_nozzle_temperature(Gpx *gpx, unsigned extruder_id, unsigned tempe
 static int set_fan(Gpx *gpx, unsigned extruder_id, unsigned state)
 {
     assert(extruder_id < gpx->machine.extruder_count);
-    
+
     begin_frame(gpx);
 
     write_8(gpx, 136);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Action command to send to the extruder
     write_8(gpx, 12);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 1);
-    
+
     // uint8: 1 to enable, 0 to disable
     write_8(gpx, state);
-    
+
     return end_frame(gpx);
 }
 
@@ -1550,7 +1550,7 @@ static int set_fan(Gpx *gpx, unsigned extruder_id, unsigned state)
  from the EXTRA FET and its Vgs/Igs threshold is met and it activates).
  But, there's no fix for the bug since no one has invested the time in
  diagnosing this Extruder Controller issue.
- 
+
  - dnewman 22/11/2013
  */
 
@@ -1560,21 +1560,21 @@ static int set_valve(Gpx *gpx, unsigned extruder_id, unsigned state)
     if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
 
         begin_frame(gpx);
-        
+
         write_8(gpx, 136);
-        
+
         // uint8: ID of the extruder to query
         write_8(gpx, extruder_id);
-        
+
         // uint8: Action command to send to the extruder
         write_8(gpx, 13);
-        
+
         // uint8: Length of the extruder command payload (N)
         write_8(gpx, 1);
-        
+
         // uint8: 1 to enable, 0 to disable
         write_8(gpx, state);
-        
+
         return end_frame(gpx);
     }
     else if(gpx->flag.logMessages) {
@@ -1593,23 +1593,23 @@ static int set_build_platform_temperature(Gpx *gpx, unsigned extruder_id, unsign
     if(tDelta > 0.0) {
         gpx->accumulated.time += tDelta * HBP_TIME;
     }
-    
+
     begin_frame(gpx);
-    
+
     write_8(gpx, 136);
-    
+
     // uint8: ID of the extruder to query
     write_8(gpx, extruder_id);
-    
+
     // uint8: Action command to send to the extruder
     write_8(gpx, 31);
-    
+
     // uint8: Length of the extruder command payload (N)
     write_8(gpx, 2);
-    
+
     // int16: Desired target temperature, in Celsius
     write_16(gpx, temperature);
-    
+
     return end_frame(gpx);
 }
 
@@ -1621,49 +1621,49 @@ static int set_steppers(Gpx *gpx, unsigned axes, unsigned state)
     if(state) {
         bitfield |= 0x80;
     }
-    
+
     begin_frame(gpx);
-    
+
     write_8(gpx, 137);
-    
+
     // uint8: Bitfield codifying the command (see below)
     write_8(gpx, bitfield);
-    
+
     return end_frame(gpx);
 }
- 
+
 // 139 - Queue absolute point
 
 static int queue_absolute_point(Gpx *gpx)
 {
     long longestDDA = gpx->longestDDA ? gpx->longestDDA : get_longest_dda(gpx);
     Point5d steps = mm_to_steps(gpx, &gpx->target.position, &gpx->excess);
-    
+
     begin_frame(gpx);
-    
+
     write_8(gpx, 139);
-    
+
     // int32: X coordinate, in steps
     write_32(gpx, (int)steps.x);
-    
+
     // int32: Y coordinate, in steps
     write_32(gpx, (int)steps.y);
-    
+
     // int32: Z coordinate, in steps
     write_32(gpx, (int)steps.z);
-    
+
     // int32: A coordinate, in steps
     write_32(gpx, -(int)steps.a);
-    
+
     // int32: B coordinate, in steps
     write_32(gpx, -(int)steps.b);
-    
+
     // uint32: Feedrate, in microseconds between steps on the max delta. (DDA)
     write_32(gpx, (int)longestDDA);
-    
+
     // reset current position
     gpx->axis.positionKnown = gpx->axis.mask;
-    
+
     return end_frame(gpx);
 }
 
@@ -1672,26 +1672,26 @@ static int queue_absolute_point(Gpx *gpx)
 static int set_position(Gpx *gpx)
 {
     Point5d steps = mm_to_steps(gpx, &gpx->current.position, NULL);
-    
+
     begin_frame(gpx);
-    
+
     write_8(gpx, 140);
-    
+
     // int32: X position, in steps
     write_32(gpx, (int)steps.x);
-    
+
     // int32: Y position, in steps
     write_32(gpx, (int)steps.y);
-    
+
     // int32: Z position, in steps
     write_32(gpx, (int)steps.z);
-    
+
     // int32: A position, in steps
     write_32(gpx, (int)steps.a);
-    
+
     // int32: B position, in steps
     write_32(gpx, (int)steps.b);
-    
+
     return end_frame(gpx);
 }
 
@@ -1700,20 +1700,20 @@ static int set_position(Gpx *gpx)
 static int wait_for_build_platform(Gpx *gpx, unsigned extruder_id, int timeout)
 {
     assert(extruder_id < gpx->machine.extruder_count);
-    
+
     begin_frame(gpx);
-    
+
     write_8(gpx, 141);
-    
+
     // uint8: ID of the extruder platform to wait for
     write_8(gpx, extruder_id);
-    
+
     // uint16: delay between query packets sent to the extruder, in ms (nominally 100 ms)
     write_16(gpx, 100);
-    
+
     // uint16: Timeout before continuing without extruder ready, in seconds (nominally 1 minute)
     write_16(gpx, timeout);
-    
+
     return end_frame(gpx);
 }
 
@@ -1723,7 +1723,7 @@ static int wait_for_build_platform(Gpx *gpx, unsigned extruder_id, int timeout)
 static int queue_new_point(Gpx *gpx, unsigned milliseconds)
 {
     Point5d target;
-    
+
     // the function is only called by dwell, which is by definition stationary,
     // so set zero relitive position change
 
@@ -1746,7 +1746,7 @@ static int queue_new_point(Gpx *gpx, unsigned milliseconds)
         gpx->command.flag |= A_IS_SET;
         gpx->accumulated.a += fabs(target.a);
     }
-    
+
     if(gpx->tool[B].motor_enabled && gpx->tool[B].rpm) {
         double maxrpm = gpx->machine.b.max_feedrate * gpx->machine.b.steps_per_mm / gpx->machine.b.motor_steps;
         double rpm = gpx->tool[B].rpm > maxrpm ? maxrpm : gpx->tool[B].rpm;
@@ -1763,32 +1763,32 @@ static int queue_new_point(Gpx *gpx, unsigned milliseconds)
     Point5d steps = mm_to_steps(gpx, &target, &gpx->excess);
 
     gpx->accumulated.time += (milliseconds / 1000.0) * ACCELERATION_TIME;
-    
+
     begin_frame(gpx);
 
     write_8(gpx, 142);
-    
+
     // int32: X coordinate, in steps
     write_32(gpx, (int)steps.x);
-    
+
     // int32: Y coordinate, in steps
     write_32(gpx, (int)steps.y);
-    
+
     // int32: Z coordinate, in steps
     write_32(gpx, (int)steps.z);
-    
+
     // int32: A coordinate, in steps
     write_32(gpx, (int)steps.a);
-    
+
     // int32: B coordinate, in steps
     write_32(gpx, (int)steps.b);
-    
+
     // uint32: Duration of the movement, in microseconds
     write_32(gpx, milliseconds * 1000.0);
-    
+
     // uint8: Axes bitfield to specify which axes are relative. Any axis with a bit set should make a relative movement.
     write_8(gpx, AXES_BIT_MASK);
-    
+
     return end_frame(gpx);
 }
 #endif
@@ -1798,13 +1798,13 @@ static int queue_new_point(Gpx *gpx, unsigned milliseconds)
 static int store_home_positions(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 143);
-    
+
     // uint8: Axes bitfield to specify which axes' positions to store.
     // Any axis with a bit set should have its position stored.
     write_8(gpx, gpx->command.flag & AXES_BIT_MASK);
-    
+
     return end_frame(gpx);
 }
 
@@ -1813,13 +1813,13 @@ static int store_home_positions(Gpx *gpx)
 static int recall_home_positions(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 144);
-    
+
     // uint8: Axes bitfield to specify which axes' positions to recall.
     // Any axis with a bit set should have its position recalled.
     write_8(gpx, gpx->command.flag & AXES_BIT_MASK);
-    
+
     return end_frame(gpx);
 }
 
@@ -1829,64 +1829,64 @@ static int set_pot_value(Gpx *gpx, unsigned axis, unsigned value)
 {
     assert(axis <= 4);
     assert(value <= 127);
-    
+
     begin_frame(gpx);
-    
+
     write_8(gpx, 145);
-    
+
     // uint8: axis value (valid range 0-4) which axis pot to set
     write_8(gpx, axis);
-    
+
     // uint8: value (valid range 0-127), values over max will be capped at max
     write_8(gpx, value);
-    
+
     return end_frame(gpx);
 }
- 
+
 // 146 - Set RGB LED value
 
 static int set_LED(Gpx *gpx, unsigned red, unsigned green, unsigned blue, unsigned blink)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 146);
-    
+
     // uint8: red value (all pix are 0-255)
     write_8(gpx, red);
-    
+
     // uint8: green
     write_8(gpx, green);
-    
+
     // uint8: blue
     write_8(gpx, blue);
-    
+
     // uint8: blink rate (0-255 valid)
     write_8(gpx, blink);
-    
+
     // uint8: 0 (reserved for future use)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
 static int set_LED_RGB(Gpx *gpx, unsigned rgb, unsigned blink)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 146);
-    
+
     // uint8: red value (all pix are 0-255)
     write_8(gpx, (rgb >> 16) & 0xFF);
-    
+
     // uint8: green
     write_8(gpx, (rgb >> 8) & 0xFF);
-    
+
     // uint8: blue
     write_8(gpx, rgb & 0xFF);
-    
+
     // uint8: blink rate (0-255 valid)
     write_8(gpx, blink);
-    
+
     // uint8: 0 (reserved for future use)
     write_8(gpx, 0);
 
@@ -1898,9 +1898,9 @@ static int set_LED_RGB(Gpx *gpx, unsigned rgb, unsigned blink)
 static int set_beep(Gpx *gpx, unsigned frequency, unsigned milliseconds)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 147);
-    
+
     // uint16: frequency
     write_16(gpx, frequency);
 
@@ -1909,7 +1909,7 @@ static int set_beep(Gpx *gpx, unsigned frequency, unsigned milliseconds)
 
     // uint8: 0 (reserved for future use)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
@@ -1931,18 +1931,18 @@ static int set_beep(Gpx *gpx, unsigned frequency, unsigned milliseconds)
 static int wait_for_button(Gpx *gpx, int button, unsigned timeout, int button_options)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 148);
-    
+
     // uint8: Bit field of buttons to wait for
     write_8(gpx, button);
-    
+
     // uint16: Timeout, in seconds. A value of 0 indicates that the command should not time out.
     write_16(gpx, timeout);
-    
+
     // uint8: Options bitfield
     write_8(gpx, button_options);
-    
+
     return end_frame(gpx);
 }
 
@@ -1952,14 +1952,14 @@ static int display_message(Gpx *gpx, char *message, unsigned vPos, unsigned hPos
 {
     assert(vPos < 4);
     assert(hPos < 20);
-    
+
     int rval;
     long bytesSent = 0;
     unsigned bitfield = 0;
     unsigned seconds = 0;
-    
+
     unsigned maxLength = hPos ? 20 - hPos : 20;
-    
+
     // clip string so it fits in 4 x 20 lcd display buffer
     long length = strlen(message);
     if(vPos || hPos) {
@@ -1969,7 +1969,7 @@ static int display_message(Gpx *gpx, char *message, unsigned vPos, unsigned hPos
     else {
         if(length > 80) length = 80;
     }
-    
+
     while(bytesSent < length) {
         if(bytesSent + maxLength >= length) {
             seconds = timeout;
@@ -1981,11 +1981,11 @@ static int display_message(Gpx *gpx, char *message, unsigned vPos, unsigned hPos
         if(bytesSent > 0) {
             bitfield |= 0x01; //do not clear flag
         }
-        
+
         begin_frame(gpx);
-        
+
         write_8(gpx, 149);
-        
+
         // uint8: Options bitfield (see below)
         write_8(gpx, bitfield);
         // uint8: Horizontal position to display the message at (commonly 0-19)
@@ -1997,7 +1997,7 @@ static int display_message(Gpx *gpx, char *message, unsigned vPos, unsigned hPos
         // 1+N bytes: Message to write to the screen, in ASCII, terminated with a null character.
         long rowLength = length - bytesSent;
         bytesSent += write_string(gpx, message + bytesSent, rowLength < maxLength ? rowLength : maxLength);
-        
+
         CALL( end_frame(gpx) );
     }
     return SUCCESS;
@@ -2008,17 +2008,17 @@ static int display_message(Gpx *gpx, char *message, unsigned vPos, unsigned hPos
 static int set_build_progress(Gpx *gpx, unsigned percent)
 {
     if(percent > 100) percent = 100;
-    
+
     begin_frame(gpx);
-    
+
     write_8(gpx, 150);
-    
+
     // uint8: percent (0-100)
     write_8(gpx, percent);
-    
+
     // uint8: 0 (reserved for future use)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
@@ -2029,16 +2029,16 @@ static int queue_song(Gpx *gpx, unsigned song_id)
     // song ID 0: error tone with 4 cycles
     // song ID 1: done tone
     // song ID 2: error tone with 2 cycles
-    
+
     assert(song_id <= 2);
-    
+
     begin_frame(gpx);
-    
+
     write_8(gpx, 151);
-    
+
     // uint8: songID: select from a predefined list of songs
     write_8(gpx, song_id);
-    
+
     return end_frame(gpx);
 }
 
@@ -2049,10 +2049,10 @@ static int factory_defaults(Gpx *gpx)
     begin_frame(gpx);
 
     write_8(gpx, 152);
-    
+
     // uint8: 0 (reserved for future use)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
 
@@ -2062,15 +2062,15 @@ static int factory_defaults(Gpx *gpx)
 static int start_build(Gpx *gpx, char * filename)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 153);
-    
+
     // uint32: 0 (reserved for future use)
     write_32(gpx, 0);
 
     // 1+N bytes: Name of the build, in ASCII, null terminated
     write_string(gpx, filename, strlen(filename));
-    
+
     return end_frame(gpx);
 }
 
@@ -2079,15 +2079,15 @@ static int start_build(Gpx *gpx, char * filename)
 static int end_build(Gpx *gpx)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 154);
 
     // uint8: 0 (reserved for future use)
     write_8(gpx, 0);
-    
+
     return end_frame(gpx);
 }
- 
+
 // 155 - Queue extended point x3g
 
 // IMPORTANT: this command updates the parser state
@@ -2102,7 +2102,7 @@ static int queue_ext_point(Gpx *gpx, double feedrate)
     }
     Point5d deltaMM = delta_mm(gpx);
     Point5d deltaSteps = delta_steps(gpx, deltaMM);
-    
+
     // check that we have actually moved on at least one axis when the move is
     // rounded down to the nearest step
     if(magnitude(gpx->command.flag, &deltaSteps) > 0) {
@@ -2150,22 +2150,22 @@ static int queue_ext_point(Gpx *gpx, double feedrate)
             }
         }
         Point5d target = gpx->target.position;
-        
+
         target.a = -deltaMM.a;
         target.b = -deltaMM.b;
-        
+
         gpx->accumulated.a += deltaMM.a;
         gpx->accumulated.b += deltaMM.b;
-        
+
         deltaMM.x = fabs(deltaMM.x);
         deltaMM.y = fabs(deltaMM.y);
         deltaMM.z = fabs(deltaMM.z);
         deltaMM.a = fabs(deltaMM.a);
         deltaMM.b = fabs(deltaMM.b);
-        
+
         feedrate = get_safe_feedrate(gpx, gpx->command.flag, &deltaMM);
         double minutes = distance / feedrate;
-        
+
         if(minutes == 0) {
             distance = 0;
             if(gpx->command.flag & A_IS_SET) {
@@ -2176,7 +2176,7 @@ static int queue_ext_point(Gpx *gpx, double feedrate)
             }
             minutes = distance / feedrate;
         }
-        
+
         //convert feedrate to mm/sec
         feedrate /= 60.0;
 
@@ -2215,50 +2215,50 @@ static int queue_ext_point(Gpx *gpx, double feedrate)
             gpx->tool[B].rpm = 0;
         }
 #endif
-        
+
         Point5d steps = mm_to_steps(gpx, &target, &gpx->excess);
-        
+
         double usec = (60000000.0 * minutes);
-        
+
         double dda_interval = usec / largest_axis(gpx->command.flag, &deltaSteps);
-        
+
         // Convert dda_interval into dda_rate (dda steps per second on the longest axis)
         double dda_rate = 1000000.0 / dda_interval;
-        
+
         gpx->accumulated.time += (minutes * 60) * ACCELERATION_TIME;
 
         begin_frame(gpx);
-        
+
         write_8(gpx, 155);
-        
+
         // int32: X coordinate, in steps
         write_32(gpx, (int)steps.x);
-        
+
         // int32: Y coordinate, in steps
         write_32(gpx, (int)steps.y);
-        
+
         // int32: Z coordinate, in steps
         write_32(gpx, (int)steps.z);
-        
+
         // int32: A coordinate, in steps
         write_32(gpx, (int)steps.a);
-        
+
         // int32: B coordinate, in steps
         write_32(gpx, (int)steps.b);
 
         // uint32: DDA Feedrate, in steps/s
         write_32(gpx, (unsigned)dda_rate);
-        
+
         // uint8: Axes bitfield to specify which axes are relative. Any axis with a bit set should make a relative movement.
         write_8(gpx, A_IS_SET|B_IS_SET);
 
         // float (single precision, 32 bit): mm distance for this move.  normal of XYZ if any of these axes are active, and AB for extruder only moves
         write_float(gpx, (float)distance);
-        
+
         // uint16: feedrate in mm/s, multiplied by 64 to assist fixed point calculation on the bot
         write_16(gpx, (unsigned)(feedrate * 64.0));
-        
-        return end_frame(gpx);        
+
+        return end_frame(gpx);
 	}
     return SUCCESS;
 }
@@ -2268,12 +2268,12 @@ static int queue_ext_point(Gpx *gpx, double feedrate)
 static int set_acceleration(Gpx *gpx, int state)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 156);
-    
+
     // uint8: 1 to enable, 0 to disable
     write_8(gpx, state);
-    
+
     return end_frame(gpx);
 }
 
@@ -2283,21 +2283,21 @@ static int stream_version(Gpx *gpx)
 {
     if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
         begin_frame(gpx);
-        
+
         write_8(gpx, 157);
-        
+
         // uint8: x3g version high byte
         write_8(gpx, STREAM_VERSION_HIGH);
-        
+
         // uint8: x3g version low byte
         write_8(gpx, STREAM_VERSION_LOW);
-        
+
         // uint8: not implemented
         write_8(gpx, 0);
-        
+
         // uint32: not implemented
         write_32(gpx, 0);
-        
+
         // uint16: bot type: PID for the intended bot is sent
         // Repliator 2/2X (Might Two)
         if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_2) {
@@ -2307,19 +2307,19 @@ static int stream_version(Gpx *gpx)
         else {
             write_16(gpx, 0xD314);
         }
-        
+
         // uint16: not implemented
         write_16(gpx, 0);
-        
+
         // uint32: not implemented
         write_32(gpx, 0);
-        
+
         // uint32: not implemented
         write_32(gpx, 0);
-        
+
         // uint8: not implemented
         write_8(gpx, 0);
-        
+
         return end_frame(gpx);
     }
     return SUCCESS;
@@ -2330,12 +2330,12 @@ static int stream_version(Gpx *gpx)
 static int pause_at_zpos(Gpx *gpx, float z_positon)
 {
     begin_frame(gpx);
-    
+
     write_8(gpx, 158);
-    
+
     // uint8: pause at Z coordinate or 0.0 to disable
     write_float(gpx, z_positon);
-    
+
     return end_frame(gpx);
 }
 
@@ -2456,9 +2456,9 @@ static int calculate_target_position(Gpx *gpx)
         // multiply by command line scale
         userScale = gpx->user.scale;
     }
-    
+
     // CALCULATE TARGET POSITION
-    
+
     // x
     if(gpx->command.flag & X_IS_SET) {
         gpx->target.position.x = gpx->flag.relativeCoordinates ? (gpx->current.position.x + (gpx->command.x * userScale)) : ((gpx->command.x + userOffset.x) * userScale);
@@ -2466,7 +2466,7 @@ static int calculate_target_position(Gpx *gpx)
     else {
         gpx->target.position.x = gpx->current.position.x;
     }
-    
+
     // y
     if(gpx->command.flag & Y_IS_SET) {
         gpx->target.position.y = gpx->flag.relativeCoordinates ? (gpx->current.position.y + (gpx->command.y * userScale)) : ((gpx->command.y + userOffset.y) * userScale);
@@ -2474,7 +2474,7 @@ static int calculate_target_position(Gpx *gpx)
     else {
         gpx->target.position.y = gpx->current.position.y;
     }
-    
+
     // z
     if(gpx->command.flag & Z_IS_SET) {
         gpx->target.position.z = gpx->flag.relativeCoordinates ? (gpx->current.position.z + (gpx->command.z * userScale)) : ((gpx->command.z + userOffset.z) * userScale);
@@ -2500,14 +2500,14 @@ static int calculate_target_position(Gpx *gpx)
     else {
         gpx->target.position.b = gpx->current.position.b;
     }
-    
+
     // update current feedrate
     if(gpx->command.flag & F_IS_SET) {
         gpx->current.feedrate = gpx->command.f;
     }
-    
+
     // DITTO PRINTING
-    
+
     if(gpx->flag.dittoPrinting) {
         if(gpx->command.flag & A_IS_SET) {
             gpx->target.position.b = gpx->target.position.a;
@@ -2518,9 +2518,9 @@ static int calculate_target_position(Gpx *gpx)
             gpx->command.flag |= A_IS_SET;
         }
     }
-    
+
     // CHECK FOR COMMAND @ Z POS
-    
+
     // check if there are more commands on the stack
     if(gpx->flag.macrosEnabled && gpx->flag.runMacros && gpx->commandAtIndex < gpx->commandAtLength) {
         // check if the next command will cross the z threshold
@@ -2585,7 +2585,7 @@ static int calculate_target_position(Gpx *gpx)
                 unsigned temperature = gpx->filament[index].temperature;
                 // override nozzle temperature
                 if(temperature) {
-                    VERBOSE( fprintf(gpx->log, ", %uc", temperature) );                    
+                    VERBOSE( fprintf(gpx->log, ", %uc", temperature) );
                     if(gpx->tool[gpx->current.extruder].nozzle_temperature != temperature) {
                         if(gpx->flag.dittoPrinting) {
                             CALL( set_nozzle_temperature(gpx, B, temperature) );
@@ -2711,7 +2711,7 @@ static char *normalize_word(char* p)
             else {
                 break;
             }
-        }        
+        }
     }
     *e = 0;
     return s;
@@ -2731,7 +2731,7 @@ static char *normalize_comment(char *p) {
 // MACRO PARSER
 
 /* format
- 
+
  ;@<STRING> <STRING> <FLOAT> <FLOAT>mm <INTEGER>c #<HEX> (<STRING>)
 
  MACRO:= ';' '@' COMMAND COMMENT EOL
@@ -3034,7 +3034,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
 }
 
 /*
- 
+
  SIMPLE .INI FILE PARSER
 
  ini.c is released under the New BSD license (see LICENSE.txt). Go to the project
@@ -3044,11 +3044,11 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
  (whitespace stripped), and comments starting with ';' (semicolon). Section
  is "" if name=value pair parsed before any section heading. name:value
  pairs are also supported as a concession to Python's ConfigParser.
- 
+
  For each name=value pair parsed, call handler function with given user
  pointer as well as section, name, and value (data only valid for duration
  of handler call). Handler should return 0 on success, nonzero on error.
- 
+
  Returns 0 on success, line number of first error on parse error (doesn't
  stop on first error), -1 on file open error.
 
@@ -3114,7 +3114,7 @@ static int ini_parse_file(Gpx* gpx, FILE* file, int (*handler)(Gpx*, const char*
     /* Uses a fair bit of stack (use heap instead if you need to) */
     char section[INI_SECTION_MAX] = "";
     char prev_name[INI_NAME_MAX] = "";
-    
+
     char* start;
     char* end;
     char* name;
@@ -3125,7 +3125,7 @@ static int ini_parse_file(Gpx* gpx, FILE* file, int (*handler)(Gpx*, const char*
     /* Scan through file line by line */
     while(fgets(gpx->buffer.in, BUFFER_MAX, file) != NULL) {
         gpx->lineNumber++;
-        
+
         start = gpx->buffer.in;
 #if INI_ALLOW_BOM
         if(gpx->lineNumber == 1 && (unsigned char)start[0] == 0xEF &&
@@ -3135,7 +3135,7 @@ static int ini_parse_file(Gpx* gpx, FILE* file, int (*handler)(Gpx*, const char*
         }
 #endif
         start = lskip(rstrip(start));
-        
+
         if(*start == ';' || *start == '#') {
             /* Per Python ConfigParser, allow '#' comments at start of line */
         }
@@ -3174,7 +3174,7 @@ static int ini_parse_file(Gpx* gpx, FILE* file, int (*handler)(Gpx*, const char*
                 if (*end == ';')
                     *end = '\0';
                 rstrip(value);
-                
+
                 /* Valid name[=:]value pair found, call handler */
                 strncpy0(prev_name, name, sizeof(prev_name));
                 if(handler(gpx, section, name, value) && !error)
@@ -3185,7 +3185,7 @@ static int ini_parse_file(Gpx* gpx, FILE* file, int (*handler)(Gpx*, const char*
                 error = gpx->lineNumber;
             }
         }
-    }    
+    }
     return error;
 }
 
@@ -3338,7 +3338,7 @@ int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* 
         return gpx->lineNumber;
     }
     return SUCCESS;
-    
+
 SECTION_ERROR:
     SHOW( fprintf(gpx->log, "(line %u) Configuration error: [%s] section contains unrecognised property %s = %s" EOL, gpx->lineNumber, section, property, value) );
     return gpx->lineNumber;
@@ -3363,14 +3363,14 @@ void gpx_start_convert(Gpx *gpx, char *buildName)
         SHOW( fputs("Configuration error: ditto printing cannot access non-existant second extruder" EOL, gpx->log) );
         gpx->flag.dittoPrinting = 0;
     }
-    
+
     // CALCULATE FILAMENT SCALING
-    
+
     if(gpx->override[A].actual_filament_diameter > 0.0001
        && gpx->override[A].actual_filament_diameter != gpx->machine.nominal_filament_diameter) {
         set_filament_scale(gpx, A, gpx->override[A].actual_filament_diameter);
     }
-    
+
     if(gpx->override[B].actual_filament_diameter > 0.0001
        && gpx->override[B].actual_filament_diameter != gpx->machine.nominal_filament_diameter) {
         set_filament_scale(gpx, B, gpx->override[B].actual_filament_diameter);
@@ -3410,81 +3410,81 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             digits = p;
             p = normalize_word(p);
             switch(c) {
-                    
+
                     // PARAMETERS
-                    
+
                     // Xnnn	 X coordinate, usually to move to
                 case 'x':
                 case 'X':
                     gpx->command.x = strtod(digits, NULL);
                     gpx->command.flag |= X_IS_SET;
                     break;
-                    
+
                     // Ynnn	 Y coordinate, usually to move to
                 case 'y':
                 case 'Y':
                     gpx->command.y = strtod(digits, NULL);
                     gpx->command.flag |= Y_IS_SET;
                     break;
-                    
+
                     // Znnn	 Z coordinate, usually to move to
                 case 'z':
                 case 'Z':
                     gpx->command.z = strtod(digits, NULL);
                     gpx->command.flag |= Z_IS_SET;
                     break;
-                    
+
                     // Annn	 Length of extrudate in mm.
                 case 'a':
                 case 'A':
                     gpx->command.a = strtod(digits, NULL);
                     gpx->command.flag |= A_IS_SET;
                     break;
-                    
+
                     // Bnnn	 Length of extrudate in mm.
                 case 'b':
                 case 'B':
                     gpx->command.b = strtod(digits, NULL);
                     gpx->command.flag |= B_IS_SET;
                     break;
-                    
+
                     // Ennn	 Length of extrudate in mm.
                 case 'e':
                 case 'E':
                     gpx->command.e = strtod(digits, NULL);
                     gpx->command.flag |= E_IS_SET;
                     break;
-                    
+
                     // Fnnn	 Feedrate in mm per minute.
                 case 'f':
                 case 'F':
                     gpx->command.f = strtod(digits, NULL);
                     gpx->command.flag |= F_IS_SET;
                     break;
-                    
+
                     // Pnnn	 Command parameter, such as a time in milliseconds
                 case 'p':
                 case 'P':
                     gpx->command.p = strtod(digits, NULL);
                     gpx->command.flag |= P_IS_SET;
                     break;
-                    
+
                     // Rnnn	 Command Parameter, such as RPM
                 case 'r':
                 case 'R':
                     gpx->command.r = strtod(digits, NULL);
                     gpx->command.flag |= R_IS_SET;
                     break;
-                    
+
                     // Snnn	 Command parameter, such as temperature
                 case 's':
                 case 'S':
                     gpx->command.s = strtod(digits, NULL);
                     gpx->command.flag |= S_IS_SET;
                     break;
-                    
+
                     // COMMANDS
-                    
+
                     // Gnnn GCode command, such as move to a point
                 case 'g':
                 case 'G':
@@ -3503,7 +3503,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->command.t = atoi(digits);
                     gpx->command.flag |= T_IS_SET;
                     break;
-                    
+
                 default:
                     SHOW( fprintf(gpx->log, "(line %u) Syntax warning: unrecognised command word '%c'" EOL, gpx->lineNumber, c) );
             }
@@ -3579,10 +3579,10 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             break;
         }
     }
-    
+
     // revert tool selection to current extruder (Makerbot Tn is not sticky)
     if(!gpx->flag.reprapFlavor) gpx->target.extruder = gpx->current.extruder;
-    
+
     // change the extruder selection (in the virtual tool carosel)
     if(gpx->command.flag & T_IS_SET && !gpx->flag.dittoPrinting) {
         unsigned tool_id = (unsigned)gpx->command.t;
@@ -3593,9 +3593,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             SHOW( fprintf(gpx->log, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, gpx->lineNumber, tool_id) );
         }
     }
-    
+
     // we treat E as short hand for A or B being set, depending on the state of the gpx->current.extruder
-    
+
     if(gpx->command.flag & E_IS_SET) {
         if(gpx->current.extruder == 0) {
             // a = e
@@ -3608,9 +3608,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             gpx->command.b = gpx->command.e;
         }
     }
-    
+
     // INTERPRET COMMAND
-    
+
     if(gpx->command.flag & G_IS_SET) {
         switch(gpx->command.g) {
                 // G0 - Rapid Positioning
@@ -3652,7 +3652,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     command_emitted++;
                 }
                 break;
-                
+
                 // G1 - Coordinated Motion
             case 1:
                 CALL( calculate_target_position(gpx) );
@@ -3660,10 +3660,10 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 update_current_position(gpx);
                 command_emitted++;
                 break;
-                
+
                 // G2 - Clockwise Arc
                 // G3 - Counter Clockwise Arc
-                
+
                 // G4 - Dwell
             case 4:
                 if(gpx->command.flag & P_IS_SET) {
@@ -3679,13 +3679,13 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                         CALL( delay(gpx, gpx->command.p) );
                         command_emitted++;
                     }
-                    
+
                 }
                 else {
                     SHOW( fprintf(gpx->log, "(line %u) Syntax error: G4 is missing delay parameter, use Pn where n is milliseconds" EOL, gpx->lineNumber) );
                 }
                 break;
-                
+
                 // G10 - Create Coordinate System Offset from the Absolute one
             case 10:
                 if(gpx->command.flag & P_IS_SET && gpx->command.p >= 1.0 && gpx->command.p <= 6.0) {
@@ -3724,19 +3724,19 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     SHOW( fprintf(gpx->log, "(line %u) Syntax error: G10 is missing coordiante system, use Pn where n is 1-6" EOL, gpx->lineNumber) );
                 }
                 break;
-                
+
                 // G21 - Use Milimeters as Units (IGNORED)
                 // G71 - Use Milimeters as Units (IGNORED)
             case 21:
             case 71:
                 break;
-                
+
                 // G28 - Home given axes to machine defined endstop
             case 28: {
                 unsigned endstop_max = 0;
                 unsigned endstop_min = 0;
                 if(gpx->command.flag & F_IS_SET) gpx->current.feedrate = gpx->command.f;
-                
+
                 if(gpx->command.flag & X_IS_SET) {
                     if(gpx->machine.x.endstop) {
                         endstop_max |= X_IS_SET;
@@ -3745,7 +3745,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                         endstop_min |= X_IS_SET;
                     }
                 }
-                
+
                 if(gpx->command.flag & Y_IS_SET) {
                     if(gpx->machine.y.endstop) {
                         endstop_max |= Y_IS_SET;
@@ -3754,7 +3754,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                         endstop_min |= Y_IS_SET;
                     }
                 }
-                
+
                 if(gpx->command.flag & Z_IS_SET) {
                     if(gpx->machine.z.endstop) {
                         endstop_max |= Z_IS_SET;
@@ -3791,42 +3791,42 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             case 53:
                 gpx->current.offset = 0;
                 break;
-                
+
                 // G54 - Use coordinate system from G10 P1
             case 54:
                 gpx->current.offset = 1;
                 break;
-                
+
                 // G55 - Use coordinate system from G10 P2
             case 55:
                 gpx->current.offset = 2;
                 break;
-                
+
                 // G56 - Use coordinate system from G10 P3
             case 56:
                 gpx->current.offset = 3;
                 break;
-                
+
                 // G57 - Use coordinate system from G10 P4
             case 57:
                 gpx->current.offset = 4;
                 break;
-                
+
                 // G58 - Use coordinate system from G10 P5
             case 58:
                 gpx->current.offset = 5;
                 break;
-                
+
                 // G59 - Use coordinate system from G10 P6
             case 59:
                 gpx->current.offset = 6;
                 break;
-                
+
                 // G90 - Absolute Positioning
             case 90:
                 gpx->flag.relativeCoordinates = 0;
                 break;
-                
+
                 // G91 - Relative Positioning
             case 91:
                 if((gpx->axis.positionKnown & XYZ_BIT_MASK) == XYZ_BIT_MASK) {
@@ -3837,7 +3837,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     return ERROR;
                 }
                 break;
-                
+
                 // G92 - Define current position on axes
             case 92: {
                 double userScale = gpx->flag.macrosEnabled ? gpx->user.scale : 1.0;
@@ -3852,30 +3852,30 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 gpx->axis.positionKnown |= (gpx->command.flag & gpx->axis.mask);
                 break;
             }
-                
+
                 // G130 - Set given axes potentiometer Value
             case 130:
                 if(gpx->command.flag & X_IS_SET) {
                     CALL( set_pot_value(gpx, 0, gpx->command.x < 0 ? 0 : gpx->command.x > 127 ? 127 : (unsigned)gpx->command.x) );
                 }
-                
+
                 if(gpx->command.flag & Y_IS_SET) {
                     CALL( set_pot_value(gpx, 1, gpx->command.y < 0 ? 0 : gpx->command.y > 127 ? 127 : (unsigned)gpx->command.y) );
                 }
-                
+
                 if(gpx->command.flag & Z_IS_SET) {
                     CALL( set_pot_value(gpx, 2, gpx->command.z < 0 ? 0 : gpx->command.z > 127 ? 127 : (unsigned)gpx->command.z) );
                 }
-                
+
                 if(gpx->command.flag & A_IS_SET) {
                     CALL( set_pot_value(gpx, 3, gpx->command.a < 0 ? 0 : gpx->command.a > 127 ? 127 : (unsigned)gpx->command.a) );
                 }
-                
+
                 if(gpx->command.flag & B_IS_SET) {
                     CALL( set_pot_value(gpx, 4, gpx->command.b < 0 ? 0 : gpx->command.b > 127 ? 127 : (unsigned)gpx->command.b) );
                 }
                 break;
-                
+
                 // G161 - Home given axes to minimum
             case 161:
                 if(gpx->command.flag & F_IS_SET) gpx->current.feedrate = gpx->command.f;
@@ -3916,7 +3916,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     CALL( end_build(gpx) );
                 }
                 return END_OF_FILE;
-                
+
                 // M6 - Automatic tool change (AND)
                 // M116 - Wait for extruder AND build platfrom to reach (or exceed) temperature
             case 6:
@@ -3963,7 +3963,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 }
                 break;
             }
-                
+
                 // M17 - Enable axes steppers
             case 17:
                 if(gpx->command.flag & AXES_BIT_MASK) {
@@ -3979,7 +3979,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     if(gpx->machine.extruder_count == 2) gpx->tool[B].motor_enabled = 1;
                 }
                 break;
-                
+
                 // M18 - Disable axes steppers
             case 18:
                 if(gpx->command.flag & AXES_BIT_MASK) {
@@ -3995,55 +3995,55 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     if(gpx->machine.extruder_count == 2) gpx->tool[B].motor_enabled = 0;
                 }
                 break;
-                
+
                 // M20 - List SD card
             case 20:
                 break;
-                
+
                 // M21 - Init SD card
             case 21:
                 break;
-                
+
                 // M22 - Release SD card
             case 22:
                 break;
-                
+
                 // M23 - Select SD file
             case 23:
                 break;
-                
+
                 // M24 - Start/resume SD print
             case 24:
                 break;
-                
+
                 // M25 - Pause SD print
             case 25:
                 break;
-                
+
                 // M26 - Set SD position
             case 26:
                 break;
-                
+
                 // M27 - Report SD print status
             case 27:
                 break;
-                
+
                 // M28 - Begin write to SD card
             case 28:
                 break;
-                
+
                 // M29 - Stop writing to SD card
             case 29:
                 break;
-                
+
                 // M30 - Delete file from SD card
             case 30:
                 break;
-                
+
                 // M31 - Output time since last M109 or SD card start to serial
             case 31:
                 break;
-                
+
                 // M70 - Display message on LCD
             case 70:
                 if(gpx->command.flag & COMMENT_IS_SET) {
@@ -4059,7 +4059,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     SHOW( fprintf(gpx->log, "(line %u) Syntax error: M70 is missing message text, use (text) where text is message" EOL, gpx->lineNumber) );
                 }
                 break;
-                
+
                 // M71 - Display message and wait for button press
             case 71: {
                 char *message = gpx->command.flag & COMMENT_IS_SET ? gpx->command.comment : "Press M to continue";
@@ -4072,7 +4072,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 command_emitted++;
                 break;
             }
-                
+
                 // M72 - Queue a song or play a tone
             case 72:
                 if(gpx->command.flag & P_IS_SET) {
@@ -4085,7 +4085,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     SHOW( fprintf(gpx->log, "(line %u) Syntax warning: M72 is missing song number, use Pn where n is 0-2" EOL, gpx->lineNumber) );
                 }
                 break;
-                
+
                 // M73 - Manual set build percentage
             case 73:
                 if(gpx->command.flag & P_IS_SET) {
@@ -4127,17 +4127,17 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     SHOW( fprintf(gpx->log, "(line %u) Syntax warning: M73 is missing build percentage, use Pn where n is 0-100" EOL, gpx->lineNumber) );
                 }
                 break;
-                
+
                 // M82 - set extruder to absolute mode
             case 82:
                 gpx->flag.extruderIsRelative = 0;
                 break;
-                
+
                 // M83 - set extruder to relative mode
             case 83:
                 gpx->flag.extruderIsRelative = 1;
                 break;
-                
+
                 // M84 - Disable steppers until next move
             case 84:
                 CALL( set_steppers(gpx, gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK, 0) );
@@ -4145,7 +4145,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 gpx->tool[A].motor_enabled = 0;
                 if(gpx->machine.extruder_count == 2) gpx->tool[B].motor_enabled = 0;
                 break;
-                
+
                 // M101 - Turn extruder on, forward
                 // M102 - Turn extruder on, reverse
             case 101:
@@ -4161,7 +4161,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->tool[gpx->target.extruder].motor_enabled = gpx->command.m == 101 ? 1 : -1;
                 }
                 break;
-                
+
                 // M103 - Turn extruder off
             case 103:
                 if(gpx->flag.dittoPrinting) {
@@ -4175,7 +4175,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->tool[gpx->target.extruder].motor_enabled = 0;
                 }
                 break;
-                
+
                 // M104 - Set extruder temperature
             case 104:
                 if(gpx->command.flag & S_IS_SET) {
@@ -4203,11 +4203,11 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     SHOW( fprintf(gpx->log, "(line %u) Syntax error: M104 is missing temperature, use Sn where n is 0-280" EOL, gpx->lineNumber) );
                 }
                 break;
-                
+
                 // M105 - Get extruder temperature
             case 105:
                 break;
-                
+
                 // M106 - Turn cooling fan on
             case 106: {
                 int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;
@@ -4235,7 +4235,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 }
                 break;
             }
-                
+
                 // M107 - Turn cooling fan off
             case 107:
                 if(gpx->flag.reprapFlavor && gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
@@ -4261,7 +4261,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     }
                 }
                 break;
-                
+
                 // M108 - Set extruder motor 5D 'simulated' RPM
             case 108:
 #if ENABLE_SIMULATED_RPM
@@ -4278,8 +4278,8 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 }
 #endif
                 break;
-                
-                
+
+
                 // M109 - Set extruder temperature and wait
             case 109:
                 if(gpx->flag.reprapFlavor) {
@@ -4343,7 +4343,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     break;
                 }
                 // fall through to M140 for Makerbot/ReplicatorG flavor
-                
+
                 // M140 - Set build platform temperature
             case 140:
                 if(gpx->machine.a.has_heated_build_platform || gpx->machine.b.has_heated_build_platform) {
@@ -4374,14 +4374,14 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     SHOW( fprintf(gpx->log, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, gpx->lineNumber, gpx->command.m) );
                 }
                 break;
-                
+
                 // M110 - Set current line number
             case 110:
                 break;
-                
+
                 // M111 - Set debug level
             case 111:
-                
+
                 // M126 - Turn blower fan on (valve open)
             case 126: {
                 int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;
@@ -4396,7 +4396,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 }
                 break;
             }
-                
+
                 // M127 - Turn blower fan off (valve close)
             case 127:
                 if(gpx->flag.dittoPrinting) {
@@ -4409,7 +4409,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     command_emitted++;
                 }
                 break;
-                
+
                 // M131 - Store Current Position to EEPROM
             case 131:
                 if(gpx->command.flag & AXES_BIT_MASK) {
@@ -4420,7 +4420,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     SHOW( fprintf(gpx->log, "(line %u) Syntax error: M131 is missing axes, use X Y Z A B" EOL, gpx->lineNumber) );
                 }
                 break;
-                
+
                 // M132 - Load Current Position from EEPROM
             case 132:
                 if(gpx->command.flag & AXES_BIT_MASK) {
@@ -4435,7 +4435,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     SHOW( fprintf(gpx->log, "(line %u) Syntax error: M132 is missing axes, use X Y Z A B" EOL, gpx->lineNumber) );
                 }
                 break;
-                
+
                 // M133 - Wait for extruder
             case 133: {
                 int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : MAX_TIMEOUT;
@@ -4470,7 +4470,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 }
                 break;
             }
-                
+
                 // M134
                 // M190 - Wait for build platform to reach (or exceed) temperature
             case 134:
@@ -4495,7 +4495,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 }
                 break;
             }
-                
+
                 // M135 - Change tool
             case 135:
                 if(!gpx->flag.dittoPrinting && gpx->target.extruder != gpx->current.extruder) {
@@ -4504,7 +4504,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     command_emitted++;
                 }
                 break;
-                
+
                 // M136 - Build start notification
             case 136:
                 if(program_is_ready()) {
@@ -4515,7 +4515,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     CALL( change_extruder_offset(gpx, gpx->current.extruder) );
                 }
                 break;
-                
+
                 // M137 - Build end notification
             case 137:
                 if(program_is_running()) {
@@ -4527,7 +4527,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->current.percent = 100;
                 }
                 break;
-                
+
                 // M300 - Set Beep (SP)
             case 300: {
                 unsigned frequency = 300;
@@ -4538,28 +4538,28 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 command_emitted++;
                 break;
             }
-                
+
                 // M320 - Acceleration on for subsequent instructions
             case 320:
                 CALL( set_acceleration(gpx, 1) );
                 command_emitted++;
                 break;
-                
+
                 // M321 - Acceleration off for subsequent instructions
             case 321:
                 CALL( set_acceleration(gpx, 0) );
                 command_emitted++;
                 break;
-                
+
                 // M322 - Pause @ zPos
             case 322:
                 if(gpx->command.flag & Z_IS_SET) {
                     float conditional_z = gpx->offset[gpx->current.offset].z;
-                    
+
                     if(gpx->flag.macrosEnabled) {
                         conditional_z += gpx->user.offset.z;
                     }
-                    
+
                     double z = gpx->flag.relativeCoordinates ? (gpx->current.position.z + gpx->command.z) : (gpx->command.z + conditional_z);
                     CALL( pause_at_zpos(gpx, z) );
                 }
@@ -4568,7 +4568,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 }
                 command_emitted++;
                 break;
-                
+
                 // M420 - Set RGB LED value (REB - P)
             case 420: {
                 unsigned red = 0;
@@ -4583,11 +4583,11 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 command_emitted++;
                 break;
             }
-                
+
                 // M500 - Write paramters to EEPROM
                 // M501 - Read parameters from EEPROM
                 // M502 - Revert to default "factory settings"
-                // M503 - Print/log current settings                
+                // M503 - Print/log current settings
             default:
                 SHOW( fprintf(gpx->log, "(line %u) Syntax warning: unsupported mcode command 'M%u'" EOL, gpx->lineNumber, gpx->command.m) );
         }
@@ -4657,7 +4657,7 @@ static int file_handler(Gpx *gpx, File *file, char *buffer, size_t length)
         if(bytes != length) return ERROR;
         if(file->out2) {
             bytes = fwrite(buffer, 1, length, file->out2);
-            if(bytes != length) return ERROR;            
+            if(bytes != length) return ERROR;
         }
     }
     return SUCCESS;
@@ -4686,16 +4686,16 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
         gpx->callbackHandler = (int (*)(Gpx*, void*, char*, size_t))file_handler;;
         gpx->callbackData = &file;
     }
-    
+
     if(file_out) {
         file.out = file_out;
     }
-    
+
     file.out2 = file_out2;
 
     for(;;) {
         int overflow = 0;
-        
+
         while(fgets(gpx->buffer.in, BUFFER_MAX, file.in) != NULL) {
             // detect input buffer overflow and ignore overflow input
             if(overflow) {
@@ -4708,14 +4708,14 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
                 overflow = 1;
                 SHOW( fprintf(gpx->log, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX) );
             }
-            
+
             rval = gpx_convert_line(gpx, gpx->buffer.in);
             // normal exit
             if(rval == END_OF_FILE) break;
             // error
             if(rval < 0) return rval;
         }
-        
+
         if(program_is_running()) {
             end_program();
             CALL( set_build_progress(gpx, 100) );
@@ -4748,17 +4748,17 @@ typedef struct tSio {
     int port;
     unsigned bytes_out;
     unsigned bytes_in;
-    
+
     union {
         struct {
             unsigned short version;
             unsigned char variant;
         } firmware;
-        
+
         unsigned int bufferSize;
         unsigned short temperature;
         unsigned int isReady;
-        
+
         union {
             unsigned char bitfield;
             struct {
@@ -4777,51 +4777,51 @@ typedef struct tSio {
             char buffer[31];
             unsigned char length;
         } eeprom;
-        
+
         struct {
             short extruderError;
             short extruderDelta;
             short extruderOutput;
-            
+
             short buildPlateError;
             short buildPlateDelta;
             short buildPlateOutput;
         } pid;
-        
+
         struct {
             unsigned int length;
             char filename[65];
             unsigned char status;
         } sd;
-        
+
         struct {
             int x;
             int y;
             int z;
             int a;
             int b;
-            
+
             union {
                 unsigned short bitfield;
                 struct {
                     unsigned short xMin: 1; // X min switch pressed
                     unsigned short xMax: 1; // X max switch pressed
-                    
+
                     unsigned short yMin: 1; // Y min switch pressed
                     unsigned short yMax: 1; // Y max switch pressed
-                    
+
                     unsigned short zMin: 1; // Z min switch pressed
                     unsigned short zMax: 1; // Z max switch pressed
-                    
+
                     unsigned short aMin: 1; // A min switch pressed
                     unsigned short aMax: 1; // A max switch pressed
-                    
+
                     unsigned short bMin: 1; // B min switch pressed
                     unsigned short bMax: 1; // B max switch pressed
                 } flag;
             } endstop;
         } position;
-        
+
         union {
             unsigned char bitfield;
             struct {
@@ -4833,9 +4833,9 @@ typedef struct tSio {
                 unsigned char buildCancelling: 1; // Watchdog reset flag was set at restart
                 unsigned char heatShutdown: 1;    // Heaters were shutdown after 30 minutes of inactivity
                 unsigned char powerError: 1;      // An error was detected with the system power.
-            } flag;            
+            } flag;
         } motherboard;
-        
+
         struct {
             unsigned lineNumber;
             unsigned char status;
@@ -4892,7 +4892,7 @@ static void read_extruder_query_response(Gpx *gpx, Sio *sio, unsigned command, c
                         sio->response.firmware.version / 100,
                         sio->response.firmware.version % 100) );
             break;
-    
+
             // Query 02 - Get extruder temperature
         case 2:
             // int16: Current temperature, in Celsius
@@ -4901,7 +4901,7 @@ static void read_extruder_query_response(Gpx *gpx, Sio *sio, unsigned command, c
                         extruder_id,
                         sio->response.temperature) );
             break;
-    
+
             // Query 22 - Is extruder ready
         case 22:
             // uint8: 1 if ready, 0 otherwise.
@@ -4910,7 +4910,7 @@ static void read_extruder_query_response(Gpx *gpx, Sio *sio, unsigned command, c
                         extruder_id,
                         sio->response.isReady ? " " : " not ") );
             break;
-            
+
             // Query 30 - Get build platform temperature
         case 30:
             // int16: Current temperature, in Celsius
@@ -4919,7 +4919,7 @@ static void read_extruder_query_response(Gpx *gpx, Sio *sio, unsigned command, c
                         extruder_id,
                         sio->response.temperature) );
             break;
-    
+
             // Query 32 - Get extruder target temperature
         case 32:
             // int16: Current temperature, in Celsius
@@ -4928,7 +4928,7 @@ static void read_extruder_query_response(Gpx *gpx, Sio *sio, unsigned command, c
                         extruder_id,
                         sio->response.temperature) );
             break;
-    
+
             // Query 33 - Get build platform target temperature
         case 33:
             // int16: Current temperature, in Celsius
@@ -4937,7 +4937,7 @@ static void read_extruder_query_response(Gpx *gpx, Sio *sio, unsigned command, c
                         extruder_id,
                         sio->response.temperature) );
             break;
-    
+
             // Query 35 - Is build platform ready?
         case 35:
             // uint8: 1 if ready, 0 otherwise.
@@ -4946,7 +4946,7 @@ static void read_extruder_query_response(Gpx *gpx, Sio *sio, unsigned command, c
                         extruder_id,
                         sio->response.isReady ? " " : " not ") );
             break;
-    
+
             // Query 36 - Get extruder status
         case 36:
             // uint8: Bitfield containing status information
@@ -4962,29 +4962,29 @@ static void read_extruder_query_response(Gpx *gpx, Sio *sio, unsigned command, c
                 if(sio->response.extruder.flag.extruderError) fputs("An error was detected with the extruder heater or sensor" EOL, gpx->log);
             }
             break;
-    
+
             // Query 37 - Get PID state
         case 37:
             // int16: Extruder heater error term
             sio->response.pid.extruderError = read_16(gpx);
-            
+
             // int16: Extruder heater delta term
             sio->response.pid.extruderDelta = read_16(gpx);
-            
+
             // int16: Extruder heater last output
             sio->response.pid.extruderOutput = read_16(gpx);
-            
+
             // int16: Platform heater error term
             sio->response.pid.buildPlateError = read_16(gpx);
-            
+
             // int16: Platform heater delta term
             sio->response.pid.buildPlateDelta = read_16(gpx);
-            
+
             // int16: Platform heater last output
             sio->response.pid.buildPlateOutput = read_16(gpx);
-            
+
             break;
-            
+
         default:
             abort();
     }
@@ -5001,13 +5001,13 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             VERBOSE( fprintf(gpx->log, "Motherboard firmware v%u.%u" EOL,
                         sio->response.firmware.version / 100, sio->response.firmware.version % 100) );
             break;
-            
+
             // 02 - Get available buffer size
         case 2:
             // uint32: Number of bytes availabe in the command buffer
             sio->response.bufferSize = read_32(gpx);
             break;
-            
+
             // 10 - Extruder query command
         case 10: {
             unsigned query_command = buffer[QUERY_COMMAND_OFFSET];
@@ -5022,7 +5022,7 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             VERBOSE( fprintf(gpx->log, "Printer is%sready" EOL,
                              sio->response.isReady ? " " : " not ") );
             break;
-            
+
             // 12 - Read from EEPROM
         case 12:
             // N bytes: Data read from the EEPROM
@@ -5035,7 +5035,7 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             // uint8: Number of bytes successfully written to the EEPROM
             sio->response.eeprom.length = read_8(gpx);
             break;
-            
+
             // 14 - Capture to file
         case 14:
             // uint8: SD response code
@@ -5043,7 +5043,7 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             VERBOSE( fprintf(gpx->log, "Capture to file: %s" EOL,
                         get_sd_status(sio->response.sd.status)) );
             break;
-            
+
             // 15 - End capture to file
         case 15:
             // uint32: Number of bytes captured to file.
@@ -5051,7 +5051,7 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             VERBOSE( fprintf(gpx->log, "Capture to file ended: %u bytes written" EOL,
                         sio->response.sd.length) );
             break;
-            
+
             // 16 - Play back capture
         case 16:
             // uint8: SD response code
@@ -5059,7 +5059,7 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             VERBOSE( fprintf(gpx->log, "Play back captured file: %s" EOL,
                         get_sd_status(sio->response.sd.status)) );
             break;
-            
+
             // 18 - Get next filename
         case 18:
             // uint8: SD Response code.
@@ -5071,34 +5071,34 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
                         sio->response.sd.filename,
                         get_sd_status(sio->response.sd.status)) );
             break;
-            
+
             // 20 - Get build name
         case 20:
             // 1+N bytes: A null terminated string representing the filename of the current build.
             strncpy0(sio->response.sd.filename, gpx->buffer.ptr, 65);
             VERBOSE( fprintf(gpx->log, "Get build name: '%s'" EOL, sio->response.sd.filename) );
             break;
-            
+
             // 21 - Get extended position
         case 21:
             // int32: X position, in steps
             sio->response.position.x = read_32(gpx);
-            
+
             // int32: Y position, in steps
             sio->response.position.y = read_32(gpx);
-            
+
             // int32: Z position, in steps
             sio->response.position.z = read_32(gpx);
-            
+
             // int32: A position, in steps
             sio->response.position.a = read_32(gpx);
-            
+
             // int32: B position, in steps
             sio->response.position.b = read_32(gpx);
-            
+
             // uint16: bitfield corresponding to the endstop status:
             sio->response.position.endstop.bitfield = read_16(gpx);
-            
+
             if(gpx->flag.verboseMode && gpx->flag.logMessages) {
                 fputs("Current position" EOL, gpx->log);
                 fprintf(gpx->log, "X = %0.2fmm%s%s" EOL,
@@ -5123,14 +5123,14 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
                         sio->response.position.endstop.flag.bMin ? ", at min endstop" : "");
             }
             break;
-                        
+
             // 22 - Extended stop
         case 22:
             // int8: 0 (reserved for future use)
             read_8(gpx);
             VERBOSE( fputs("Build stopped" EOL, gpx->log) );
             break;
-            
+
             // 23 - Get motherboard status
         case 23:
             // uint8: bitfield containing status information
@@ -5147,15 +5147,15 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
                 if(sio->response.motherboard.flag.powerError) fputs("Error detected in system power" EOL, gpx->log);
             }
             break;
-            
+
             // 24 - Get build statistics
         case 24:
             // uint8 : Build status
             sio->response.build.status = read_8(gpx);
-            
+
             // uint8 : Hours elapsed on print
             sio->response.build.hours = read_8(gpx);
-            
+
             // uint8 : Minutes elapsed on print (add hours for total time)
             sio->response.build.minutes = read_8(gpx);
 
@@ -5164,7 +5164,7 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
 
             // uint32: Reserved for future use
             read_32(gpx);
-            
+
             VERBOSE( fprintf(gpx->log, "(line %u) Build status: %s, %u hours, %u minutes" EOL,
                         sio->response.build.lineNumber,
                         get_build_status(sio->response.build.status),
@@ -5176,19 +5176,19 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
         case 27:
             // uint16_t Firmware version
             sio->response.firmware.version = read_16(gpx);
-            
+
             // uint16_t Internal version
             read_16(gpx);
-            
+
             // uint8_t Software variant (0x01 MBI Official, 0x80 Sailfish)
             sio->response.firmware.variant = read_8(gpx);
-            
+
             // uint8_t Reserved for future use
             read_8(gpx);
 
             // uint16_t Reserved for future use
             read_16(gpx);
-            
+
             if(gpx->flag.verboseMode && gpx->flag.logMessages) {
                 char *varient = "Unknown";
                 switch(sio->response.firmware.variant) {
@@ -5229,7 +5229,7 @@ static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                 return ESIOWRITE;
             }
             sio->bytes_out += length;
-            
+
             if(sio->bytes_in) {
                 // recieve the response
                 if((bytes = read(sio->port, gpx->buffer.in, 2)) == -1) {
@@ -5261,7 +5261,7 @@ static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                     return errno;
                 }
                 else if(bytes != 1) {
-                    return ESIOREAD;                    
+                    return ESIOREAD;
                 }
             }
             size_t payload_length = gpx->buffer.in[1];
@@ -5270,7 +5270,7 @@ static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                 return errno;
             }
             else if(bytes != payload_length + 1) {
-                return ESIOREAD;                
+                return ESIOREAD;
             }
             // check CRC
             unsigned crc = (unsigned char)gpx->buffer.in[2 + payload_length];
@@ -5286,7 +5286,7 @@ static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                 case 0x80:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Generic Packet error: packet discarded" EOL, retry_count) );
                     break;
-        
+
                     // 0x81 - Success
                 case 0x81: {
                     unsigned command = (unsigned)buffer[COMMAND_OFFSET];
@@ -5295,7 +5295,7 @@ static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                     }
                     return SUCCESS;
                 }
-                    
+
                     // 0x82 - Action buffer overflow, entire packet discarded
                 case 0x82:
                     do {
@@ -5307,12 +5307,12 @@ static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                         // loop until buffer has space for the next command
                     } while(sio->response.bufferSize < length);
                     break;
-                    
+
                     // 0x83 - CRC mismatch, packet discarded. (retry)
                 case 0x83:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Output CRC mismatch: packet discarded" EOL, retry_count) );
                     break;
-                    
+
                     // 0x84 - Query packet too big, packet discarded
                 case 0x84:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Query packet too big: packet discarded" EOL, retry_count) );
@@ -5322,32 +5322,32 @@ static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                 case 0x85:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Command not supported or recognized" EOL, retry_count) );
                     goto L_ABORT;
-                    
+
                     // 0x87 - Downstream timeout
                 case 0x87:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Downstream timeout" EOL, retry_count) );
                     goto L_ABORT;
-                    
+
                     // 0x88 - Tool lock timeout (retry)
                 case 0x88:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Tool lock timeout" EOL, retry_count) );
                     break;
-                    
+
                 // 0x89 - Cancel build (retry)
                 case 0x89:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Cancel build" EOL, retry_count) );
                     break;
-                    
+
                     // 0x8A - Bot is building from SD
                 case 0x8A:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Bot is Building from SD card" EOL, retry_count) );
                     goto L_ABORT;
-                    
+
                     // 0x8B - Bot is shutdown due to overheating
                 case 0x8B:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Bot is shutdown due to overheating" EOL, retry_count) );
                     goto L_ABORT;
-                    
+
                     // 0x8C - Packet timeout error, packet discarded (retry)
                 case 0x8C:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Packet timeout error: packet discarded" EOL, retry_count) );
@@ -5389,14 +5389,14 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port)
         gpx->callbackHandler = (int (*)(Gpx*, void*, char*, size_t))port_handler;;
         gpx->callbackData = &sio;
     }
-    
+
     if(sio_port > 2) {
         sio.port = sio_port;
     }
-    
+
     for(;;) {
         int overflow = 0;
-        
+
         while(fgets(gpx->buffer.in, BUFFER_MAX, sio.in) != NULL) {
             // detect input buffer overflow and ignore overflow input
             if(overflow) {
@@ -5409,32 +5409,32 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port)
                 overflow = 1;
                 SHOW( fprintf(gpx->log, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX) );
             }
-            
+
             rval = gpx_convert_line(gpx, gpx->buffer.in);
             // normal exit
             if(rval > 0) break;
             // error
             if(rval < 0) return rval;
         }
-        
+
         if(program_is_running()) {
             end_program();
             CALL( set_build_progress(gpx, 100) );
             CALL( end_build(gpx) );
         }
-        
+
         CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
-        
+
         gpx->total.length = gpx->accumulated.a + gpx->accumulated.b;
         gpx->total.time = gpx->accumulated.time;
         gpx->total.bytes = gpx->accumulated.bytes;
-        
+
         if(++i > 1) break;
-        
+
         // rewind for second pass
         fseek(sio.in, 0L, SEEK_SET);
         gpx_initialize(gpx, 0);
-        
+
         gpx->flag.logMessages = 1;
         gpx->flag.framingEnabled = 1;
         gpx->callbackHandler = (int (*)(Gpx*, void*, char*, size_t))port_handler;;

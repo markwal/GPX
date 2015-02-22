@@ -74,17 +74,17 @@ static void exit_handler(void)
 static void usage()
 {
     fputs("GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
-    
+
     fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, stderr);
     fputs("it under the terms of the GNU General Public License as published by" EOL, stderr);
     fputs("the Free Software Foundation; either version 2 of the License, or" EOL, stderr);
     fputs("(at your option) any later version." EOL, stderr);
-    
+
     fputs(EOL "This program is distributed in the hope that it will be useful," EOL, stderr);
     fputs("but WITHOUT ANY WARRANTY; without even the implied warranty of" EOL, stderr);
     fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, stderr);
     fputs("GNU General Public License for more details." EOL, stderr);
-    
+
     fputs(EOL "Usage:" EOL, stderr);
     fputs("gpx [-dgilpqrstvw] [-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, stderr);
     fputs(EOL "Options:" EOL, stderr);
@@ -128,7 +128,7 @@ static void usage()
     fputs("\tgpx -c custom-tom.ini example.gcode /volumes/things/example.x3g" EOL, stderr);
     fputs("\tgpx -x 3 -y -3 offset-model.gcode" EOL, stderr);
     fputs("\tgpx -m c4 -s sio-example.gcode /dev/tty.usbmodem" EOL EOL, stderr);
-    
+
     exit(1);
 }
 
@@ -140,62 +140,62 @@ static void sio_open(char *filename, speed_t baud_rate)
         perror("Error opening port");
         exit(-1);
     }
-    
+
     if(fcntl(sio_port, F_SETFL, O_RDWR) < 0) {
         perror("Setting port descriptor flags");
         exit(-1);
     }
-    
+
     if(tcgetattr(sio_port, &tp) < 0) {
         perror("Error getting port attributes");
         exit(-1);
     }
-    
+
     cfmakeraw(&tp);
-    
+
     /*
      // 8N1
      tp.c_cflag &= ~PARENB;
      tp.c_cflag &= ~CSTOPB;
      tp.c_cflag &= ~CSIZE;
      tp.c_cflag |= CS8;
-     
+
      // no flow control
      tp.c_cflag &= ~CRTSCTS;
-     
+
      // disable hang-up-on-close to avoid reset
      //tp.c_cflag &= ~HUPCL;
-     
+
      // turn on READ & ignore ctrl lines
      tp.c_cflag |= CREAD | CLOCAL;
-     
+
      // turn off s/w flow ctrl
      tp.c_cflag &= ~(IXON | IXOFF | IXANY);
-     
+
      // make raw
      tp.c_cflag &= ~(ICANON | ECHO | ECHOE | ISIG);
      tp.c_cflag &= ~OPOST;
-     
+
      // see: http://unixwiz.net/techtips/termios-vmin-vtime.html
      tp.c_cc[VMIN]  = 0;
      tp.c_cc[VTIME] = 0;
      */
-    
+
     cfsetspeed(&tp, baud_rate);
     // cfsetispeed(&tp, baud_rate);
     // cfsetospeed(&tp, baud_rate);
-    
+
     if(tcsetattr(sio_port, TCSANOW, &tp) < 0) {
         perror("Error setting port attributes");
         exit(-1);
     }
-    
+
     sleep(2);
     if(tcflush(sio_port, TCIOFLUSH) < 0) {
         perror("Error flushing port");
         exit(-1);
     }
-    
+
     if(gpx.flag.verboseMode) fprintf(gpx.log, "Communicating via: %s" EOL, filename);
 }
 
@@ -215,7 +215,7 @@ int main(int argc, char * argv[])
     char *buildname = "GPX " GPX_VERSION;
     char *filename;
     speed_t baud_rate = B115200;
-    
+
     // default to standard I/O
     file_in = stdin;
     file_out = stdout;
@@ -224,9 +224,9 @@ int main(int argc, char * argv[])
     atexit(exit_handler);
 
     gpx_initialize(&gpx, 1);
-    
+
     // READ GPX.INI
-    
+
     // if present, read the gpx.ini file from the program directory
     {
         char *appname = argv[0];
@@ -258,9 +258,9 @@ int main(int argc, char * argv[])
             usage();
         }
     }
-    
+
     // READ COMMAND LINE
-    
+
     // get the command line options
     while ((c = getopt(argc, argv, "b:c:de:gf:ilm:n:pqrstvwx:y:z:?")) != -1) {
         switch (c) {
@@ -371,12 +371,12 @@ int main(int argc, char * argv[])
                 usage();
         }
     }
-    
+
     argc -= optind;
     argv += optind;
-    
+
     // LOG TO FILE
-    
+
     if(log_to_file && argc > 0) {
         filename = (argc > 1 && !serial_io) ? argv[1] : argv[0];
         // or use the input filename with a .log extension
@@ -398,15 +398,15 @@ int main(int argc, char * argv[])
         *filename++ = 'g';
         *filename++ = '\0';
         filename = gpx.buffer.out;
-        
+
         if((gpx.log = fopen(filename, "w+")) == NULL) {
             gpx.log = stderr;
             perror("Error opening log");
         }
     }
-    
+
     // READ CONFIGURATION
-    
+
     if(config) {
         if(gpx.flag.verboseMode) fprintf(gpx.log, "Loading custom config: %s" EOL, config);
         i = gpx_load_config(&gpx, config);
@@ -419,13 +419,13 @@ int main(int argc, char * argv[])
             usage();
         }
     }
-    
+
     if(baud_rate == B57600 && gpx.machine.type >= MACHINE_TYPE_REPLICATOR_1) {
         if(gpx.flag.verboseMode) fputs("WARNING: a 57600 bps baud rate will cause problems with Repicator 2/2X Mightyboards" EOL, gpx.log);
     }
-    
+
     // OPEN FILES AND PORTS FOR INPUT AND OUTPUT
-    
+
     if(standard_io) {
         if(serial_io) {
             if(argc > 0) {
@@ -454,7 +454,7 @@ int main(int argc, char * argv[])
         else {
             buildname = filename;
         }
-        
+
         argc--;
         argv++;
         // use the output filename if one is provided
@@ -505,7 +505,7 @@ int main(int argc, char * argv[])
             }
             filename = gpx.buffer.out;
         }
-        
+
         // trim build name extension
         char *dot = strrchr(buildname, '.');
         if(dot) *dot = 0;
@@ -548,7 +548,7 @@ int main(int argc, char * argv[])
         fputs("Command line error: provide an input file or enable standard I/O" EOL, stderr);
         usage();
     }
-    
+
     if(log_to_file) {
         if(gpx.flag.buildProgress) fputs("Build progress: enabled" EOL, gpx.log);
         if(gpx.flag.dittoPrinting) fputs("Ditto printing: enabled" EOL, gpx.log);
@@ -578,15 +578,15 @@ int main(int argc, char * argv[])
         }
         else {
             // READ INPUT AND SEND OUTPUT TO PRINTER
-            
+
             gpx_start_convert(&gpx, buildname);
             rval = gpx_convert_and_send(&gpx, file_in, sio_port);
             gpx_end_convert(&gpx);
         }
     }
-    else {        
+    else {
         // READ INPUT AND CONVERT TO OUTPUT
-        
+
         gpx_start_convert(&gpx, buildname);
         rval = gpx_convert(&gpx, file_in, file_out, file_out2);
         gpx_end_convert(&gpx);
