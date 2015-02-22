@@ -180,8 +180,21 @@ extern "C" {
     } Extruder;
 
 
-#define MACHINE_TYPE_REPLICATOR_1 7
-#define MACHINE_TYPE_REPLICATOR_2 9
+#define MACHINE_TYPE_CUPCAKE_G3     1  // Cupcake Gen 3 electronics
+#define MACHINE_TYPE_CUPCAKE_G4     2  // Cupcake Gen 4 electronics
+#define MACHINE_TYPE_CUPCAKE_P4     3  // Cupcake Gen 4 + Pololu
+#define MACHINE_TYPE_CUPCAKE_PP     4  // Cupcake Gen 3 + Pololu
+#define MACHINE_TYPE_THINGOMATIC_7  5  // ToM Mk7 Single
+#define MACHINE_TYPE_THINGOMATIC_7D 6  // ToM Mk7 Dual
+#define MACHINE_TYPE_REPLICATOR_1   7  // Rep 1 Single
+#define MACHINE_TYPE_REPLICATOR_1D  8  // Rep 1 Dual
+#define MACHINE_TYPE_REPLICATOR_2   9  // Rep 2
+#define MACHINE_TYPE_REPLICATOR_2H 10  // Rep 2 w/HBP
+#define MACHINE_TYPE_REPLICATOR_2X 11  // Rep 2X
+#define MACHINE_TYPE_CORE_XY       12  // Core XY Single w/HBP
+#define MACHINE_TYPE_CORE_XYSZ     13  // Core XY Single w/HBP, slower Z
+#define MACHINE_TYPE_ZYYX          14  // ZYYX Single
+#define MACHINE_TYPE_ZYYX_D        15  // ZYYX Dual
 
     typedef struct tMachine {
         Axis x;

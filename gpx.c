@@ -60,7 +60,7 @@ static Machine cupcake_G3 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
-    1,
+    MACHINE_TYPE_CUPCAKE_G3
 };
 
 static Machine cupcake_G4 = {
@@ -74,7 +74,7 @@ static Machine cupcake_G4 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
-    2,
+    MACHINE_TYPE_CUPCAKE_G4
 };
 
 static Machine cupcake_P4 = {
@@ -88,7 +88,7 @@ static Machine cupcake_P4 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
-    3,
+    MACHINE_TYPE_CUPCAKE_P4
 };
 
 static Machine cupcake_PP = {
@@ -102,7 +102,7 @@ static Machine cupcake_PP = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
-    4,
+    MACHINE_TYPE_CUPCAKE_PP
 };
 
 //  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
@@ -119,7 +119,7 @@ static Machine thing_o_matic_7 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
-    5,
+    MACHINE_TYPE_THINGOMATIC_7
 };
 
 static Machine thing_o_matic_7D = {
@@ -133,7 +133,7 @@ static Machine thing_o_matic_7D = {
     0.4, // nozzle diameter
     2,  // extruder count
     20, // timeout
-    6,
+    MACHINE_TYPE_THINGOMATIC_7D
 };
 
 //  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
@@ -150,7 +150,7 @@ static Machine replicator_1 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
-    7,
+    MACHINE_TYPE_REPLICATOR_1
 };
 
 static Machine replicator_1D = {
@@ -164,7 +164,7 @@ static Machine replicator_1D = {
     0.4, // nozzle diameter
     2,  // extruder count
     20, // timeout
-    8,
+    MACHINE_TYPE_REPLICATOR_1D
 };
 
 //  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
@@ -181,7 +181,7 @@ static Machine replicator_2 = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
-    9,
+    MACHINE_TYPE_REPLICATOR_2
 };
 
 static Machine replicator_2H = {
@@ -195,7 +195,7 @@ static Machine replicator_2H = {
     0.4, // nozzle diameter
     1,  // extruder count
     20, // timeout
-    10,
+    MACHINE_TYPE_REPLICATOR_2H
 };
 
 static Machine replicator_2X = {
@@ -209,7 +209,7 @@ static Machine replicator_2X = {
     0.4, // nozzle diameter
     2,  // extruder count
     20, // timeout
-    11,
+    MACHINE_TYPE_REPLICATOR_2X
 };
 
 #define MACHINE_IS(m) strcasecmp(machine, m) == 0
@@ -218,7 +218,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
 {
     // only load/clobber the on-board machine definition if the one specified is different
     if(MACHINE_IS("c3")) {
-        if(gpx->machine.type != 1) {
+        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_G3) {
             gpx->machine = cupcake_G3;
             VERBOSE( fputs("Loading machine definition: Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, gpx->log) );
         }
@@ -227,7 +227,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
     }
     else if(MACHINE_IS("c4")) {
-        if(gpx->machine.type != 2) {
+        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_G4) {
             gpx->machine = cupcake_G4;
             VERBOSE( fputs("Loading machine definition: Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, gpx->log) );
         }
@@ -236,7 +236,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
     }
     else if(MACHINE_IS("cp4")) {
-        if(gpx->machine.type != 3) {
+        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_P4) {
             gpx->machine = cupcake_P4;
             VERBOSE( fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, gpx->log) );
         }
@@ -245,7 +245,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
     }
     else if(MACHINE_IS("cpp")) {
-        if(gpx->machine.type != 4) {
+        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_PP) {
             gpx->machine = cupcake_PP;
             VERBOSE( fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, gpx->log) );
         }
@@ -254,7 +254,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
     }
     else if(MACHINE_IS("t6")) {
-        if(gpx->machine.type != 5) {
+        if(gpx->machine.type != MACHINE_TYPE_THINGOMATIC_7) {
             gpx->machine = thing_o_matic_7;
             VERBOSE( fputs("Loading machine definition: TOM Mk6 - single extruder" EOL, gpx->log) );
         }
@@ -263,7 +263,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
     }
     else if(MACHINE_IS("t7")) {
-        if(gpx->machine.type != 5) {
+        if(gpx->machine.type != MACHINE_TYPE_THINGOMATIC_7) {
             gpx->machine = thing_o_matic_7;
             VERBOSE( fputs("Loading machine definition: TOM Mk7 - single extruder" EOL, gpx->log) );
         }
@@ -272,7 +272,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
     }
     else if(MACHINE_IS("t7d")) {
-        if(gpx->machine.type != 6) {
+        if(gpx->machine.type != MACHINE_TYPE_THINGOMATIC_7D) {
             gpx->machine = thing_o_matic_7D;
             VERBOSE( fputs("Loading machine definition: TOM Mk7 - dual extruder" EOL, gpx->log) );
         }
@@ -281,7 +281,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
     }
     else if(MACHINE_IS("r1")) {
-        if(gpx->machine.type != 7) {
+        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_1) {
             gpx->machine = replicator_1;
             VERBOSE( fputs("Loading machine definition: Replicator 1 - single extruder" EOL, gpx->log) );
         }
@@ -290,7 +290,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
     }
     else if(MACHINE_IS("r1d")) {
-        if(gpx->machine.type != 8) {
+        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_1D) {
             gpx->machine = replicator_1D;
             VERBOSE( fputs("Loading machine definition: Replicator 1 - dual extruder" EOL, gpx->log) );
         }
@@ -299,7 +299,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
     }
     else if(MACHINE_IS("r2")) {
-        if(gpx->machine.type != 9) {
+        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_2) {
             gpx->machine = replicator_2;
             VERBOSE( fputs("Loading machine definition: Replicator 2" EOL, gpx->log) );
         }
@@ -308,7 +308,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
     }
     else if(MACHINE_IS("r2h")) {
-        if(gpx->machine.type != 10) {
+        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_2H) {
             gpx->machine = replicator_2H;
             VERBOSE( fputs("Loading machine definition: Replicator 2 with HBP" EOL, gpx->log) );
         }
@@ -317,7 +317,7 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
     }
     else if(MACHINE_IS("r2x")) {
-        if(gpx->machine.type != 11) {
+        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_2X) {
             gpx->machine = replicator_2X;
             VERBOSE( fputs("Loading machine definition: Replicator 2X" EOL, gpx->log) );
         }
