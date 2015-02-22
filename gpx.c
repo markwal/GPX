@@ -4379,57 +4379,89 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             case 105:
                 break;
 
-                // M106 - Turn cooling fan on
-            case 106: {
-                int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;
-                if(gpx->flag.reprapFlavor && gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
-                    if(gpx->flag.dittoPrinting) {
-                        CALL( set_valve(gpx, B, state) );
-                        CALL( set_valve(gpx, A, state) );
-                        command_emitted++;
-                    }
-                    else {
-                        CALL( set_valve(gpx, gpx->target.extruder, state) );
-                        command_emitted++;
-                    }
+                // M106 - Turn heatsink cooling fan on
+		// M106 - Turn ABP conveyor on
+
+		// 3 November 2014
+		//
+		// In Gen 4 electronics, turn the ABP conveyor on
+		// In MightyBoard electronics, turn the heatsink fan on
+
+            case 106:
+                if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+		    int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;
+		    if(gpx->flag.reprapFlavor) {
+			 // Toggle valve
+			 if(gpx->flag.dittoPrinting) {
+			      CALL( set_valve(gpx, B, state) );
+			      CALL( set_valve(gpx, A, state) );
+			      command_emitted++;
+			 }
+			 else {
+			      CALL( set_valve(gpx, gpx->target.extruder, state) );
+			      command_emitted++;
+			 }
+		    }
+		    else {
+			 // Toggle heatsink fan
+			 if(gpx->flag.dittoPrinting) {
+			      CALL( set_fan(gpx, B, state) );
+			      CALL( set_fan(gpx, A, state) );
+			      command_emitted++;
+			 }
+			 else {
+			      CALL( set_fan(gpx, gpx->target.extruder, state) );
+			      command_emitted++;
+			 }
+		    }
                 }
                 else {
-                    if(gpx->flag.dittoPrinting) {
-                        CALL( set_fan(gpx, B, state) );
-                        CALL( set_fan(gpx, A, state) );
-                        command_emitted++;
-                    }
-                    else {
-                        CALL( set_fan(gpx, gpx->target.extruder, state) );
-                        command_emitted++;
-                    }
+		     // Enable ABP
+		     CALL( set_abp(gpx, gpx->target.extruder, 1) );
+		     command_emitted++;
                 }
                 break;
-            }
 
                 // M107 - Turn cooling fan off
+		// M107 - Turn ABP conveyor off
+
+		// 3 November 2014
+		//
+		// In Gen 4 electronics, turn the ABP conveyor off
+		// In MightyBoard electronics, turn the heatsink fan off
+
             case 107:
-                if(gpx->flag.reprapFlavor && gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
-                    if(gpx->flag.dittoPrinting) {
-                        CALL( set_valve(gpx, B, 0) );
-                        CALL( set_valve(gpx, A, 0) );
-                        command_emitted++;
-                    }
-                    else {
-                        CALL( set_valve(gpx, gpx->target.extruder, 0) );
-                        command_emitted++;
-                    }
+                if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+		    int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 0;
+		    if(gpx->flag.reprapFlavor) {
+			 // Toggle valve
+			 if(gpx->flag.dittoPrinting) {
+			      CALL( set_valve(gpx, B, state) );
+			      CALL( set_valve(gpx, A, state) );
+			      command_emitted++;
+			 }
+			 else {
+			      CALL( set_valve(gpx, gpx->target.extruder, state) );
+			      command_emitted++;
+			 }
+		    }
+		    else {
+			 // Set the heatsink fan off
+			 if(gpx->flag.dittoPrinting) {
+			      CALL( set_fan(gpx, B, state) );
+			      CALL( set_fan(gpx, A, state) );
+			      command_emitted++;
+			 }
+			 else {
+			      CALL( set_fan(gpx, gpx->target.extruder, state) );
+			      command_emitted++;
+			 }
+		    }
                 }
                 else {
-                    if(gpx->flag.dittoPrinting) {
-                        CALL( set_fan(gpx, B, 0) );
-                        CALL( set_fan(gpx, A, 0) );
-                        command_emitted++;
-                    }
-                    else {
-                        CALL( set_fan(gpx, gpx->target.extruder, 0) );
-                        command_emitted++;
-                    }
+		     // Disable ABP
+		     CALL( set_abp(gpx, gpx->target.extruder, 0) );
+		     command_emitted++;
                 }
                 break;
 
