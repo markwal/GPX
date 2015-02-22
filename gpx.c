@@ -212,6 +212,66 @@ static Machine replicator_2X = {
     MACHINE_TYPE_REPLICATOR_2X
 };
 
+// Core-XY machine, 18 tooth GT2 timing pulleys for X and Y
+static Machine core_xy = {
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
+    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
+    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
+    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
+    1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
+    1,  // extruder count
+    20, // timeout
+    MACHINE_TYPE_CORE_XY
+};
+
+// Core-XY machine with a slow Z axis ("sz"), 18T GT2 pulleys for X and Y
+static Machine core_xysz = {
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
+    {600, 600, 400, ENDSTOP_IS_MIN},        // z axis
+    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
+    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
+    1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
+    1,  // extruder count
+    20, // timeout
+    MACHINE_TYPE_CORE_XYSZ
+};
+
+// ZYYX 3D printer, single extruder, 18T GT2 pulleys for X and Y
+static Machine zyyx = {
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
+    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
+    {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
+    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1.75, // nominal filament diameter
+    0.97, // nominal packing density
+    0.4, // nozzle diameter
+    1,  // extruder count
+    20, // timeout
+    MACHINE_TYPE_ZYYX
+};
+
+// ZYYX 3D printer, dual extruders, 18T GT2 pulleys for X and Y
+static Machine zyyx_d = {
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
+    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
+    {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
+    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1.75, // nominal filament diameter
+    0.97, // nominal packing density
+    0.4, // nozzle diameter
+    2,  // extruder count
+    20, // timeout
+    MACHINE_TYPE_ZYYX_D
+};
+
 #define MACHINE_IS(m) strcasecmp(machine, m) == 0
 
 int gpx_set_machine(Gpx *gpx, char *machine)
@@ -323,6 +383,42 @@ int gpx_set_machine(Gpx *gpx, char *machine)
         }
         else {
             VERBOSE( fputs("Ignoring duplicate machine definition: -m r2x" EOL, gpx->log) );
+        }
+    }
+    else if(MACHINE_IS("cxysz")) {
+        if(gpx->machine.type != MACHINE_TYPE_CORE_XYSZ) {
+            gpx->machine = core_xy;
+            VERBOSE( fputs("Loading machine definition: Core-XYSZ" EOL, gpx->log) );
+        }
+        else {
+            VERBOSE( fputs("Ignoring duplicate machine definition: -m cxysz" EOL, gpx->log) );
+        }
+    }
+    else if(MACHINE_IS("cxy")) {
+        if(gpx->machine.type != MACHINE_TYPE_CORE_XY) {
+            gpx->machine = core_xy;
+            VERBOSE( fputs("Loading machine definition: Core-XY" EOL, gpx->log) );
+        }
+        else {
+            VERBOSE( fputs("Ignoring duplicate machine definition: -m cxy" EOL, gpx->log) );
+        }
+    }
+    else if(MACHINE_IS("z")) {
+        if(gpx->machine.type != MACHINE_TYPE_ZYYX) {
+            gpx->machine = zyyx;
+            VERBOSE( fputs("Loading machine definition: ZYYX - single extruder" EOL, gpx->log) );
+        }
+        else {
+            VERBOSE( fputs("Ignoring duplicate machine definition: -m z" EOL, gpx->log) );
+        }
+    }
+    else if(MACHINE_IS("zd")) {
+        if(gpx->machine.type != MACHINE_TYPE_ZYYX_D) {
+            gpx->machine = zyyx_d;
+            VERBOSE( fputs("Loading machine definition: ZYYX - dual extruder" EOL, gpx->log) );
+        }
+        else {
+            VERBOSE( fputs("Ignoring duplicate machine definition: -m zd" EOL, gpx->log) );
         }
     }
     else {
