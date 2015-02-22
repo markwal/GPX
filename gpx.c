@@ -109,8 +109,8 @@ static Machine cupcake_PP = {
 //  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
 
 static Machine thing_o_matic_7 = {
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
+    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // x axis
+    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // y axis
     {1000, 500, 200, ENDSTOP_IS_MAX},        // z axis
     {1600, 50.235478806907409, 1600, 1}, // a extruder
     {1600, 50.235478806907409, 1600, 1}, // b extruder
@@ -123,8 +123,8 @@ static Machine thing_o_matic_7 = {
 };
 
 static Machine thing_o_matic_7D = {
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
+    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // x axis
+    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // y axis
     {1000, 500, 200, ENDSTOP_IS_MAX},        // z axis
     {1600, 50.235478806907409, 1600, 1}, // a extruder
     {1600, 50.235478806907409, 1600, 1}, // b extruder
@@ -140,8 +140,8 @@ static Machine thing_o_matic_7D = {
 //  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
 
 static Machine replicator_1 = {
-    {18000, 2500, 94.139704, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 94.139704, ENDSTOP_IS_MAX}, // y axis
+    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // x axis
+    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // y axis
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
@@ -154,8 +154,8 @@ static Machine replicator_1 = {
 };
 
 static Machine replicator_1D = {
-    {18000, 2500, 94.139704, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 94.139704, ENDSTOP_IS_MAX}, // y axis
+    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // x axis
+    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // y axis
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
@@ -171,8 +171,8 @@ static Machine replicator_1D = {
 //  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
 
 static Machine replicator_2 = {
-    {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // y axis
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
@@ -185,8 +185,8 @@ static Machine replicator_2 = {
 };
 
 static Machine replicator_2H = {
-    {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // y axis
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
@@ -199,8 +199,8 @@ static Machine replicator_2H = {
 };
 
 static Machine replicator_2X = {
-    {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.573186, ENDSTOP_IS_MAX}, // y axis
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
+    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
     {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
     {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
