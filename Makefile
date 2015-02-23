@@ -1,11 +1,49 @@
+TARGET=
+
 # Declaration of variables
-CC = cc
+UNAME_OS := $(subst /,_,$(shell uname -s))
+UNAME_ARCH := $(subst /,_,$(shell uname -p))
+
+ifeq ("1", "1")
+endif
+
+ifeq ($(TARGET), mingw64)
+
+CC = /opt/mingw64/cross_win64/bin/x86_64-w64-mingw32-gcc
 CC_FLAGS = -w
 L_FLAGS = -lm
+PLATFORM = win64
+
+else ifeq ($(TARGET), mingw32)
+
+CC = /opt/mingw32/cross_win32/bin/i686-w64-mingw32-gcc
+CC_FLAGS = -w
+L_FLAGS = -lm
+PLATFORM = win32
+
+else ifeq ($(UNAME_OS), Darwin)
+
+CC = cc
+CC_FLAGS = -DSERIAL_SUPPORT
+L_FLAGS = -lm
+PLATFORM = osx
+
+else ifeq ($(UNAME_OS), Linux)
+
+CC = cc
+CC_FLAGS = -DSERIAL_SUPPORT
+L_FLAGS = -lm
+PLATFORM = linux
+
+else
+
+@echo Unsupported build platform '$(UNAME_OS)'
+false
+
+endif
 
 # File names
 VERSION = 2.0
-PLATFORM=osx
 ARCHIVE = gpx-$(PLATFORM)-$(VERSION)
 PREFIX = /usr/local
 SOURCES = $(wildcard *.c)
@@ -17,7 +55,7 @@ all: gpx
 
 # Main target
 gpx: $(OBJECTS)
-	$(CC) $(L_FLAGS) $(OBJECTS) -o gpx
+	$(CC) $(OBJECTS) $(L_FLAGS) -o gpx
 
 # To obtain object files
 %.o: %.c
