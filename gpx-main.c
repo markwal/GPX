@@ -80,7 +80,10 @@ static void exit_handler(void)
 
 static void usage()
 {
-    fputs("GPX " GPX_VERSION " Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
+    fputs("GPX " GPX_VERSION EOL, stderr);
+    fputs("Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
+
+    fputs("Additional changes Copyright (c) 2014, 2015 DNewman, All rights reserved." EOL, stderr);
 
     fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, stderr);
     fputs("it under the terms of the GNU General Public License as published by" EOL, stderr);
