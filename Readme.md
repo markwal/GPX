@@ -1,6 +1,5 @@
-GPX was created by Dr. Henry Thomas (aka Wingcommander) in April 2013
-This fork incorporates some bug fixes, tweaks, and new printers by Daniel Newman,
-2014 -- 2015.
+GPX was created by Dr. Henry Thomas (aka Wingcommander) in April 2013.  This fork
+incorporates some bug fixes, tweaks, and new printers by Daniel Newman, 2014 -- 2015.
 
 GPX is a post processing utility for converting gcode output from 3D slicing software like
 Cura, KISSlicer, S3DCreator and Slic3r to x3g files for standalone 3D printing on Makerbot
