@@ -122,7 +122,7 @@ static void usage(int err)
     fputs("GNU General Public License for more details." EOL, fp);
 
     fputs(EOL "Usage:" EOL, fp);
-    fputs("gpx [-dgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 " [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
+    fputs("gpx [-dgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
     fputs(EOL "Options:" EOL, fp);
     fputs("\t-d\tsimulated ditto printing" EOL, fp);
     fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, fp);
