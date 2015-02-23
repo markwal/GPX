@@ -1,0 +1,8 @@
+*.pyc
+*~
+\#*\#
+dmg
+*.dmg
+*.o
+*.svn
+.DS_Store
