@@ -3,8 +3,10 @@
 \#*\#
 dmg
 *.dmg
+*.gz
+*.zip
 *.o
 *.svn
 .DS_Store
-dmg.sh
+*.sh
 gpx
