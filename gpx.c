@@ -30,7 +30,7 @@
 #include <float.h>
 #include <math.h>
 #include <stdlib.h>
-#include <strings.h>
+#include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
 
