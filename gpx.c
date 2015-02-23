@@ -32,7 +32,6 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <sys/types.h>
-#include <sys/uio.h>
 #include <unistd.h>
 
 #include "gpx.h"
@@ -5442,7 +5441,7 @@ static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                     return ESIOREAD;
                 }
                 // invalid start byte
-                if(gpx->buffer.in[0] != 0xD5) {
+                if((unsigned char)gpx->buffer.in[0] != 0xD5) {
                     return ESIOFRAME;
                 }
             }
@@ -5457,7 +5456,7 @@ static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                         return ESIOREAD;
                     }
                     // loop until we get a valid start byte
-                    if(gpx->buffer.in[0] == 0xD5) break;
+                    if((unsigned char)gpx->buffer.in[0] == 0xD5) break;
                 }
                 // read length
                 if((bytes = read(sio->port, gpx->buffer.in + 1, 1)) == -1) {

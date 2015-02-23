@@ -28,19 +28,28 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
-#include <termios.h>
+#include <string.h>
+//#include <strings.h>
+
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <unistd.h>
+#endif
+
+#if defined(SERIAL_SUPPORT)
+#include <termios.h>
+#else
+typedef long speed_t;
+#define B115200 115200
+#define B57600  57600
+#define NO_SERIAL_SUPPORT_MSG "Serial I/O and USB printing is not supported " \
+     "by this build of GPX"
+#endif
 
 #if defined(_WIN32) || defined(_WIN64)
 #   include "getopt.h"
     // strcasecmp() is not provided on Windows
     // _stricmp() is equivalent but may require <string.h>
 #   define strcasecmp _stricmp
-#endif
-
-#if !defined(_WIN32) && !defined(_WIN64)
-#   include <unistd.h>
 #endif
 
 #include "gpx.h"
@@ -77,6 +86,7 @@ static void exit_handler(void)
     // Do not assume that sio_port > 2 means it needs to be
     // closed.  Instead, if it isn't negative, then it needs
     // to be closed.
+
     if(sio_port >= 0) {
         close(sio_port);
     }
@@ -84,75 +94,107 @@ static void exit_handler(void)
 
 // display usage and exit
 
-static void usage()
+static void usage(int err)
 {
-    fputs("GPX " GPX_VERSION EOL, stderr);
-    fputs("Copyright (c) 2013 WHPThomas, All rights reserved." EOL, stderr);
+    FILE *fp = err ? stderr : stdout;
+    err = err ? 1 : 0;
+#if defined(SERIAL_SUPPORT)
+#define SERIAL_MSG1 "s"
+#define SERIAL_MSG2 "[-b BAUDRATE] "
+#else
+#define SERIAL_MSG1 ""
+#define SERIAL_MSG2 ""
+#endif
 
-    fputs("Additional changes Copyright (c) 2014, 2015 DNewman, All rights reserved." EOL, stderr);
+    fputs("GPX " GPX_VERSION EOL, fp);
+    fputs("Copyright (c) 2013 WHPThomas, All rights reserved." EOL, fp);
 
-    fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, stderr);
-    fputs("it under the terms of the GNU General Public License as published by" EOL, stderr);
-    fputs("the Free Software Foundation; either version 2 of the License, or" EOL, stderr);
-    fputs("(at your option) any later version." EOL, stderr);
+    fputs("Additional changes Copyright (c) 2014, 2015 DNewman, All rights reserved." EOL, fp);
 
-    fputs(EOL "This program is distributed in the hope that it will be useful," EOL, stderr);
-    fputs("but WITHOUT ANY WARRANTY; without even the implied warranty of" EOL, stderr);
-    fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, stderr);
-    fputs("GNU General Public License for more details." EOL, stderr);
+    fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, fp);
+    fputs("it under the terms of the GNU General Public License as published by" EOL, fp);
+    fputs("the Free Software Foundation; either version 2 of the License, or" EOL, fp);
+    fputs("(at your option) any later version." EOL, fp);
 
-    fputs(EOL "Usage:" EOL, stderr);
-    fputs("gpx [-dgilpqrstvw] [-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, stderr);
-    fputs(EOL "Options:" EOL, stderr);
-    fputs("\t-d\tsimulated ditto printing" EOL, stderr);
-    fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, stderr);
-    fputs("\t-i\tenable stdin and stdout support for command line pipes" EOL, stderr);
-    fputs("\t-l\tlog to file" EOL, stderr);
-    fputs("\t-p\toverride build percentage" EOL, stderr);
-    fputs("\t-q\tquiet mode" EOL, stderr);
-    fputs("\t-r\tReprap GCODE flavor" EOL, stderr);
-    fputs("\t-s\tenable USB serial I/O and send x3G output to 3D printer" EOL, stderr);
-    fputs("\t-t\ttruncate filename (DOS 8.3 format)" EOL, stderr);
-    fputs("\t-v\tverose mode" EOL, stderr);
-    fputs("\t-w\trewrite 5d extrusion values" EOL, stderr);
-    fputs(EOL "BAUDRATE: the baudrate for serial I/O (default is 115200)" EOL, stderr);
-    fputs("CONFIG: the filename of a custom machine definition (ini file)" EOL, stderr);
-    fputs("EEPROM: the filename of an eeprom settings definition (ini file)" EOL, stderr);
-    fputs("DIAMETER: the actual filament diameter in the printer" EOL, stderr);
-    fputs(EOL "MACHINE: the predefined machine type" EOL, stderr);
-    fputs("\tc3  = Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-    fputs("\tc4  = Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-    fputs("\tcp4 = Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, stderr);
-    fputs("\tcpp = Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, stderr);
-    fputs("\tcxy = Core-XY with HBP - single extruder" EOL, stderr);
-    fputs("\tcxysz = Core-XY with HBP - single extruder, slow Z" EOL, stderr);
-    fputs("\tr1  = Replicator 1 - single extruder" EOL, stderr);
-    fputs("\tr1d = Replicator 1 - dual extruder" EOL, stderr);
-    fputs("\tr2  = Replicator 2 (default)" EOL, stderr);
-    fputs("\tr2h = Replicator 2 with HBP" EOL, stderr);
-    fputs("\tr2x = Replicator 2X" EOL, stderr);
-    fputs("\tt6  = TOM Mk6 - single extruder" EOL, stderr);
-    fputs("\tt7  = TOM Mk7 - single extruder" EOL, stderr);
-    fputs("\tt7d = TOM Mk7 - dual extruder" EOL, stderr);
-    fputs("\tz   = ZYYX - single extruder" EOL, stderr);
-    fputs("\tzd  = ZYYX - dual extruder" EOL, stderr);
-    fputs(EOL "SCALE: the coordinate system scale for the conversion (ABS = 1.0035)" EOL, stderr);
-    fputs("X,Y & Z: the coordinate system offsets for the conversion" EOL, stderr);
-    fputs("\tX = the x axis offset" EOL, stderr);
-    fputs("\tY = the y axis offset" EOL, stderr);
-    fputs("\tZ = the z axis offset" EOL, stderr);
-    fputs(EOL "IN: the name of the sliced gcode input filename" EOL, stderr);
-    fputs("OUT: the name of the x3g output filename or the serial I/O port" EOL, stderr);
-    fputs(EOL "Examples:" EOL, stderr);
-    fputs("\tgpx -p -m r2 my-sliced-model.gcode" EOL, stderr);
-    fputs("\tgpx -c custom-tom.ini example.gcode /volumes/things/example.x3g" EOL, stderr);
-    fputs("\tgpx -x 3 -y -3 offset-model.gcode" EOL, stderr);
-    fputs("\tgpx -m c4 -s sio-example.gcode /dev/tty.usbmodem" EOL EOL, stderr);
+    fputs(EOL "This program is distributed in the hope that it will be useful," EOL, fp);
+    fputs("but WITHOUT ANY WARRANTY; without even the implied warranty of" EOL, fp);
+    fputs("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" EOL, fp);
+    fputs("GNU General Public License for more details." EOL, fp);
 
-    exit(1);
+    fputs(EOL "Usage:" EOL, fp);
+    fputs("gpx [-dgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 " [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
+    fputs(EOL "Options:" EOL, fp);
+    fputs("\t-d\tsimulated ditto printing" EOL, fp);
+    fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, fp);
+    fputs("\t-i\tenable stdin and stdout support for command line pipes" EOL, fp);
+    fputs("\t-l\tlog to file" EOL, fp);
+    fputs("\t-p\toverride build percentage" EOL, fp);
+    fputs("\t-q\tquiet mode" EOL, fp);
+    fputs("\t-r\tReprap GCODE flavor" EOL, fp);
+#if defined(SERIAL_SUPPORT)
+    fputs("\t-s\tenable USB serial I/O and send x3G output to 3D printer" EOL, fp);
+#endif
+    fputs("\t-t\ttruncate filename (DOS 8.3 format)" EOL, fp);
+    fputs("\t-v\tverose mode" EOL, fp);
+    fputs("\t-w\trewrite 5d extrusion values" EOL, fp);
+#if defined(SERIAL_SUPPORT)
+    fputs(EOL "BAUDRATE: the baudrate for serial I/O (default is 115200)" EOL, fp);
+#endif
+    fputs("CONFIG: the filename of a custom machine definition (ini file)" EOL, fp);
+    fputs("EEPROM: the filename of an eeprom settings definition (ini file)" EOL, fp);
+    fputs("DIAMETER: the actual filament diameter in the printer" EOL, fp);
+    fputs(EOL "MACHINE: the predefined machine type" EOL, fp);
+    fputs("\tc3  = Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, fp);
+    fputs("\tc4  = Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, fp);
+    fputs("\tcp4 = Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, fp);
+    fputs("\tcpp = Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, fp);
+    fputs("\tcxy = Core-XY with HBP - single extruder" EOL, fp);
+    fputs("\tcxysz = Core-XY with HBP - single extruder, slow Z" EOL, fp);
+    fputs("\tr1  = Replicator 1 - single extruder" EOL, fp);
+    fputs("\tr1d = Replicator 1 - dual extruder" EOL, fp);
+    fputs("\tr2  = Replicator 2 (default)" EOL, fp);
+    fputs("\tr2h = Replicator 2 with HBP" EOL, fp);
+    fputs("\tr2x = Replicator 2X" EOL, fp);
+    fputs("\tt6  = TOM Mk6 - single extruder" EOL, fp);
+    fputs("\tt7  = TOM Mk7 - single extruder" EOL, fp);
+    fputs("\tt7d = TOM Mk7 - dual extruder" EOL, fp);
+    fputs("\tz   = ZYYX - single extruder" EOL, fp);
+    fputs("\tzd  = ZYYX - dual extruder" EOL, fp);
+    fputs(EOL "SCALE: the coordinate system scale for the conversion (ABS = 1.0035)" EOL, fp);
+    fputs("X,Y & Z: the coordinate system offsets for the conversion" EOL, fp);
+    fputs("\tX = the x axis offset" EOL, fp);
+    fputs("\tY = the y axis offset" EOL, fp);
+    fputs("\tZ = the z axis offset" EOL, fp);
+    fputs(EOL "IN: the name of the sliced gcode input filename" EOL, fp);
+    fputs("OUT: the name of the x3g output filename"
+#if defined(SERIAL_SUPPORT)
+	  "or the serial I/O port"
+#endif
+	  EOL, fp);
+    fputs(EOL "Examples:" EOL, fp);
+    fputs("\tgpx -p -m r2 my-sliced-model.gcode" EOL, fp);
+    fputs("\tgpx -c custom-tom.ini example.gcode /volumes/things/example.x3g" EOL, fp);
+    fputs("\tgpx -x 3 -y -3 offset-model.gcode" EOL, fp);
+#if defined(SERIAL_SUPPORT)
+    fputs("\tgpx -m c4 -s sio-example.gcode /dev/tty.usbmodem" EOL EOL, fp);
+#endif
+
+    exit(err);
 }
 
-static void sio_open(char *filename, speed_t baud_rate)
+#if !defined(SERIAL_SUPPORT)
+
+// Should never be called in practice but code is less grotty (less #ifdef's)
+// if we simply provide this stub
+static void sio_open(const char *filename, speed_t baud_rate)
+{
+     perror(NO_SERIAL_SUPPORT_MSG);
+     exit(1);
+}
+
+#else
+
+static void sio_open(const char *filename, speed_t baud_rate)
 {
     struct termios tp;
     // open and configure the serial port
@@ -219,10 +261,11 @@ static void sio_open(char *filename, speed_t baud_rate)
     if(gpx.flag.verboseMode) fprintf(gpx.log, "Communicating via: %s" EOL, filename);
 }
 
+#endif // SERIAL_SUPPORT
 
 // GPX program entry point
 
-int main(int argc, char * argv[])
+int main(int argc, char * const argv[])
 {
     int c, i, rval;
     int log_to_file = 0;
@@ -234,8 +277,8 @@ int main(int argc, char * argv[])
     double filament_diameter = 0;
     char *buildname = "GPX " GPX_VERSION;
     char *filename;
-    speed_t baud_rate = B115200;
     int ini_loaded = 0;
+    speed_t baud_rate = B115200;
 
     // default to standard I/O
     file_in = stdin;
@@ -265,7 +308,7 @@ int main(int argc, char * argv[])
 		  }
 		  else if (i > 0) {
 		       fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, fbuf);
-		       usage();
+		       usage(1);
 		  }
 	     }
 	}
@@ -274,18 +317,18 @@ int main(int argc, char * argv[])
 
     // if present, read the gpx.ini file from the program directory
     if(!ini_loaded) {
-        char *appname = argv[0];
+	char *appname;
         // check for .exe extension
-        char *dot = strrchr(appname, '.');
+        const char *dot = strrchr(argv[0], '.');
         if(dot && !strcasecmp(dot,".exe")) {
-            long l = dot - appname;
-            memcpy(gpx.buffer.out, appname, l);
+            long l = dot - argv[0];
+            memcpy(gpx.buffer.out, argv[0], l);
             appname = gpx.buffer.out + l;
         }
         // or just append .ini if no extension is present
         else {
-            size_t sl = strlen(appname);
-            memcpy(gpx.buffer.out, appname, sl);
+            size_t sl = strlen(argv[0]);
+            memcpy(gpx.buffer.out, argv[0], sl);
             appname = gpx.buffer.out + sl;
         }
         *appname++ = '.';
@@ -300,16 +343,24 @@ int main(int argc, char * argv[])
         }
         else if (i > 0) {
 	    fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, appname);
-            usage();
+            usage(1);
         }
     }
 
     // READ COMMAND LINE
 
     // get the command line options
+    // Allow -s and -b so that we can give a more targetted
+    // error message should they be attempted when the code
+    // is compiled without serial I/O support.
+
     while ((c = getopt(argc, argv, "b:c:de:gf:ilm:n:pqrstvwx:y:z:?")) != -1) {
         switch (c) {
             case 'b':
+#if !defined(SERIAL_SUPPORT)
+		fprintf(stderr, NO_SERIAL_SUPPORT_MSG EOL);
+		usage(1);
+#else
                 i = atoi(optarg);
                 switch(i) {
                     case 4800:
@@ -342,13 +393,19 @@ int main(int argc, char * argv[])
                         break;
                     default:
                         fprintf(stderr, "Command line error: unsupported baud rate '%s'" EOL, optarg);
-                        usage();
+                        usage(1);
                 }
                 if(gpx.flag.verboseMode) fprintf(stderr, "Setting baud rate to: %i bps" EOL, i);
+#endif
                 // fall through
             case 's':
+#if !defined(SERIAL_SUPPORT)
+		 fprintf(stderr, NO_SERIAL_SUPPORT_MSG EOL);
+		usage(1);
+#else
                 serial_io = 1;
                 gpx.flag.framingEnabled = 1;
+#endif
                 break;
             case 'c':
                 config = optarg;
@@ -378,7 +435,7 @@ int main(int argc, char * argv[])
                 break;
             case 'm':
                 if(gpx_set_property(&gpx, "printer", "machine_type", optarg)) {
-                    usage();
+                    usage(1);
                 }
                 break;
             case 'n':
@@ -412,8 +469,11 @@ int main(int argc, char * argv[])
                 gpx.user.offset.z = strtod(optarg, NULL);
                 break;
             case '?':
+		usage(0);
+		// NEVER REACHED
+		break;
             default:
-                usage();
+                usage(1);
         }
     }
 
@@ -457,11 +517,11 @@ int main(int argc, char * argv[])
         i = gpx_load_config(&gpx, config);
         if (i < 0) {
             fprintf(stderr, "Command line error: cannot load configuration file '%s'" EOL, config);
-            usage();
+            usage(1);
         }
         else if (i > 0) {
             fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, config);
-            usage();
+            usage(1);
         }
     }
 
@@ -479,7 +539,7 @@ int main(int argc, char * argv[])
             }
             else {
                 fputs("Command line error: port required for serial I/O" EOL, stderr);
-                usage();
+                usage(1);
             }
         }
     }
@@ -509,7 +569,7 @@ int main(int argc, char * argv[])
         else {
             if(serial_io) {
                 fputs("Command line error: port required for serial I/O" EOL, stderr);
-                usage();
+                usage(1);
             }
             // or use the input filename with a .x3g extension
             char *dot = strrchr(filename, '.');
@@ -591,7 +651,7 @@ int main(int argc, char * argv[])
     }
     else {
         fputs("Command line error: provide an input file or enable standard I/O" EOL, stderr);
-        usage();
+        usage(1);
     }
 
     if(log_to_file) {
@@ -613,11 +673,11 @@ int main(int argc, char * argv[])
             i = eeprom_load_config(&gpx, eeprom);
             if (i < 0) {
                 fprintf(stderr, "Command line error: cannot load eeprom configuration file '%s'" EOL, eeprom);
-                usage();
+                usage(1);
             }
             else if (i > 0) {
                 fprintf(stderr, "(line %u) Eeprom configuration syntax error in %s: unrecognised paremeters" EOL, i, eeprom);
-                usage();
+                usage(1);
             }
             exit(SUCCESS);
         }
