@@ -6,3 +6,4 @@ dmg
 *.o
 *.svn
 .DS_Store
+dmg.sh
