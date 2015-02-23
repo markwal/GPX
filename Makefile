@@ -1,4 +1,5 @@
 TARGET=
+EXE=
 
 # Declaration of variables
 UNAME_OS := $(subst /,_,$(shell uname -s))
@@ -10,16 +11,18 @@ endif
 ifeq ($(TARGET), mingw64)
 
 CC = /opt/mingw64/cross_win64/bin/x86_64-w64-mingw32-gcc
-CC_FLAGS = -w
+CC_FLAGS =
 L_FLAGS = -lm
 PLATFORM = win64
+EXE = '.exe'
 
 else ifeq ($(TARGET), mingw32)
 
 CC = /opt/mingw32/cross_win32/bin/i686-w64-mingw32-gcc
-CC_FLAGS = -w
+CC_FLAGS =
 L_FLAGS = -lm
 PLATFORM = win32
+EXE = '.exe'
 
 else ifeq ($(UNAME_OS), Darwin)
 
@@ -55,7 +58,7 @@ all: gpx
 
 # Main target
 gpx: $(OBJECTS)
-	$(CC) $(OBJECTS) $(L_FLAGS) -o gpx
+	$(CC) $(OBJECTS) $(L_FLAGS) -o gpx$(EXE)
 
 # To obtain object files
 %.o: %.c
@@ -63,7 +66,7 @@ gpx: $(OBJECTS)
 
 # To remove generated files
 clean:
-	rm -f gpx $(OBJECTS)
+	rm -f gpx$(EXE) $(OBJECTS)
 	rm -f $(ARCHIVE).tar.gz
 	rm -f $(ARCHIVE).zip
 	rm -f $(ARCHIVE).dmg
