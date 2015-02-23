@@ -1,4 +1,6 @@
 GPX was created by Dr. Henry Thomas (aka Wingcommander) in April 2013
+This fork incorporates some bug fixes, tweaks, and new printers by Daniel Newman,
+2014 -- 2015.
 
 GPX is a post processing utility for converting gcode output from 3D slicing software like
 Cura, KISSlicer, S3DCreator and Slic3r to x3g files for standalone 3D printing on Makerbot
@@ -33,6 +35,8 @@ M is the predefined machine type:
 	c4  = Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder
 	cp4 = Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder
 	cpp = Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder
+	cxy = Core-XY, 18 tooth GT2 timing pulleys for X & Y
+	cxysz = Core-XY, slow Z axis, 18T GT2 for X & Y
 	t6  = TOM Mk6 - single extruder
 	t7  = TOM Mk7 - single extruder
 	t7d = TOM Mk7 - dual extruder
@@ -41,6 +45,8 @@ M is the predefined machine type:
 	r2  = Replicator 2 (default)
 	r2h = Replicator 2 with HBP
 	r2x = Replicator 2X
+	z   = ZYYX - single extruder
+	zd  = ZYYX - dual extruder
 
 X,Y & Z are the coordinate system offsets for the conversion:
 
