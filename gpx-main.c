@@ -71,7 +71,13 @@ static void exit_handler(void)
             fclose(file_out2);
         }
     }
-    if(sio_port > 2) {
+
+    // 23 February 2015
+    // Assuming stdin=0, stdout=1, stderr=3 isn't always safe
+    // Do not assume that sio_port > 2 means it needs to be
+    // closed.  Instead, if it isn't negative, then it needs
+    // to be closed.
+    if(sio_port >= 0) {
         close(sio_port);
     }
 }
