@@ -13,5 +13,5 @@ gpx
 gpx.exe
 osx_obj
 linux_obj
-mingw32_obj
-mingw64_obj
+win32_obj
+win64_obj
