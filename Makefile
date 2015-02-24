@@ -1,11 +1,23 @@
+# Build GPX, build GPX distributions
+# Dan Newman, February 2015
+#
+# make dist -- compile gpx and assemble a gpx distribution
+# make      -- compile gpx
+# make mostlyclean -- remove the build directories but retain distributions
+# make clean       -- remove the build directories and distributions
+#
+# For cross compiling with MinGW, two target types may be specified on
+# the make command line:
+#
+#   make [optional-target] TARGET=mingw32    # Build for Win 32
+#   make [optional-target] TARGET=mingw64    # Build for Win 64
+
 TARGET=
 
-# Declaration of variables
+# OS specific settings
+
 UNAME_OS := $(subst /,_,$(shell uname -s))
 UNAME_ARCH := $(subst /,_,$(shell uname -p))
-
-ifeq ("1", "1")
-endif
 
 ifeq ($(TARGET), mingw64)
 
@@ -46,36 +58,42 @@ false
 
 endif
 
+# Build directories
+
 VERSION = 2.1
-OBJDIR = $(PLATFORM)_obj
+OBJDIR  = $(PLATFORM)_obj
 ARCHIVE = gpx-$(VERSION)-$(PLATFORM)
 ARCHDIR = $(OBJDIR)/$(ARCHIVE)
-PREFIX = /usr/local
+
+# OS commands
+
+CHMOD = chmod
+CP = cp
+GZIP = gzip -9c
+MKDIR = mkdir -p
+RM = rm -f
+RMDIR = rm -rf
+PYTHON = python
+TAR = tar cf
+ZIP = zip -r
 
 SOURCES = $(wildcard *.c)
 OBJECTS = $(addprefix $(OBJDIR)/,$(SOURCES:%.c=%.o))
-
-MKDIR = mkdir -p
-CP = cp
-CHMOD = chmod
 
 all: $(OBJDIR)/gpx
 
 .PHONY: all
 
-# Main target
 $(OBJDIR)/gpx: $(OBJDIR) $(OBJECTS)
 	$(CC) $(OBJECTS) $(L_FLAGS) -o $(OBJDIR)/gpx$(EXE)
 
 $(OBJDIR):
 	-@$(MKDIR) $(OBJDIR)
 
-# To obtain object files
 $(OBJDIR)/%.o: %.c
 	$(CC) $(CC_FLAGS) -c -o $@ $<
 
-# To make a package
-package: $(OBJDIR)/gpx
+dist: $(OBJDIR)/gpx
 	-@$(MKDIR) $(ARCHDIR)
 	-@$(MKDIR) $(ARCHDIR)/examples
 	-@$(MKDIR) $(ARCHDIR)/scripts
@@ -94,32 +112,19 @@ ifneq ("$(wildcard sign-osx.sh)","")
 endif
 	@test -x /usr/bin/hdiutil && hdiutil create -format UDZO -srcfolder $(ARCHDIR) $(ARCHIVE).dmg
 else ifeq ($(PLATFORM), linux)
-	tar cf - $(ARCHDIR) | gzip -9c > $(ARCHIVE).tar.gz
+	$(TAR) - $(ARCHDIR) | $(GZIP) > $(ARCHIVE).tar.gz
 else
-	zip -r $(ARCHIVE).zip $(ARCHDIR)
+	$(ZIP) $(ARCHIVE).zip $(ARCHDIR)
 endif
 
+mostlyclean:
+	-@$(RMDIR) $(OBJDIR)
 
-# To remove generated files
-clean:
-	rm -rf $(OBJDIR)
-	rm -f $(ARCHIVE).tar.gz
-	rm -f $(ARCHIVE).zip
-	rm -f $(ARCHIVE).dmg
+clean: mostlyclean
+	-@$(RM) $(ARCHIVE).tar.gz
+	-@$(RM) $(ARCHIVE).zip
+	-@$(RM) $(ARCHIVE).dmg
 
-# To install program and supporting files
-install: gpx
-	test -d $(PREFIX) || mkdir $(PREFIX)
-	test -d $(PREFIX)/bin || mkdir $(PREFIX)/bin
-	install -m 0755 gpx $(PREFIX)/bin
-#	test -d $(PREFIX)/share || mkdir $(PREFIX)/share
-#	test -d $(PREFIX)/share/gpx || mkdir -p $(PREFIX)/share/gpx
-#	for INI in *.ini; do \
-#		install -m 0644 $$INI $(PREFIX)/share/gpx; \
-#	done
-
-
-# Run unit test
-test: gpx
-	./gpx lint.gcode
-	python ./s3g-decompiler.py lint.x3g
+test: $(OBJDIR)/gpx$(EXE)
+	$(OBJDIR)/gpx$(EXE) examples/lint.gcode $(OBJDIR)/lint.x3g
+	$(PYTHON) scripts/s3g-decompiler.py $(OBJDIR)/lint.x3g
