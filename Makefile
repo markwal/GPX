@@ -1,5 +1,4 @@
 TARGET=
-EXE=
 
 # Declaration of variables
 UNAME_OS := $(subst /,_,$(shell uname -s))
@@ -14,7 +13,7 @@ CC = /opt/mingw64/cross_win64/bin/x86_64-w64-mingw32-gcc
 CC_FLAGS =
 L_FLAGS = -lm
 PLATFORM = win64
-EXE = '.exe'
+EXE = .exe
 
 else ifeq ($(TARGET), mingw32)
 
@@ -22,7 +21,7 @@ CC = /opt/mingw32/cross_win32/bin/i686-w64-mingw32-gcc
 CC_FLAGS =
 L_FLAGS = -lm
 PLATFORM = win32
-EXE = '.exe'
+EXE = .exe
 
 else ifeq ($(UNAME_OS), Darwin)
 
@@ -30,6 +29,7 @@ CC = cc
 CC_FLAGS = -DSERIAL_SUPPORT
 L_FLAGS = -lm
 PLATFORM = osx
+EXE =
 
 else ifeq ($(UNAME_OS), Linux)
 
@@ -37,6 +37,7 @@ CC = cc
 CC_FLAGS = -DSERIAL_SUPPORT
 L_FLAGS = -lm
 PLATFORM = linux
+EXE =
 
 else
 
@@ -45,28 +46,63 @@ false
 
 endif
 
-# File names
-VERSION = 2.0
-ARCHIVE = gpx-$(PLATFORM)-$(VERSION)
+VERSION = 2.1
+OBJDIR = $(PLATFORM)_obj
+ARCHIVE = gpx-$(VERSION)-$(PLATFORM)
+ARCHDIR = $(OBJDIR)/$(ARCHIVE)
 PREFIX = /usr/local
-SOURCES = $(wildcard *.c)
-OBJECTS = $(SOURCES:.c=.o)
 
-all: gpx
+SOURCES = $(wildcard *.c)
+OBJECTS = $(addprefix $(OBJDIR)/,$(SOURCES:%.c=%.o))
+
+MKDIR = mkdir -p
+CP = cp
+CHMOD = chmod
+
+all: $(OBJDIR)/gpx
 
 .PHONY: all
 
 # Main target
-gpx: $(OBJECTS)
-	$(CC) $(OBJECTS) $(L_FLAGS) -o gpx$(EXE)
+$(OBJDIR)/gpx: $(OBJDIR) $(OBJECTS)
+	$(CC) $(OBJECTS) $(L_FLAGS) -o $(OBJDIR)/gpx$(EXE)
+
+$(OBJDIR):
+	-@$(MKDIR) $(OBJDIR)
 
 # To obtain object files
-%.o: %.c
-	$(CC) -c $(CC_FLAGS) $< -o $@
+$(OBJDIR)/%.o: %.c
+	$(CC) $(CC_FLAGS) -c -o $@ $<
+
+# To make a package
+package: $(OBJDIR)/gpx
+	-@$(MKDIR) $(ARCHDIR)
+	-@$(MKDIR) $(ARCHDIR)/examples
+	-@$(MKDIR) $(ARCHDIR)/scripts
+	@$(CP) $(OBJDIR)/gpx$(EXE) $(ARCHDIR)
+	@$(CP) examples/example-machine.ini \
+		examples/example-pause-at-zpos.ini \
+		examples/example-temperature.ini \
+		examples/lint.gcode \
+		examples/macro-example.gcode \
+		examples/rep2-eeprom.ini $(ARCHDIR)/examples
+	@$(CP) scripts/gpx.py scripts/s3g-decompiler.py $(ARCHDIR)/scripts
+	@$(CHMOD) -R a+rwx $(ARCHDIR)
+ifeq ($(PLATFORM), osx)
+ifneq ("$(wildcard sign-osx.sh)","")
+	@sign-osx.sh $(ARCHDIR)/gpx$(EXE)
+endif
+	@test -x /usr/bin/hdiutil && hdiutil create -format UDZO -srcfolder $(ARCHDIR) $(ARCHIVE).dmg
+else ifeq ($(PLATFORM), linux)
+	tar cf - $(ARCHDIR) | gzip -9c > $(ARCHIVE).tar.gz
+else
+	zip -r $(ARCHIVE).zip $(ARCHDIR)
+endif
+
 
 # To remove generated files
 clean:
-	rm -f gpx$(EXE) $(OBJECTS)
+	rm -rf $(OBJDIR)
 	rm -f $(ARCHIVE).tar.gz
 	rm -f $(ARCHIVE).zip
 	rm -f $(ARCHIVE).dmg
@@ -81,19 +117,6 @@ install: gpx
 #	for INI in *.ini; do \
 #		install -m 0644 $$INI $(PREFIX)/share/gpx; \
 #	done
-
-# To make a distribution archive
-release: gpx
-	rm -rf $(ARCHIVE)	# Get rid of previous junk, if any.
-	rm -f $(ARCHIVE).tar.gz
-	rm -f $(ARCHIVE).zip
-	rm -f $(ARCHIVE).dmg
-	mkdir $(ARCHIVE)
-	cp -r gpx examples scripts *.ini $(ARCHIVE)
-	tar cf - $(ARCHIVE) | gzip -9c > $(ARCHIVE).tar.gz
-	zip -r $(ARCHIVE).zip $(ARCHIVE)
-	test -f /usr/bin/hdiutil && hdiutil create -format UDZO -srcfolder $(ARCHIVE) $(ARCHIVE).dmg
-	rm -rf $(ARCHIVE)
 
 
 # Run unit test
