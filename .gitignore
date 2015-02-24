@@ -10,3 +10,8 @@ dmg
 .DS_Store
 *.sh
 gpx
+gpx.exe
+osx_obj
+linux_obj
+mingw32_obj
+mingw64_obj
