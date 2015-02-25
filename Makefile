@@ -51,10 +51,17 @@ L_FLAGS = -lm
 PLATFORM = linux
 EXE =
 
+else ifeq ($(findstring MINGW32,$(UNAME_OS)), MINGW32)
+
+CC = gcc
+CC_FLAGS =
+L_FLAGS = -lm
+PLATFORM = win32
+EXE = .exe
+
 else
 
-@echo Unsupported build platform '$(UNAME_OS)'
-false
+$(error Unsupported build platform $(UNAME_OS))
 
 endif
 
