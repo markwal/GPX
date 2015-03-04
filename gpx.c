@@ -33,6 +33,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdarg.h>
 
 #include "gpx.h"
 
@@ -571,7 +572,9 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->flag.loadMacros = 1;
         gpx->flag.runMacros = 1;
     }
-    gpx->flag.framingEnabled = 0;
+
+    if(firstTime)
+	gpx->flag.framingEnabled = 0;
 
     gpx->longestDDA = 0;
     gpx->layerHeight = 0.34;
@@ -3525,8 +3528,51 @@ void gpx_register_callback(Gpx *gpx, int (*callbackHandler)(Gpx*, void*, char*, 
     gpx->callbackData = callbackData;
 }
 
-void gpx_start_convert(Gpx *gpx, char *buildName)
+static int process_options(Gpx *gpx, int item_code, va_list ap)
 {
+     if(!gpx) {
+	  SHOW( fprintf(gpx->log, "GPX programming error; NULL context "
+			"passed to process_options(); aborting " EOL) );
+	  return ERROR;
+     }
+
+     while (item_code)
+     {
+	  switch (item_code) {
+
+	  case ITEM_FRAMING_ENABLE :
+	       gpx->flag.framingEnabled = 1;
+	       break;
+
+	  case ITEM_FRAMING_DISABLE :
+	       gpx->flag.framingEnabled = 0;
+	       break;
+
+	  default :
+	       // Unrecognized item code; error
+	       SHOW( fprintf(gpx->log, "GPX programming error; invalid "
+			     "item code %d used; aborting " EOL, item_code) );
+	       return ERROR;
+	  }
+	  item_code = va_arg(ap, int);
+     }
+
+     return SUCCESS;
+}
+
+void gpx_start_convert(Gpx *gpx, char *buildName, int item_code, ...)
+{
+    if(item_code) {
+	 va_list ap;
+	 int retstat;
+
+	 va_start(ap, item_code);
+	 retstat = process_options(gpx, item_code, ap);
+	 va_end(ap);
+	 if(retstat != SUCCESS)
+	      return;
+    }
+
     if(buildName) gpx->buildName = buildName;
 
     if(gpx->flag.dittoPrinting && gpx->machine.extruder_count == 1) {
@@ -5565,7 +5611,8 @@ L_ABORT:
     return rval;
 }
 
-int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port)
+int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
+			 int item_code, ...)
 {
     int i, rval;
     Sio sio;
@@ -5592,7 +5639,18 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port)
         gpx->callbackData = &sio;
     }
 
-    if(sio_port > 2) {
+    if(item_code) {
+	 va_list ap;
+	 int retstat;
+
+	 va_start(ap, item_code);
+	 retstat = process_options(gpx, item_code, ap);
+	 va_end(ap);
+	 if (retstat != SUCCESS)
+	      return retstat;
+    }
+
+    if(sio_port >= 0) {
         sio.port = sio_port;
     }
 
@@ -5638,7 +5696,6 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port)
         gpx_initialize(gpx, 0);
 
         gpx->flag.logMessages = 1;
-        gpx->flag.framingEnabled = 1;
         gpx->callbackHandler = (int (*)(Gpx*, void*, char*, size_t))port_handler;;
         gpx->callbackData = &sio;
     }

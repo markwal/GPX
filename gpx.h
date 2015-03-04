@@ -46,6 +46,10 @@ extern "C" {
 #define ESIOFRAME -4
 #define ESIOCRC -5
 
+// Item codes for passing control options
+#define ITEM_FRAMING_ENABLE 1
+#define ITEM_FRAMING_DISABLE 2
+
 #define STREAM_VERSION_HIGH 0
 #define STREAM_VERSION_LOW 0
 
@@ -366,11 +370,11 @@ extern "C" {
 
     void gpx_register_callback(Gpx *gpx, int (*callbackHandler)(Gpx *gpx, void *callbackData, char *buffer, size_t length), void *callbackData);
 
-    void gpx_start_convert(Gpx *gpx, char *buildName);
+    void gpx_start_convert(Gpx *gpx, char *buildName, int item_code, ...);
 
     int gpx_convert_line(Gpx *gpx, char *gcode_line);
     int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2);
-    int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port);
+    int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port, int item_code, ...);
 
     void gpx_end_convert(Gpx *gpx);
 

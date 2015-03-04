@@ -122,8 +122,9 @@ static void usage(int err)
     fputs("GNU General Public License for more details." EOL, fp);
 
     fputs(EOL "Usage:" EOL, fp);
-    fputs("gpx [-dgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
+    fputs("gpx [-Fdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
     fputs(EOL "Options:" EOL, fp);
+    fputs("\t-F\twrite S3G/X3G on-wire framing data to output file" EOL, fp);
     fputs("\t-d\tsimulated ditto printing" EOL, fp);
     fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, fp);
     fputs("\t-i\tenable stdin and stdout support for command line pipes" EOL, fp);
@@ -268,6 +269,7 @@ static void sio_open(const char *filename, speed_t baud_rate)
 int main(int argc, char * const argv[])
 {
     int c, i, rval;
+    int force_framing = 0;
     int log_to_file = 0;
     int standard_io = 0;
     int serial_io = 0;
@@ -354,9 +356,12 @@ int main(int argc, char * const argv[])
     // error message should they be attempted when the code
     // is compiled without serial I/O support.
 
-    while ((c = getopt(argc, argv, "b:c:de:gf:ilm:n:pqrstvwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "Fb:c:de:gf:ilm:n:pqrstvwx:y:z:?")) != -1) {
         switch (c) {
-            case 'b':
+	    case 'F' :
+		 force_framing = ITEM_FRAMING_ENABLE;
+		 break;
+	    case 'b':
 #if !defined(SERIAL_SUPPORT)
 		fprintf(stderr, NO_SERIAL_SUPPORT_MSG EOL);
 		usage(1);
@@ -684,15 +689,15 @@ int main(int argc, char * const argv[])
         else {
             // READ INPUT AND SEND OUTPUT TO PRINTER
 
-            gpx_start_convert(&gpx, buildname);
-            rval = gpx_convert_and_send(&gpx, file_in, sio_port);
+	    gpx_start_convert(&gpx, buildname, force_framing, 0);
+            rval = gpx_convert_and_send(&gpx, file_in, sio_port, force_framing, 0);
             gpx_end_convert(&gpx);
         }
     }
     else {
         // READ INPUT AND CONVERT TO OUTPUT
 
-        gpx_start_convert(&gpx, buildname);
+	gpx_start_convert(&gpx, buildname, force_framing, 0);
         rval = gpx_convert(&gpx, file_in, file_out, file_out2);
         gpx_end_convert(&gpx);
     }
