@@ -2825,11 +2825,44 @@ static int do_tool_change(Gpx *gpx, int timeout) {
     if(gpx->current.offset == gpx->current.extruder + 1) {
         gpx->current.offset = gpx->target.extruder + 1;
     }
+
     // change current toolhead in order to apply the calibration offset
     CALL( change_extruder_offset(gpx, gpx->target.extruder) );
-    CALL( queue_absolute_point(gpx) );
+
+    // MBI's firmware and Sailfish 7.7 and earlier effect a tool change
+    // by adding the tool offset to the next move command.  That has two
+    // undesirable effects:
+    //
+    //  1. It changes the slope in the XY plane of the move, and
+    //  2. Since the firmwares do not recompute the distance, the acceleration
+    //       behavior is wrong.
+    //
+    // Item 2 is particularly foul in some instances causing thumps,
+    // lurches, or other odd behaviors as things move at the wrong speed
+    // (either too fast or too slow).
+    //
+    // Chow Loong Jin's simple solution solves both of these by queuing
+    // an *unaccelerated* move to the current position.  Since it is
+    // unaccelerated, there's no need for proper distance calcs and the
+    // firmware's failure to re-calc that info has no impact.  And since
+    // the motion is to the current position all that occurs is a simple
+    // travel move that does the tool offset.  The next useful motion
+    // command does not have its slope perturbed and will occur with the
+    // proper acceleration profile.
+    //
+    // Only gotcha here is that we may only do this when the position is
+    // well defined.  For example, we cannot do this for a tool change
+    // immediately after a 'recall home offsets' command.
+
+    if(XYZ_BIT_MASK == (gpx->axis.positionKnown & XYZ_BIT_MASK)) {
+	 gpx->target.position = gpx->current.position;
+	 gpx->axis.mask = XYZ_BIT_MASK;
+	 CALL( queue_absolute_point(gpx) );
+    }
+
     // set current extruder so changes in E are expressed as changes to A or B
     gpx->current.extruder = gpx->target.extruder;
+
     return SUCCESS;
 }
 
