@@ -2827,6 +2827,7 @@ static int do_tool_change(Gpx *gpx, int timeout) {
     }
     // change current toolhead in order to apply the calibration offset
     CALL( change_extruder_offset(gpx, gpx->target.extruder) );
+    CALL( queue_absolute_point(gpx) );
     // set current extruder so changes in E are expressed as changes to A or B
     gpx->current.extruder = gpx->target.extruder;
     return SUCCESS;
