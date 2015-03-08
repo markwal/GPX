@@ -24,11 +24,41 @@
 
 import struct
 import sys
+import getopt
 
+showOffset = False
 byteOffset = 0
+framed = False
+
+crc8_table = [
+  0,  94, 188, 226,  97,  63, 221, 131, 194, 156, 126,  32, 163, 253,  31,  65,
+157, 195,  33, 127, 252, 162,  64,  30,  95,   1, 227, 189,  62,  96, 130, 220,
+ 35, 125, 159, 193,  66,  28, 254, 160, 225, 191,  93,   3, 128, 222,  60,  98,
+190, 224,   2,  92, 223, 129,  99,  61, 124,  34, 192, 158,  29,  67, 161, 255,
+ 70,  24, 250, 164,  39, 121, 155, 197, 132, 218,  56, 102, 229, 187,  89,   7,
+219, 133, 103,  57, 186, 228,   6,  88,  25,  71, 165, 251, 120,  38, 196, 154,
+101,  59, 217, 135,   4,  90, 184, 230, 167, 249,  27,  69, 198, 152, 122,  36,
+248, 166,  68,  26, 153, 199,  37, 123,  58, 100, 134, 216,  91,   5, 231, 185,
+140, 210,  48, 110, 237, 179,  81,  15,  78,  16, 242, 172,  47, 113, 147, 205,
+ 17,  79, 173, 243, 112,  46, 204, 146, 211, 141, 111,  49, 178, 236,  14,  80,
+175, 241,  19,  77, 206, 144, 114,  44, 109,  51, 209, 143,  12,  82, 176, 238,
+ 50, 108, 142, 208,  83,  13, 239, 177, 240, 174,  76,  18, 145, 207,  45, 115,
+202, 148, 118,  40, 171, 245,  23,  73,   8,  86, 180, 234, 105,  55, 213, 139,
+ 87,   9, 235, 181,  54, 104, 138, 212, 149, 203,  41, 119, 244, 170,  72,  22,
+233, 183,  85,  11, 136, 214,  52, 106,  43, 117, 151, 201,  74,  20, 246, 168,
+116,  42, 200, 150,  21,  75, 169, 247, 182, 232,  10,  84, 215, 137, 107,  53]
+
+# CRC of payload should match CRC byte immediately after payload
+# Equivalently, CRC of payload and CRC byte should be 0x00
+
+def crc8(bytes):
+    val = 0;
+    for b in bytearray(bytes):
+        val = crc8_table[val ^ b]
+    return val
 
 toolCommandTable = {
-    1: ("", "(1) init: Initialize firmware to boot state"),
+    1: ("", "(1) Initialize firmware to boot state"),
     3: ("<H", "(3) Set target temperature %i"),
     4: ("<B", "(4) Motor 1: set speed (PWM) %i"),
     5: ("<B", "(5) Motor 2: set speed (PWM) %i"),
@@ -44,7 +74,7 @@ toolCommandTable = {
     15: ("B", "(15) Servo 2: angle %d"),
     27: ("B", "(27) Automated build platform: toggle %d"),
     31: ("<H", "(31) Set build platform temperature %i"),
-    129: ("<iiiI", "(129) Absolute move: (%i,%i,%i) at DDA %i"),
+    129: ("<iiiI", "(129) Absolute move to (%i,%i,%i) at DDA %i"),
 }
 
 def parseToolAction():
@@ -111,8 +141,40 @@ def parseBuildStartNotificationAction():
           break;
        else:
           buildName += c;
-
     return (steps[0],buildName)
+
+def parseFramedData():
+    global s3gFile
+    global byteOffset
+
+    #  Read payload length
+    packetStr = s3gFile.read(1)
+    byteOffset += 1
+
+    # Read the payload + CRC byte
+    (payloadLen) = struct.unpack("<B",packetStr)
+    payloadStr = s3gFile.read(payloadLen[0] + 1)
+
+    # Compute CRC over payload + CRC byte
+    # Result should be 0x00
+    crc = crc8(payloadStr)
+
+    # Move back to the start of the payload
+    s3gFile.seek(-(payloadLen[0]+1),1)
+
+    # Now parse the payload
+    if parseNextCommand(False):
+        # Eat the CRC at the end of the frame
+        s3gFile.read(1)
+        byteOffset += 1
+
+    # Flag a bad CRC
+    # I suppose we could actually return this as a string
+    #   and do something to get this printed out on the same line
+    if crc != 0:
+        print "BAD CRC in previous command"
+
+    return None
 
 # Command table entries consist of:
 # * The key: the integer command code
@@ -152,15 +214,16 @@ commandTable = {
     150: ("<BB", "(150) Set build percentage %i%%, ignore %i"),
     151: ("<B", "(151) Queue song %i"),
     152: ("<B", "(152) Reset to factory defaults, options 0x%X"),
-    153: (parseBuildStartNotificationAction, "[153] Start build notification, steps %i, name \"%s\""),
+    153: (parseBuildStartNotificationAction, "(153) Start build notification, steps %i, name \"%s\""),
     154: ("<B", "(154) End build notification, flags 0x%X"),
     155: ("<iiiiiIBfh", "(155) Move to (%i,%i,%i,%i,%i), dda_rate %i, relative mask %X, distance %f, feedrateX64 %i"),
     156: ("<B", "(156) Set acceleration state to %i"),
     157: ("<BBBIHHIIB", "(157) Stream version: %i.%i, %i, %i, %i, %i, %i, %i, %i"),
     158: ("<f", "(158) Pause @ Z position %f"),
+    213: (parseFramedData, None)
 }
 
-def parseNextCommand():
+def parseNextCommand(showStart):
     """Parse and handle the next command.  Returns
     True for success, False on EOF, and raises an
     exception on corrupt data."""
@@ -170,9 +233,13 @@ def parseNextCommand():
     if len(commandStr) == 0:
         print "EOF"
         return False
-    sys.stdout.write(str(lineNumber) + ' [' + str(byteOffset) + ']: ')
+    if showStart:
+        if showOffset:
+            sys.stdout.write(str(lineNumber) + ' [' + str(byteOffset) + ']: ')
+        else:
+            sys.stdout.write(str(lineNumber) + ': ')
     byteOffset += 1
-    (command) = struct.unpack("B",commandStr)
+    (command) = struct.unpack("<B",commandStr)
     (parse, disp) = commandTable[command[0]]
     if type(parse) == type(""):
         packetLen = struct.calcsize(parse)
@@ -185,12 +252,40 @@ def parseNextCommand():
         parsed = parse()
     if type(disp) == type(""):
         print disp % parsed
-    else:
+    elif disp is not None:
         disp(parsed)
     return True
 
-s3gFile = open(sys.argv[1],'rb')
+def usage(prog, exit_stat=0):
+    str = 'Usage: %s [-o] input-x3g-file\n' % prog
+    str += \
+'  -o, --offsets\n' + \
+'    Display the byte offset into the file for each command\n'
+    if exit_stat != 0:
+        sys.stderr.write(str)
+    else:
+        sys.stdout.write(str)
+    sys.exit(exit_stat)
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:], 'ho', ['help', 'offsets'])
+except:
+    usage(sys.argv[0], 1)
+
+if len(args) == 0:
+    usage(sys.argv[0], 1)
+
+for opt, val in opts:
+    if opt in ( '-h', '--help'):
+        usage( sys.argv[0], 0 )
+    elif opt in ('-o', '--offsets'):
+        showOffset = True
+
+s3gFile = open(args[0],'rb')
 lineNumber = 1
-sys.stdout.write('Command count [File byte offset]: (Command ID) Command description\n')
-while parseNextCommand():
+sys.stdout.write('Command count')
+if showOffset:
+    sys.stdout.write(' [File byte offset]')
+sys.stdout.write(': (Command ID) Command description\n')
+while parseNextCommand(True):
     lineNumber  = lineNumber + 1
