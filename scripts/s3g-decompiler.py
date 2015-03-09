@@ -28,7 +28,6 @@ import getopt
 
 showOffset = False
 byteOffset = 0
-framed = False
 
 crc8_table = [
   0,  94, 188, 226,  97,  63, 221, 131, 194, 156, 126,  32, 163, 253,  31,  65,
@@ -56,6 +55,44 @@ def crc8(bytes):
     for b in bytearray(bytes):
         val = crc8_table[val ^ b]
     return val
+
+def axes_str(bitmask, high_bit=None):
+    str = ''
+    first = True
+    if not high_bit is None:
+        if bitmask & 0x80:
+            str = high_bit[1] + ' '
+        else:
+            str = high_bit[0] + ' '
+    for i in range(0,5):
+        if bitmask & (1 << i):
+            if not first:
+                str += ', '
+            first = False
+            str += 'XYZAB'[i]
+    return str
+
+def Format(fmt, args):
+    fmt_list = fmt.replace('%%', '~~').split('%')
+    fmt_new = ''
+    args_new = list(args)
+    iargs = 0
+    if len(fmt_list) > 0:
+        fmt_new = fmt_list[0]
+        for l in fmt_list[1:]:
+            if l[0] == 'a':
+                args_new[iargs] = axes_str(args_new[iargs])
+                fmt_new += '%s' + l[1:]
+            elif l[0] == 'A':
+                args_new[iargs] = axes_str(args_new[iargs], ('Disable', 'Enable'))
+                fmt_new += '%s' + l[1:]
+            elif l[0] == 'b':
+                args_new[iargs] = 'XYZAB'[args_new[iargs]]
+                fmt_new += '%s' + l[1:]
+            else:
+                fmt_new += '%' + l
+            iargs += 1
+    return fmt_new.replace('~~', '%%'), tuple(args_new)
 
 toolCommandTable = {
     1: ("", "(1) Initialize firmware to boot state"),
@@ -172,7 +209,7 @@ def parseFramedData():
     # I suppose we could actually return this as a string
     #   and do something to get this printed out on the same line
     if crc != 0:
-        print "BAD CRC in previous command"
+        print "*** The CRC fails to match the data in the previous command ***"
 
     return None
 
@@ -189,24 +226,25 @@ def parseFramedData():
 # types should begin with "<".
 # For a refresher on Python struct syntax, see here:
 # http://docs.python.org/library/struct.html
+
 commandTable = {    
     129: ("<iiiI", "(129) Absolute move to (%i,%i,%i) at DDA %i"),
     130: ("<iii", "(130) Define machine position as (%i,%i,%i)"),
-    131: ("<BIH", "(131) Home minimum on %X, feedrate %i, timeout %i s"),
-    132: ("<BIH", "(132) Home maximum on %X, feedrate %i, timeout %i s"),
+    131: ("<BIH", "(131) Home minimum on %a, feedrate %i, timeout %i s"),
+    132: ("<BIH", "(132) Home maximum on %a, feedrate %i, timeout %i s"),
     133: ("<I", "(133) Dwell for %i microseconds"),
     134: ("<B", "(134) Change to Tool %i"),
     135: ("<BHH", "(135) Wait until Tool %i is ready, %i ms between polls, %i s timeout"),
     136: (parseToolAction, printToolAction),
-    137: ("<B", "(137) Enable/disable stepper motors, axes bitmask %X"),
+    137: ("<B", "(137) %A stepper motors"),
     138: ("<H", "(138) Wait on user response, option %i"),
     139: ("<iiiiiI", "(139) Absolute move to (%i,%i,%i,%i,%i) at DDA %i"),
     140: ("<iiiii", "(140) Define position as (%i,%i,%i,%i,%i)"),
     141: ("<BHH", "(141) Wait until platform %i is ready, %i ms between polls, %i s timeout"),
-    142: ("<iiiiiIB", "(142) Move to (%i,%i,%i,%i,%i) in %i us, relative mask %X)"),
-    143: ("<b", "(143) Store home position, axes bitmask %d"),
-    144: ("<b", "(144) Recall home position, axes bitmask %d"),
-    145: ("<BB", "(145) Set digipots for axes bitmask %i to %i"),
+    142: ("<iiiiiIB", "(142) Move to (%i,%i,%i,%i,%i) in %i us, relative mask %a"),
+    143: ("<b", "(143) Store home position for %a"),
+    144: ("<b", "(144) Recall home position for %a"),
+    145: ("<BB", "(145) Set digipot for %b to %i"),
     146: ("<BBBBB", "(146) Set RGB LED red %i, green %i, blue %i, blink rate %i, effect %i"),
     147: ("<HHB", "(147) Set buzzer, frequency %i, length %i, effect %i"),
     148: ("<BHB", "(148) Pause for button 0x%X, timeout %i s, timeout_bevavior %i"),
@@ -251,7 +289,8 @@ def parseNextCommand(showStart):
     else:
         parsed = parse()
     if type(disp) == type(""):
-        print disp % parsed
+        fmt, args = Format(disp, parsed)
+        print fmt % args
     elif disp is not None:
         disp(parsed)
     return True
