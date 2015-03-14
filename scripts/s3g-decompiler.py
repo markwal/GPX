@@ -119,12 +119,12 @@ def parseToolAction():
     global byteOffset
     packetStr = s3gFile.read(3)
     if len(packetStr) != 3:
-        raise "Incomplete s3g file during tool command parse"
+        raise "Error: file appears to be truncated; cannot parse"
     byteOffset += 3
     (index,command,payload) = struct.unpack("<BBB",packetStr)
     contents = s3gFile.read(payload)
     if len(contents) != payload:
-        raise "Incomplete s3g file: tool packet truncated"
+        raise "Error: file appears to be truncated; cannot parse"
     byteOffset += payload
     return (index,command,contents)
 
@@ -136,7 +136,7 @@ def printToolAction(tuple):
     if type(parse) == type(""):
         packetLen = struct.calcsize(parse)
         if len(tuple[2]) != packetLen:
-            raise "Packet incomplete"
+            raise "Error: file appears to be truncated; cannot parse"
         parsed = struct.unpack(parse,tuple[2])
     else:
         parsed = parse()
@@ -148,7 +148,7 @@ def parseDisplayMessageAction():
     global byteOffset
     packetStr = s3gFile.read(4)
     if len(packetStr) < 4:
-        raise "Incomplete s3g file during tool command parse"
+        raise "Error: file appears to be truncated; cannot parse"
     byteOffset += 4
     (options,offsetX,offsetY,timeout) = struct.unpack("<BBBB",packetStr)
     message = "";
@@ -167,7 +167,7 @@ def parseBuildStartNotificationAction():
     global byteOffset
     packetStr = s3gFile.read(4)
     if len(packetStr) < 4:
-        raise "Incomplete s3g file during tool command parse"
+        raise "Error: file appears to be truncated; cannot parse"
     byteOffset += 4
     (steps) = struct.unpack("<i",packetStr)
     buildName = "";
@@ -283,7 +283,7 @@ def parseNextCommand(showStart):
         packetLen = struct.calcsize(parse)
         packetData = s3gFile.read(packetLen)
         if len(packetData) != packetLen:
-            raise "Packet incomplete"
+            raise "Error: file appears to be truncated; cannot parse"
         byteOffset += packetLen
         parsed = struct.unpack(parse,packetData)
     else:
@@ -328,3 +328,4 @@ if showOffset:
 sys.stdout.write(': (Command ID) Command description\n')
 while parseNextCommand(True):
     lineNumber  = lineNumber + 1
+s3gFile.close()
