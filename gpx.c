@@ -45,385 +45,72 @@
 #define CALL(FN) if((rval = FN) != SUCCESS) return rval
 
 // Machine definitions
-
-//  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
-//  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
-
-static Machine cupcake_G3 = {
-    {9600, 500, 11.767463, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 11.767463, ENDSTOP_IS_MIN}, // y axis
-    {450, 450, 320, ENDSTOP_IS_MIN},        // z axis
-    {7200, 50.235478806907409, 400, 1}, // a extruder
-    {7200, 50.235478806907409, 400, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CUPCAKE_G3
+#include "std_machines.h"
+static Machine *machines[] = {
+     &cupcake_G3,
+     &cupcake_G4,
+     &cupcake_P4,
+     &cupcake_PP,
+     &core_xy,
+     &core_xysz,
+     &replicator_1,
+     &replicator_1D,
+     &replicator_2,
+     &replicator_2H,
+     &replicator_2X,
+     &thing_o_matic_6,
+     &thing_o_matic_7,
+     &thing_o_matic_7D,
+     &zyyx,
+     &zyyx_D,
+     NULL
 };
 
-static Machine cupcake_G4 = {
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
-    {450, 450, 1280, ENDSTOP_IS_MIN},        // z axis
-    {7200, 50.235478806907409, 400, 1}, // a extruder
-    {7200, 50.235478806907409, 400, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CUPCAKE_G4
-};
+void gpx_list_machines(FILE *fp)
+{
+     Machine **ptr = machines;
+     size_t i;
 
-static Machine cupcake_P4 = {
-    {9600, 500, 94.13970462, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 94.13970462, ENDSTOP_IS_MIN}, // y axis
-    {450, 450, 2560, ENDSTOP_IS_MIN},        // z axis
-    {7200, 50.235478806907409, 400, 1}, // a extruder
-    {7200, 50.235478806907409, 400, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CUPCAKE_P4
-};
-
-static Machine cupcake_PP = {
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
-    {450, 450, 1280, ENDSTOP_IS_MIN},        // z axis
-    {7200, 100.470957613814818, 400, 1}, // a extruder
-    {7200, 100.470957613814818, 400, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CUPCAKE_PP
-};
-
-//  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
-//  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
-
-static Machine thing_o_matic_7 = {
-    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // y axis
-    {1000, 500, 200, ENDSTOP_IS_MAX},        // z axis
-    {1600, 50.235478806907409, 1600, 1}, // a extruder
-    {1600, 50.235478806907409, 1600, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_THINGOMATIC_7
-};
-
-static Machine thing_o_matic_7D = {
-    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // y axis
-    {1000, 500, 200, ENDSTOP_IS_MAX},        // z axis
-    {1600, 50.235478806907409, 1600, 1}, // a extruder
-    {1600, 50.235478806907409, 1600, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    2,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_THINGOMATIC_7D
-};
-
-//  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
-//  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
-
-static Machine replicator_1 = {
-    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_REPLICATOR_1
-};
-
-static Machine replicator_1D = {
-    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    2,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_REPLICATOR_1D
-};
-
-//  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
-//  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
-
-static Machine replicator_2 = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
-    1.75, // nominal filament diameter
-    0.97, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_REPLICATOR_2
-};
-
-static Machine replicator_2H = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.97, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_REPLICATOR_2H
-};
-
-static Machine replicator_2X = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    2,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_REPLICATOR_2X
-};
-
-// Core-XY machine, 18 tooth GT2 timing pulleys for X and Y
-static Machine core_xy = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CORE_XY
-};
-
-// Core-XY machine with a slow Z axis ("sz"), 18T GT2 pulleys for X and Y
-static Machine core_xysz = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {600, 600, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CORE_XYSZ
-};
-
-// ZYYX 3D printer, single extruder, 18T GT2 pulleys for X and Y
-static Machine zyyx = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
-    1.75, // nominal filament diameter
-    0.97, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_ZYYX
-};
-
-// ZYYX 3D printer, dual extruders, 18T GT2 pulleys for X and Y
-static Machine zyyx_d = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
-    1.75, // nominal filament diameter
-    0.97, // nominal packing density
-    0.4, // nozzle diameter
-    2,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_ZYYX_D
-};
+     while(*ptr) {
+	  fputs("\t", fp);
+	  fputs((*ptr)->tag, fp);
+	  for(i = strlen((*ptr)->tag); i < 3; i++) fputc(' ', fp);
+	  fputs(" = ", fp);
+	  fputs((*ptr)->name, fp);
+	  fputs(EOL, fp);
+	  ptr++;
+     }
+}
 
 #define MACHINE_IS(m) strcasecmp(machine, m) == 0
 
-int gpx_set_machine(Gpx *gpx, char *machine)
+int gpx_set_machine(Gpx *gpx, const char *machine)
 {
+    Machine **ptr = machines;
+
     // only load/clobber the on-board machine definition if the one specified is different
-    if(MACHINE_IS("c3")) {
-        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_G3) {
-            gpx->machine = cupcake_G3;
-            VERBOSE( fputs("Loading machine definition: Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m c3" EOL, gpx->log) );
-        }
+    while(*ptr) {
+	 if(MACHINE_IS((*ptr)->tag)) {
+	      if (gpx->machine.type != (*ptr)->type) {
+		   memcpy(&gpx->machine, *ptr, sizeof(Machine));
+		   VERBOSE( fputs("Loading machine definition: ", gpx->log) );
+		   VERBOSE( fputs((*ptr)->name, gpx->log) );
+		   VERBOSE( fputs(EOL, gpx->log) );
+	      }
+	      else {
+		   VERBOSE( fputs("Ignoring duplicate machine definition: -m ", gpx->log) );
+		   VERBOSE( fputs(machine, gpx->log) );
+		   VERBOSE( fputs(EOL, gpx->log) );
+	      }
+	      break;
+	 }
+	 ptr++;
     }
-    else if(MACHINE_IS("c4")) {
-        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_G4) {
-            gpx->machine = cupcake_G4;
-            VERBOSE( fputs("Loading machine definition: Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m c4" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("cp4")) {
-        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_P4) {
-            gpx->machine = cupcake_P4;
-            VERBOSE( fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m cp4" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("cpp")) {
-        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_PP) {
-            gpx->machine = cupcake_PP;
-            VERBOSE( fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m cpp" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("t6")) {
-        if(gpx->machine.type != MACHINE_TYPE_THINGOMATIC_7) {
-            gpx->machine = thing_o_matic_7;
-            VERBOSE( fputs("Loading machine definition: TOM Mk6 - single extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m t6" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("t7")) {
-        if(gpx->machine.type != MACHINE_TYPE_THINGOMATIC_7) {
-            gpx->machine = thing_o_matic_7;
-            VERBOSE( fputs("Loading machine definition: TOM Mk7 - single extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m t7" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("t7d")) {
-        if(gpx->machine.type != MACHINE_TYPE_THINGOMATIC_7D) {
-            gpx->machine = thing_o_matic_7D;
-            VERBOSE( fputs("Loading machine definition: TOM Mk7 - dual extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m t7d" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("r1")) {
-        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_1) {
-            gpx->machine = replicator_1;
-            VERBOSE( fputs("Loading machine definition: Replicator 1 - single extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m r1" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("r1d")) {
-        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_1D) {
-            gpx->machine = replicator_1D;
-            VERBOSE( fputs("Loading machine definition: Replicator 1 - dual extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m r1d" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("r2")) {
-        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_2) {
-            gpx->machine = replicator_2;
-            VERBOSE( fputs("Loading machine definition: Replicator 2" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m r2" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("r2h")) {
-        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_2H) {
-            gpx->machine = replicator_2H;
-            VERBOSE( fputs("Loading machine definition: Replicator 2 with HBP" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m r2h" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("r2x")) {
-        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_2X) {
-            gpx->machine = replicator_2X;
-            VERBOSE( fputs("Loading machine definition: Replicator 2X" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m r2x" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("cxysz")) {
-        if(gpx->machine.type != MACHINE_TYPE_CORE_XYSZ) {
-            gpx->machine = core_xy;
-            VERBOSE( fputs("Loading machine definition: Core-XYSZ" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m cxysz" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("cxy")) {
-        if(gpx->machine.type != MACHINE_TYPE_CORE_XY) {
-            gpx->machine = core_xy;
-            VERBOSE( fputs("Loading machine definition: Core-XY" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m cxy" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("z")) {
-        if(gpx->machine.type != MACHINE_TYPE_ZYYX) {
-            gpx->machine = zyyx;
-            VERBOSE( fputs("Loading machine definition: ZYYX - single extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m z" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("zd")) {
-        if(gpx->machine.type != MACHINE_TYPE_ZYYX_D) {
-            gpx->machine = zyyx_d;
-            VERBOSE( fputs("Loading machine definition: ZYYX - dual extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m zd" EOL, gpx->log) );
-        }
-    }
-    else {
-        return ERROR;
-    }
+
+    if(*ptr == NULL)
+	 // Machine not found
+	 return ERROR;
+
     // update known position mask
     gpx->axis.mask = gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;;
     return SUCCESS;
