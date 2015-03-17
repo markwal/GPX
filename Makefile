@@ -84,6 +84,7 @@ PYTHON = python
 TAR = tar cf
 ZIP = zip -r
 
+HEADERS = $(wildcard *.h)
 SOURCES = $(wildcard *.c)
 OBJECTS = $(addprefix $(OBJDIR)/,$(SOURCES:%.c=%.o))
 
@@ -91,7 +92,7 @@ all: $(OBJDIR)/gpx
 
 .PHONY: all
 
-$(OBJDIR)/gpx: $(OBJDIR) $(OBJECTS)
+$(OBJDIR)/gpx: $(OBJDIR) $(OBJECTS) $(HEADERS)
 	$(CC) $(OBJECTS) $(L_FLAGS) -o $(OBJDIR)/gpx$(EXE)
 
 $(OBJDIR):
