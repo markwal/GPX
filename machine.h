@@ -38,8 +38,9 @@ typedef struct {
 } Extruder;
 
 typedef struct {
-     const char *tag;
-     const char *name;
+     const char *type;
+     const char *desc;
+     int free_type, free_desc;
      Axis x;
      Axis y;
      Axis z;
@@ -52,7 +53,7 @@ typedef struct {
      double jkn[2];
      unsigned extruder_count;
      unsigned timeout;
-     unsigned type;
+     unsigned id;
 } Machine;
 
 #endif

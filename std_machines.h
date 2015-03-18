@@ -1,8 +1,11 @@
 #ifndef __std_machines_h__
 #define __std_machines_h__
 
+#include "machine.h"
+#include "gpx.h"
+
 static Machine cupcake_G3 = {
-    "c3", "Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder",
+     "c3", "Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder", 0, 0,
     {9600, 500, 30, 500, 100, 11.767463, ENDSTOP_IS_MIN}, // x axis
     {9600, 500, 30, 500, 100, 11.767463, ENDSTOP_IS_MIN}, // y axis
     {450, 100, 25, 450, 100, 320, ENDSTOP_IS_MIN},        // z axis
@@ -19,7 +22,7 @@ static Machine cupcake_G3 = {
 };
 
 static Machine cupcake_G4 = {
-    "c4", "Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder",
+    "c4", "Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder", 0, 0,
     {9600, 500, 30, 500, 100, 47.069852, ENDSTOP_IS_MIN}, // x axis
     {9600, 500, 30, 500, 100, 47.069852, ENDSTOP_IS_MIN}, // y axis
     {450, 100, 25, 450, 100, 1280, ENDSTOP_IS_MIN},        // z axis
@@ -36,7 +39,7 @@ static Machine cupcake_G4 = {
 };
 
 static Machine cupcake_P4 = {
-    "cp4", "Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder",
+    "cp4", "Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder", 0, 0,
     {9600, 500, 30, 500, 100, 94.13970462, ENDSTOP_IS_MIN}, // x axis
     {9600, 500, 30, 500, 100, 94.13970462, ENDSTOP_IS_MIN}, // y axis
     {450, 100, 25, 450, 100, 2560, ENDSTOP_IS_MIN},        // z axis
@@ -53,7 +56,7 @@ static Machine cupcake_P4 = {
 };
 
 static Machine cupcake_PP = {
-    "cpp", "Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder",
+    "cpp", "Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder", 0, 0,
     {9600, 500, 30, 500, 100, 47.069852, ENDSTOP_IS_MIN}, // x axis
     {9600, 500, 30, 500, 100, 47.069852, ENDSTOP_IS_MIN}, // y axis
     {450, 100, 25, 450, 100, 1280, ENDSTOP_IS_MIN},        // z axis
@@ -70,7 +73,7 @@ static Machine cupcake_PP = {
 };
 
 static Machine thing_o_matic_6 = {
-    "t6", "TOM Mk6 - single extruder",
+    "t6", "TOM Mk6 - single extruder", 0, 0,
     {9600, 500, 30, 500, 106, 47.058824, ENDSTOP_IS_MIN}, // x axis
     {9600, 500, 30, 500, 120, 47.058824, ENDSTOP_IS_MIN}, // y axis
     {1000, 150, 10, 500, 106, 200, ENDSTOP_IS_MAX},        // z axis
@@ -87,7 +90,7 @@ static Machine thing_o_matic_6 = {
 };
 
 static Machine thing_o_matic_7 = {
-    "t7", "TOM Mk7 - single extruder",
+    "t7", "TOM Mk7 - single extruder", 0, 0,
     {9600, 500, 30, 500, 106, 47.058824, ENDSTOP_IS_MIN}, // x axis
     {9600, 500, 30, 500, 120, 47.058824, ENDSTOP_IS_MIN}, // y axis
     {1000, 150, 10, 500, 106, 200, ENDSTOP_IS_MAX},        // z axis
@@ -104,7 +107,7 @@ static Machine thing_o_matic_7 = {
 };
 
 static Machine thing_o_matic_7D = {
-    "t7d", "TOM Mk7 - dual extruder",
+    "t7d", "TOM Mk7 - dual extruder", 0, 0,
     {9600, 500, 30, 500, 106, 47.058824, ENDSTOP_IS_MIN}, // x axis
     {9600, 500, 30, 500, 120, 47.058824, ENDSTOP_IS_MIN}, // y axis
     {1000, 150, 10, 500, 106, 200, ENDSTOP_IS_MAX},        // z axis
@@ -121,7 +124,7 @@ static Machine thing_o_matic_7D = {
 };
 
 static Machine replicator_1 = {
-    "r1", "Replicator 1 - single extruder",
+    "r1", "Replicator 1 - single extruder", 0, 0,
     {18000, 1000, 15, 2500, 227, 94.117647, ENDSTOP_IS_MAX}, // x axis
     {18000, 1000, 15, 2500, 148, 94.117647, ENDSTOP_IS_MAX}, // y axis
     {1170, 150, 10, 1100, 150, 400, ENDSTOP_IS_MIN},        // z axis
@@ -138,7 +141,7 @@ static Machine replicator_1 = {
 };
 
 static Machine replicator_1D = {
-    "r1d", "Replicator 1 - dual extruder",
+    "r1d", "Replicator 1 - dual extruder", 0, 0,
     {18000, 1000, 15, 2500, 227, 94.117647, ENDSTOP_IS_MAX}, // x axis
     {18000, 1000, 15, 2500, 148, 94.117647, ENDSTOP_IS_MAX}, // y axis
     {1170, 150, 10, 1100, 150, 400, ENDSTOP_IS_MIN},        // z axis
@@ -155,7 +158,7 @@ static Machine replicator_1D = {
 };
 
 static Machine replicator_2 = {
-    "r2", "Replicator 2 (default)",
+    "r2", "Replicator 2 (default)", 0, 0,
     {18000, 1000, 15, 2500, 285, 88.888889, ENDSTOP_IS_MAX}, // x axis
     {18000, 1000, 15, 2500, 152, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {1170, 150, 10, 1100, 155, 400, ENDSTOP_IS_MIN},        // z axis
@@ -172,7 +175,7 @@ static Machine replicator_2 = {
 };
 
 static Machine replicator_2H = {
-    "r2h", "Replicator 2 with HBP",
+    "r2h", "Replicator 2 with HBP", 0, 0,
     {18000, 1000, 15, 2500, 285, 88.888889, ENDSTOP_IS_MAX}, // x axis
     {18000, 1000, 15, 2500, 152, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {1170, 150, 10, 1100, 155, 400, ENDSTOP_IS_MIN},        // z axis
@@ -189,7 +192,7 @@ static Machine replicator_2H = {
 };
 
 static Machine replicator_2X = {
-    "r2x", "Replicator 2X",
+    "r2x", "Replicator 2X", 0, 0, 
     {18000, 1000, 15, 2500, 246, 88.888889, ENDSTOP_IS_MAX}, // x axis
     {18000, 1000, 15, 2500, 152, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {1170, 150, 10, 1100, 155, 400, ENDSTOP_IS_MIN},        // z axis
@@ -207,7 +210,7 @@ static Machine replicator_2X = {
 
 // Core-XY machine, 18 tooth GT2 timing pulleys for X and Y
 static Machine core_xy = {
-    "cxy", "Core-XY with HBP - single extruder",
+    "cxy", "Core-XY with HBP - single extruder", 0, 0, 
     {18000, 1000, 15, 2500, 200, 88.888889, ENDSTOP_IS_MAX}, // x axis
     {18000, 1000, 15, 2500, 200, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {1170, 150, 10, 1100, 200, 400, ENDSTOP_IS_MIN},        // z axis
@@ -225,7 +228,7 @@ static Machine core_xy = {
 
 // Core-XY machine with a slow Z axis ("sz"), 18T GT2 pulleys for X and Y
 static Machine core_xysz = {
-    "cxysz", "Core-XY with HBP - single extruder, slow Z",
+    "cxysz", "Core-XY with HBP - single extruder, slow Z", 0, 0, 
     {18000, 1000, 15, 2500, 200, 88.888889, ENDSTOP_IS_MAX}, // x axis
     {18000, 1000, 15, 2500, 200, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {600, 150, 10, 600, 200, 400, ENDSTOP_IS_MIN},        // z axis
@@ -243,7 +246,7 @@ static Machine core_xysz = {
 
 // ZYYX 3D printer, single extruder, 18T GT2 pulleys for X and Y
 static Machine zyyx = {
-    "z", "ZYYX - single extruder",
+    "z", "ZYYX - single extruder", 0, 0, 
     {18000, 850, 12, 2500, 270, 88.888889, ENDSTOP_IS_MAX}, // x axis
     {18000, 850, 12, 2500, 230, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {1170, 50, 12, 1100, 195, 400, ENDSTOP_IS_MIN},        // z axis
@@ -261,7 +264,7 @@ static Machine zyyx = {
 
 // ZYYX 3D printer, dual extruders, 18T GT2 pulleys for X and Y
 static Machine zyyx_D = {
-    "zd", "ZYYX - dual extruder",
+    "zd", "ZYYX - dual extruder", 0, 0, 
     {18000, 850, 12, 2500, 270, 88.888889, ENDSTOP_IS_MAX}, // x axis
     {18000, 850, 12, 2500, 230, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {1170, 50, 12, 1100, 195, 400, ENDSTOP_IS_MIN},        // z axis
@@ -276,5 +279,29 @@ static Machine zyyx_D = {
     20, // timeout
     MACHINE_TYPE_ZYYX_D
 };
+
+#if defined(MACHINE_ARRAY)
+
+static Machine *machines[] = {
+     &cupcake_G3,
+     &cupcake_G4,
+     &cupcake_P4,
+     &cupcake_PP,
+     &core_xy,
+     &core_xysz,
+     &replicator_1,
+     &replicator_1D,
+     &replicator_2,
+     &replicator_2H,
+     &replicator_2X,
+     &thing_o_matic_6,
+     &thing_o_matic_7,
+     &thing_o_matic_7D,
+     &zyyx,
+     &zyyx_D,
+     NULL
+};
+
+#endif
 
 #endif

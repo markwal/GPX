@@ -515,7 +515,7 @@ int main(int argc, char * const argv[])
         }
     }
 
-    if(baud_rate == B57600 && gpx.machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+    if(baud_rate == B57600 && gpx.machine.id >= MACHINE_TYPE_REPLICATOR_1) {
         if(gpx.flag.verboseMode) fputs("WARNING: a 57600 bps baud rate will cause problems with Repicator 2/2X Mightyboards" EOL, gpx.log);
     }
 

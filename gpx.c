@@ -45,26 +45,13 @@
 #define CALL(FN) if((rval = FN) != SUCCESS) return rval
 
 // Machine definitions
+#ifndef MACHINE_ARRAY
+#define MACHINE_ARRAY
+#endif
+
 #include "std_machines.h"
-static Machine *machines[] = {
-     &cupcake_G3,
-     &cupcake_G4,
-     &cupcake_P4,
-     &cupcake_PP,
-     &core_xy,
-     &core_xysz,
-     &replicator_1,
-     &replicator_1D,
-     &replicator_2,
-     &replicator_2H,
-     &replicator_2X,
-     &thing_o_matic_6,
-     &thing_o_matic_7,
-     &thing_o_matic_7D,
-     &zyyx,
-     &zyyx_D,
-     NULL
-};
+
+#undef MACHINE_ARRAY
 
 void gpx_list_machines(FILE *fp)
 {
@@ -73,10 +60,10 @@ void gpx_list_machines(FILE *fp)
 
      while(*ptr) {
 	  fputs("\t", fp);
-	  fputs((*ptr)->tag, fp);
-	  for(i = strlen((*ptr)->tag); i < 3; i++) fputc(' ', fp);
+	  fputs((*ptr)->type, fp);
+	  for(i = strlen((*ptr)->type); i < 3; i++) fputc(' ', fp);
 	  fputs(" = ", fp);
-	  fputs((*ptr)->name, fp);
+	  fputs((*ptr)->desc, fp);
 	  fputs(EOL, fp);
 	  ptr++;
      }
@@ -90,11 +77,11 @@ int gpx_set_machine(Gpx *gpx, const char *machine)
 
     // only load/clobber the on-board machine definition if the one specified is different
     while(*ptr) {
-	 if(MACHINE_IS((*ptr)->tag)) {
-	      if (gpx->machine.type != (*ptr)->type) {
+	 if(MACHINE_IS((*ptr)->type)) {
+	      if (gpx->machine.id != (*ptr)->id) {
 		   memcpy(&gpx->machine, *ptr, sizeof(Machine));
 		   VERBOSE( fputs("Loading machine definition: ", gpx->log) );
-		   VERBOSE( fputs((*ptr)->name, gpx->log) );
+		   VERBOSE( fputs((*ptr)->desc, gpx->log) );
 		   VERBOSE( fputs(EOL, gpx->log) );
 	      }
 	      else {
@@ -1346,7 +1333,7 @@ static int set_fan(Gpx *gpx, unsigned extruder_id, unsigned state)
 static int set_valve(Gpx *gpx, unsigned extruder_id, unsigned state)
 {
     assert(extruder_id < gpx->machine.extruder_count);
-    if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+    if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
 
         begin_frame(gpx);
 
@@ -1380,7 +1367,7 @@ static int set_valve(Gpx *gpx, unsigned extruder_id, unsigned state)
 static int set_abp(Gpx *gpx, unsigned extruder_id, unsigned state)
 {
     assert(extruder_id < gpx->machine.extruder_count);
-    if(gpx->machine.type < MACHINE_TYPE_REPLICATOR_1) {
+    if(gpx->machine.id < MACHINE_TYPE_REPLICATOR_1) {
 
         begin_frame(gpx);
 
@@ -2141,7 +2128,7 @@ static int set_acceleration(Gpx *gpx, int state)
 
 static int stream_version(Gpx *gpx)
 {
-    if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+    if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
         begin_frame(gpx);
 
         write_8(gpx, 157);
@@ -2160,7 +2147,7 @@ static int stream_version(Gpx *gpx)
 
         // uint16: bot type: PID for the intended bot is sent
         // Repliator 2/2X (Might Two)
-        if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_2) {
+        if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_2) {
             write_16(gpx, 0xB015);
         }
         // Replicator (Might One)
@@ -3105,7 +3092,63 @@ static int ini_parse(Gpx* gpx, const char* filename,
 #define PROPERTY_IS(n) strcasecmp(property, n) == 0
 #define VALUE_IS(v) strcasecmp(value, v) == 0
 
+int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, char* value);
+
 int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* value)
+{
+     char c, *inptr, *outptr, *ptr, *tmp, *tmp0, *tmpend;
+     int iret;
+
+     // If there is no section name or the section name has no comma, then
+     // just set the property
+
+     if(!section || !(ptr = strchr(section, ',')))
+	  return gpx_set_property_inner(gpx, section, property, value);
+
+     // Section name has a comma
+     // Strip LWSP and call gpx_set_property_inner() once for each section
+     tmp0 = strdup(section);
+     if(!tmp0)
+     {
+	  SHOW( fprintf(gpx->log, "Configuration error: insufficient virtual memory" EOL) )
+	  return gpx->lineNumber;
+     }
+
+     // Remove all LWSP
+     outptr = inptr = tmp0;
+     while((c = *inptr++))
+	  if(!isspace(c))
+	       *outptr++ = c;
+     *outptr = '\0';
+
+     // Note the end of the resulting string
+     tmpend = tmp0 + strlen(tmp0);
+     tmp = tmp0;
+
+     iret = SUCCESS;
+loop:
+     // Find the next token.  We could use strtok(_r) but it's not on all systems
+     ptr = strchr(tmp, ',');
+     if (ptr)
+	  *ptr = '\0';
+     if((iret = gpx_set_property_inner(gpx, tmp, property, value)))
+	  goto done;
+
+     // Advance to the next section
+     tmp = ptr + 1;
+
+     // If there's more left, then repeat
+     if(tmp < tmpend)
+	  goto loop;
+
+done:
+     if(tmp0)
+	  free(tmp0);
+
+     return iret;
+}
+
+int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, char* value)
 {
     int rval;
     if(SECTION_IS("") || SECTION_IS("macro")) {
@@ -4154,7 +4197,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 		// In MightyBoard electronics, turn the heatsink fan on
 
             case 106:
-                if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+                if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
 		    int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;
 		    if(gpx->flag.reprapFlavor) {
 			 // Toggle valve
@@ -4197,7 +4240,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 		// In MightyBoard electronics, turn the heatsink fan off
 
             case 107:
-                if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+                if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
 		    int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 0;
 		    if(gpx->flag.reprapFlavor) {
 			 // Toggle valve
