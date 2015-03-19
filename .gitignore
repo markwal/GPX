@@ -9,7 +9,6 @@ dmg
 *.svn
 .DS_Store
 *.sh
-gpx
 gpx.exe
 osx_obj
 linux_obj
