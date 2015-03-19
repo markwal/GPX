@@ -46,10 +46,10 @@ typedef long speed_t;
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
-#   include "getopt.h"
-    // strcasecmp() is not provided on Windows
-    // _stricmp() is equivalent but may require <string.h>
-#   define strcasecmp _stricmp
+#include "getopt_.h"
+// strcasecmp() is not provided on Windows
+// _stricmp() is equivalent but may require <string.h>
+#define strcasecmp _stricmp
 #endif
 
 #include "gpx.h"

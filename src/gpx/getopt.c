@@ -20,7 +20,7 @@ unix/linux platforms.
 */
 
 #if defined(_MSC_VER)
-#include "getopt.h"
+#include "getopt_.h"
 
 #include <string.h>
 #include <io.h>
@@ -32,7 +32,7 @@ int	optind = 1;
 int	optopt;
 char *optarg;
 
-int getopt(int argc, char **argv, char *opts)
+int getopt(int argc, char * const argv[], char *opts)
 {
 	static int sp = 1;
 	register int c;

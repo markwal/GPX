@@ -34,6 +34,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdarg.h>
+#include <time.h>
 
 #include "gpx.h"
 
@@ -5310,15 +5311,26 @@ static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
 
                     // 0x82 - Action buffer overflow, entire packet discarded
                 case 0x82:
+		{
+#ifdef HAS_NANOSLEEP
+// mingw32 cross compiler lacks nanosleep()
+// mingw32 env. on Windows has nanosleep()
+		    struct timespec ts = {0, 100000000}; // 0.1 s
+#endif
                     do {
                         // wait for 1/10 seconds
-                        usleep(100000);
+#ifdef HAS_NANOSLEEP
+			nanosleep(&ts, NULL);
+#else
+			usleep(100000);
+#endif
                         // query buffer size
                         buffer_size_query[3] = calculate_crc((unsigned char *)buffer_size_query + 2, 1);
                         CALL( port_handler(gpx, sio, buffer_size_query, 4) );
                         // loop until buffer has space for the next command
                     } while(sio->response.bufferSize < length);
                     break;
+		}
 
                     // 0x83 - CRC mismatch, packet discarded. (retry)
                 case 0x83:
