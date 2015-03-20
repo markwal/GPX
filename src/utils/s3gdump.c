@@ -34,7 +34,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <math.h>
 
 #include "s3g.h"
 
