@@ -23,7 +23,8 @@ include $(SRCDIR)/defines/defines.mk
 #
 ##########
 
-SUBDIRS = gpx planner utils
+#SUBDIRS = gpx planner utils
+SUBDIRS = gpx utils
 DIR_TARGETS = $(addprefix $(SRCDIR)/, $(SUBDIRS))
 
 .PHONY: all clean test machines
