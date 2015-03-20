@@ -89,6 +89,12 @@ def Format(fmt, args):
             elif l[0] == 'b':
                 args_new[iargs] = 'XYZAB'[args_new[iargs]]
                 fmt_new += '%s' + l[1:]
+            elif l[0] == 'O':
+                if args_new[iargs] == 0:
+                    args_new[iargs] = "off"
+                else:
+                    args_new[iargs] = "on"
+                fmt_new += '%s' + l[1:]
             else:
                 fmt_new += '%' + l
             iargs += 1
@@ -96,22 +102,22 @@ def Format(fmt, args):
 
 toolCommandTable = {
     1: ("", "(1) Initialize firmware to boot state"),
-    3: ("<H", "(3) Set target temperature %i"),
-    4: ("<B", "(4) Motor 1: set speed (PWM) %i"),
-    5: ("<B", "(5) Motor 2: set speed (PWM) %i"),
-    6: ("<I", "(6) Motor 1: set speed (RPM) %i"),
-    7: ("<I", "(7) Motor 2: set speed (RPM) %i"),
-    8: ("<I", "(8) Motor 1: set direction %i"),
-    9: ("<I", "(9) Motor 2: set direction %i"),
-    10: ("B", "(10) Motor 1: toggle %d"),
-    11: ("B", "(11) Motor 2: toggle %d"),
+    3: ("<H", "(3) Set target temperature to %i C"),
+    4: ("<B", "(4) Set Motor 1 speed (PWM) to %i"),
+    5: ("<B", "(5) Set Motor 2 speed (PWM) to %i"),
+    6: ("<I", "(6) Set Motor 1 set speed (RPM) to %i"),
+    7: ("<I", "(7) Set Motor 2 speed (RPM) to %i"),
+    8: ("<I", "(8) Set Motor 1 direction to %i"),
+    9: ("<I", "(9) Set Motor 2 direction to %i"),
+    10: ("B", "(10) Toggle Motor 1 to %d"),
+    11: ("B", "(11) Toggle Motor 2 to %d"),
     12: ("B", "(12) Toggle cooling fan %d"),
     13: ("B", "(13) Toggle blower fan %d"),
-    14: ("B", "(14) Servo 1: angle %d"),
-    15: ("B", "(15) Servo 2: angle %d"),
+    14: ("B", "(14) Set Servo 1 angle to %d"),
+    15: ("B", "(15) Set Servo 2 angle to %d"),
     27: ("B", "(27) Automated build platform: toggle %d"),
-    31: ("<H", "(31) Set build platform temperature %i"),
-    129: ("<iiiI", "(129) Absolute move to (%i,%i,%i) at DDA %i"),
+    31: ("<H", "(31) Set build platform temperature to %i C"),
+    129: ("<iiiI", "(129) Absolute move to (%i, %i, %i) with DDA %i"),
 }
 
 def parseToolAction():
@@ -228,35 +234,35 @@ def parseFramedData():
 # http://docs.python.org/library/struct.html
 
 commandTable = {    
-    129: ("<iiiI", "(129) Absolute move to (%i,%i,%i) at DDA %i"),
-    130: ("<iii", "(130) Define machine position as (%i,%i,%i)"),
-    131: ("<BIH", "(131) Home minimum on %a, feedrate %i, timeout %i s"),
-    132: ("<BIH", "(132) Home maximum on %a, feedrate %i, timeout %i s"),
-    133: ("<I", "(133) Dwell for %i microseconds"),
-    134: ("<B", "(134) Change to Tool %i"),
+    129: ("<iiiI", "(129) Absolute move to (%i, %i, %i) with DDA %i"),
+    130: ("<iii", "(130) Define position as (%i, %i, %i)"),
+    131: ("<BIH", "(131) Home minimum on %a, feedrate %i us/step, timeout %i s"),
+    132: ("<BIH", "(132) Home maximum on %a, feedrate %i us/step, timeout %i s"),
+    133: ("<I", "(133) Dwell for %i milliseconds"),
+    134: ("<B", "(134) Switch to Tool %i"),
     135: ("<BHH", "(135) Wait until Tool %i is ready, %i ms between polls, %i s timeout"),
     136: (parseToolAction, printToolAction),
     137: ("<B", "(137) %A stepper motors"),
     138: ("<H", "(138) Wait on user response, option %i"),
-    139: ("<iiiiiI", "(139) Absolute move to (%i,%i,%i,%i,%i) at DDA %i"),
-    140: ("<iiiii", "(140) Define position as (%i,%i,%i,%i,%i)"),
+    139: ("<iiiiiI", "(139) Absolute move to (%i, %i, %i, %i, %i) with DDA %i"),
+    140: ("<iiiii", "(140) Define position as (%i, %i, %i, %i, %i)"),
     141: ("<BHH", "(141) Wait until platform %i is ready, %i ms between polls, %i s timeout"),
-    142: ("<iiiiiIB", "(142) Move to (%i,%i,%i,%i,%i) in %i us, relative mask %a"),
+    142: ("<iiiiiIB", "(142) Move to (%i, %i, %i, %i, %i) in %i us, %a relative"),
     143: ("<b", "(143) Store home position for %a"),
     144: ("<b", "(144) Recall home position for %a"),
-    145: ("<BB", "(145) Set digipot for %b to %i"),
-    146: ("<BBBBB", "(146) Set RGB LED red %i, green %i, blue %i, blink rate %i, effect %i"),
-    147: ("<HHB", "(147) Set buzzer, frequency %i, length %i, effect %i"),
-    148: ("<BHB", "(148) Pause for button 0x%X, timeout %i s, timeout_bevavior %i"),
-    149: (parseDisplayMessageAction, "(149) Display message, options 0x%X at %i,%i timeout %i s, message \"%s\""),
-    150: ("<BB", "(150) Set build percentage %i%%, ignore %i"),
+    145: ("<BB", "(145) Set %b axis digipot to %i"),
+    146: ("<BBBBB", "(146) Set RGB LED (0x%02x, 0x%02x, 0x%02x), blink rate %i, effect %i"),
+    147: ("<HHB", "(147) Set buzzer frequency %i, duration %i ms, effect %i"),
+    148: ("<BHB", "(148) Pause for button 0x%02x, timeout %i s, timeout behavior %i"),
+    149: (parseDisplayMessageAction, "(149) Display message, options 0x%02x, position (%i, %i), timeout %i s, message \"%s\""),
+    150: ("<BB", "(150) Set build percentage %i%%, reserved %i"),
     151: ("<B", "(151) Queue song %i"),
-    152: ("<B", "(152) Reset to factory defaults, options 0x%X"),
+    152: ("<B", "(152) Restore factory defaults, options 0x%02x"),
     153: (parseBuildStartNotificationAction, "(153) Start build notification, steps %i, name \"%s\""),
-    154: ("<B", "(154) End build notification, flags 0x%X"),
-    155: ("<iiiiiIBfh", "(155) Move to (%i,%i,%i,%i,%i), dda_rate %i, relative mask %X, distance %f, feedrateX64 %i"),
-    156: ("<B", "(156) Set acceleration state to %i"),
-    157: ("<BBBIHHIIB", "(157) Stream version: %i.%i, %i, %i, %i, %i, %i, %i, %i"),
+    154: ("<B", "(154) End build notification, options 0x%02x"),
+    155: ("<iiiiiIBfh", "(155) Move to (%i, %i, %i, %i, %i), DDA rate %i, %a relative, distance %f mm, feedrate*64 %i steps/s"),
+    156: ("<B", "(156) Set segment acceleration %O"),
+    157: ("<BBBIHHIIB", "(157) Stream version %i.%i, %i, %i, %i, %i, %i, %i, %i"),
     158: ("<f", "(158) Pause @ Z position %f"),
     213: (parseFramedData, None)
 }
