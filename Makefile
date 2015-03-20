@@ -23,15 +23,16 @@ include $(SRCDIR)/defines/defines.mk
 #
 ##########
 
-SUBDIRS = gpx utils
-#SUBDIRS = gpx planner utils
+SUBDIRS = gpx planner utils
 DIR_TARGETS = $(addprefix $(SRCDIR)/, $(SUBDIRS))
 
 .PHONY: all clean test machines
 
 all:
 	for dir in $(DIR_TARGETS); do \
+		echo "Entering $$dir"; \
 		make -C $$dir $@; \
+		echo "Exiting $$dir"; \
 	done
 
 mostlyclean:

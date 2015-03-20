@@ -69,9 +69,15 @@ endif
 # Build directories
 
 VERSION = 2.1
-INCDIR  = -I$(SRCDIR)/shared -I$(SRCDIR)/gpx
 SHAREDIR = $(SRCDIR)/shared
-OBJDIR  = $(PLATFORM)_obj
+PLANNERDIR = $(SRCDIR)/planner
+UTILSDIR = $(SRCDIR)/utils
+GPXDIR = $(SRCDIR)/gpx
+OBJDIR = $(PLATFORM)_obj
+
+
+INCDIR = -I$(SHAREDIR) -I$(GPXDIR) -I$(PLANNERDIR)
+
 ARCHIVE = gpx-$(VERSION)-$(PLATFORM)
 ARCHDIR = $(OBJDIR)/$(ARCHIVE)
 MACHINEDIR = $(SRCDIR)/../machines

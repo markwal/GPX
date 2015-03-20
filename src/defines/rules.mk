@@ -10,21 +10,17 @@ all:: $(LINK_TARGETS)
 -include $(wildcard $(OBJDIR)/*.d)
 
 $(LINK_TARGETS):: $(EXE_TARGET_OBJS)
-	$(CC) -o $@$(EXE) \
-		$(addprefix $(OBJDIR)/, $($(notdir $(addsuffix _OBJS, ${@})))) \
-		$(addprefix -l, $($(notdir $(addsuffix _LIBS, ${@})))) \
-	        $(LD_FLAGS)
+	$(CC) -g -o $@$(EXE) $(addprefix $(OBJDIR)/, $($(notdir $(addsuffix _OBJS, ${@})))) \
+		$(addprefix -l, $($(notdir $(addsuffix _LIBS, ${@})))) $(LD_FLAGS)
 
 # Really should have variables for the dependency switches, but
 # there's only so many hours in the day
 
 $(OBJDIR)/%$(OBJ):: %.c
 	@test -d $(OBJDIR) || $(MKDIR) $(OBJDIR)
+	$(CC) -g $(CC_FLAGS) $($(notdir $(addsuffix _DEFS, $(basename ${@})))) $(INCDIR) -c -o $@ $<
 	$(CC) $(CC_FLAGS) $($(notdir $(addsuffix _DEFS, $(basename ${@})))) \
-		$(INCDIR) -c -o $@ $<
-	$(CC) $(CC_FLAGS) $($(notdir $(addsuffix _DEFS, $(basename ${@})))) \
-		$(INCDIR) -MM -MF $(OBJDIR)/$*$(DEP) -MT $(OBJDIR)/$*$(OBJ) \
-		$(CC_FLAGS) $<
+		$(INCDIR) -MM -MF $(OBJDIR)/$*$(DEP) -MT $(OBJDIR)/$*$(OBJ) $(CC_FLAGS) $<
 
 clean::
 	-@$(RM) $(OBJDIR)/*
