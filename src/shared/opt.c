@@ -266,6 +266,10 @@ static const char *opt_find(const char *group, const char *option)
      const char *value;
      option_t *tmp;
 
+     // If there are no options, then just return a no-match
+     if (!root)
+	  return((const char *)NULL);
+
      // Field lengths
      lg = group ? strlen(group) : 0;
      lo = option ? strlen(option) : 0;

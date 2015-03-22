@@ -242,7 +242,7 @@ static int s3g_init(void)
 }
 
 
-s3g_context_t *s3g_open(int type, void *src, int flags, int mode)
+s3g_context_t *s3g_open(int type, const char *src, int flags, int mode)
 {
      s3g_context_t *ctx;
 

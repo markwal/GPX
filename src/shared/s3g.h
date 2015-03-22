@@ -388,7 +388,7 @@ typedef struct {
 //     != NULL -- Success
 //     == NULL -- Error; consult errno
 
-s3g_context_t *s3g_open(int type, void *src, int flags, int mode);
+s3g_context_t *s3g_open(int type, const char *src, int create_file, int mode);
 
 
 // Read a single command from the s3g context, storing the result in the

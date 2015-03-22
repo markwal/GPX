@@ -178,7 +178,7 @@ static void config_dump_extruder(FILE *fp, const Extruder *a, const char *name)
      if ((iret = opt_get_double(&m->f, "printer", opt)))		\
 	  goto error
 
-int config_machine(Machine *m, const Machine *def)
+int config_machine(Machine *m, const Machine *def, const char *mtype)
 {
      int i, iret;
      const char *opt;
@@ -192,8 +192,14 @@ int config_machine(Machine *m, const Machine *def)
 
      // See if a machine type was specified in the config file
      //   If one was, then attempt to use it as the source of defaults
+     //   If one wasn't, then use the passed in mtype if not NULL
+     //   Finally, use def if all else fails.
+     opt = opt_get_str("printer", "machine_type");
+     if (!opt)
+	  opt = mtype;
+
      i = 0;
-     if ((opt = opt_get_str("printer", "machine_type")))
+     if (opt)
      {
 	  const Machine *d = config_get_machine(opt);
 	  if (d)
@@ -204,6 +210,8 @@ int config_machine(Machine *m, const Machine *def)
      }
 
      // Fall back to using the passed in default machine as our defaults
+     // We are assured of def being non-NULL: if it was NULL upon entry,
+     // it was set to &replicator_2.
      if (i == 0)
 	  memcpy(m, def, sizeof(Machine));
 

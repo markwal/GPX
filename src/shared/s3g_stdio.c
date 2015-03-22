@@ -344,15 +344,15 @@ static ssize_t stdio_write(void *ctx, const void *buf, size_t nbytes)
 //
 //   void *src
 //     Input source information.  For this driver, a value of NULL indicates
-//     that the input source is stdin.  Otherwise, the value is treated as a
-//     "const char *" pointer pointing to the name of a file to open in read
-//     only mode.  A ".s3g" will NOT be appended to the file name.  The file
-//     name must be the complete file name (but need not be an absolute file
-//     path).
+//     that the input source is stdin (create_file == 0) or stdout
+//     (create_file != 0).  Otherwise, the value is treated as a "const char *"
+//     pointer pointing to the name of a file to open in read only mode.  A
+//     ".s3g" will NOT be appended to the file name.  The file name must be
+//     the complete file name (but need not be an absolute file path).
 //
-//   int oflag
-//     open(2) oflag call argument, the values for which are typically
-//     defined in fcntl.h.  Used for input only.
+//   int create_file
+//     If zero, then the file is opened for reading only.  If non-zero, the
+//     file is created and opened for writing only.  Used for input only.
 //
 //   int mode
 //     open(2) permission mask, mode, used when creating a new file.  Used for
@@ -363,7 +363,7 @@ static ssize_t stdio_write(void *ctx, const void *buf, size_t nbytes)
 //   0 -- Success
 //  -1 -- Error; check errno
 
-int s3g_stdio_open(s3g_context_t *ctx, void *src, int oflag, int mode)
+int s3g_stdio_open(s3g_context_t *ctx, const char *src, int create_file, int mode)
 {
      s3g_rw_stdio_ctx_t *tmp;
 
@@ -389,11 +389,12 @@ int s3g_stdio_open(s3g_context_t *ctx, void *src, int oflag, int mode)
      if (src == NULL)
      {
 	  // Assume we're using stdin
-	  tmp->fd = fileno(stdin);
+	  tmp->fd = create_file ? fileno(stdout) : fileno(stdin);
      }
      else
      {
 	  const char *fname = (const char *)src;
+	  int oflag =  create_file ? O_CREAT | O_WRONLY : O_RDONLY;
 	  int fd = open(fname, oflag, mode);
 	  if (fd < 0)
 	  {
@@ -409,9 +410,9 @@ int s3g_stdio_open(s3g_context_t *ctx, void *src, int oflag, int mode)
      // All finished and happy
      ctx->close  = stdio_close;
      ctx->read   = stdio_read;
-     ctx->write  = NULL; // stdio_write;
      ctx->r_ctx  = tmp;
-     ctx->w_ctx  = NULL; // tmp;
+     ctx->write  = create_file ? stdio_write : NULL;
+     ctx->w_ctx  = create_file ? tmp : NULL;
 
      return(0);
 }

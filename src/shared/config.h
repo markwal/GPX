@@ -29,10 +29,25 @@
 
 /* config_machine()
  *
- * Using the machine "def" as defaults, populate the settings for machine "m"
+ * Using a default machine type for defaults, populate the settings for machine "m"
  * from a previously digested .ini file.
  *
- * opt_loadfile() must be called before calling config_machine().  Do not
+ * The defaulting hiearchy in order of highest to lowers precedence is
+ *
+ *    1. Values from the user-supplied configuration file.
+ *
+ *    2. Values from the machine definition specified with the "machine_type"
+ *         option in the user-supplied configuration file.
+ *
+ *    3. Values from the machine definition specified with the "machine_type"
+ *         call argument if non-NULL.
+ *
+ *    4. Values from the "def" call argument if non-NULL.
+ *
+ *    5. The GPX-default machine type, "r2" (Replicator 2).
+ *
+ * opt_loadfile() should be called before calling config_machine() in order for
+ * options from a user-supplied config file to be used.  Do not
  * call opt_dispose() until after calling config_machine().
  *
  * Call arguments:
@@ -44,6 +59,10 @@
  *     A machine to use as the default template supplying values
  *     for options not specified in the configuration file.
  *
+ *   const char *machine_type
+ *     A type specification for the machine type to use for options
+ *     not specified in the option file.
+ *
  * Return values
  *
  *   OPT_OK           -- Success
@@ -52,7 +71,7 @@
  *   OPT_ERR_BADINT   -- Unable to parse as an integer value one of the option values.
  */
 
-int config_machine(Machine *m, const Machine *def);
+int config_machine(Machine *m, const Machine *def, const char *machine_type);
 
 /* config_dump()
  *
