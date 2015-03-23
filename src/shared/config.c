@@ -212,7 +212,7 @@ int config_machine(Machine *m, const Machine *def, const char *mtype)
      // Fall back to using the passed in default machine as our defaults
      // We are assured of def being non-NULL: if it was NULL upon entry,
      // it was set to &replicator_2.
-     if (i == 0)
+     if ((i == 0) && (m != def))
 	  memcpy(m, def, sizeof(Machine));
 
      if ((iret = config_axis(&m->x,     "x"))) return(iret);
