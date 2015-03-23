@@ -114,6 +114,9 @@ static int pause_at_zpos(Gpx *gpx, float z_positon);
 void gpx_initialize(Gpx *gpx, int firstTime)
 {
     int i;
+
+    if(!gpx) return;
+
     gpx->buffer.ptr = gpx->buffer.out;
     // we default to using pipes
 
@@ -223,6 +226,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     if(firstTime) {
         gpx->sdCardPath = NULL;
         gpx->buildName = "GPX " GPX_VERSION;
+	gpx->preamble = NULL;
     }
 
     gpx->flag.relativeCoordinates = 0;
@@ -391,7 +395,7 @@ static long read_bytes(Gpx *gpx, char *data, long length)
     return length;
 }
 
-static long write_string(Gpx *gpx, char *string, long length)
+static long write_string(Gpx *gpx, const char *string, long length)
 {
     long l = length;
     while(l--) {
@@ -1907,7 +1911,7 @@ static int factory_defaults(Gpx *gpx)
 
 // 153 - Build start notification
 
-static int start_build(Gpx *gpx, char * filename)
+static int start_build(Gpx *gpx, const char * filename)
 {
     begin_frame(gpx);
 
@@ -4709,6 +4713,9 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
     for(;;) {
         int overflow = 0;
 
+	if(gpx->preamble)
+	     start_build(gpx, gpx->preamble);
+
         while(fgets(gpx->buffer.in, BUFFER_MAX, file.in) != NULL) {
             // detect input buffer overflow and ignore overflow input
             if(overflow) {
@@ -5592,3 +5599,8 @@ int eeprom_load_config(Gpx *gpx, const char *filename)
     return ini_parse(gpx, filename, eeprom_set_property);
 }
 
+void gpx_set_preamble(Gpx *gpx, const char *preamble)
+{
+     if(gpx)
+	  gpx->preamble = preamble;
+}

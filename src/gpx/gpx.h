@@ -264,6 +264,8 @@ extern "C" {
         int commandAtLength;
         double commandAtZ;
 
+	const char *preamble;
+
         // SETTINGS
 
         char *sdCardPath;
@@ -338,6 +340,8 @@ extern "C" {
     void gpx_list_machines(FILE *fp);
 
     int eeprom_load_config(Gpx *gpx, const char *filename);
+
+    void gpx_set_preamble(Gpx *gpx, const char *preamble);
 
 #ifdef __cplusplus
 }
