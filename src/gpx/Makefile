@@ -8,7 +8,7 @@ include $(SRCDIR)/defines/defines.mk
 
 EXE_TARGETS = gpx
 
-gpx_SRCS = gpx.c gpx-main.c $(EXTRA_SRCS)
+gpx_SRCS = gpx.c gpx-main.c config.c opt.c $(EXTRA_SRCS)
 gpx_OBJS = $(notdir $(gpx_SRCS:.c=$(OBJ)))
 gpx_LIBS = m
 
