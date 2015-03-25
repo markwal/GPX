@@ -4754,7 +4754,13 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
 	    }
         }
 
-        CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
+        // Ending gcode should disable the heaters and stepper motors
+	// This line of code here in GPX was making it such that people
+	// could not convert gcode utility scripts to x3g with GPX.  For
+	// instance, a script for build plate leveling which wanted to
+	// home the axes and then leave Z enabled
+
+        // CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
 
         gpx->total.length = gpx->accumulated.a + gpx->accumulated.b;
         gpx->total.time = gpx->accumulated.time;
@@ -5480,7 +5486,7 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
 	    }
         }
 
-	// Ending gcode should disable the heaters and stepper motors
+        // Ending gcode should disable the heaters and stepper motors
 	// This line of code here in GPX was making it such that people
 	// could not convert gcode utility scripts to x3g with GPX.  For
 	// instance, a script for build plate leveling which wanted to
