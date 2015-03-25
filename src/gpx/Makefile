@@ -23,6 +23,8 @@ endif
 ifdef PYTHON
 ifdef DIFF
 
+all::
+
 test:: $(OBJDIR)/gpx$(EXE)
 	$(OBJDIR)/gpx$(EXE) -p -m r2x tests/lint.gcode $(OBJDIR)/lint.x3g > $(OBJDIR)/lint.log 2>&1
 	$(DIFF) tests/lint.x3g $(OBJDIR)/lint.x3g
