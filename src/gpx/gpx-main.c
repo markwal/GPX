@@ -131,10 +131,12 @@ static void usage(int err)
     fputs("GNU General Public License for more details." EOL, fp);
 
     fputs(EOL "Usage:" EOL, fp);
-    fputs("gpx [-CFdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
+    fputs("gpx [-CFdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
     fputs(EOL "Options:" EOL, fp);
     fputs("\t-C\tCreate temporary file with a copy of the machine configuration" EOL, fp);
     fputs("\t-F\twrite X3G on-wire framing data to output file" EOL, fp);
+    fputs("\t-N\tDisable writing of the X3G 'header' (start build notice)," EOL, fp);
+    fputs("\t  \ttail (end build notice), or both" EOL, fp);
     fputs("\t-d\tsimulated ditto printing" EOL, fp);
     fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, fp);
     fputs("\t-i\tenable stdin and stdout support for command line pipes" EOL, fp);
@@ -357,15 +359,21 @@ int main(int argc, char * const argv[])
     // error message should they be attempted when the code
     // is compiled without serial I/O support.
 
-    while ((c = getopt(argc, argv, "CFb:c:de:gf:ilm:n:pqrstvwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CFN:b:c:de:gf:ilm:n:pqrstvwx:y:z:?")) != -1) {
         switch (c) {
-	    case 'C' :
+	    case 'C':
 		 // Write config data to a temp file
 		 // Write output to stdout
 		 make_temp_config = 1;
 		 break;
-	    case 'F' :
+	    case 'F':
 		 force_framing = ITEM_FRAMING_ENABLE;
+		 break;
+	    case 'N':
+		 if(optarg[0] == 'h' || optarg[1] == 'h')
+		      gpx_set_start(&gpx, 0);
+		 if(optarg[0] == 't' || optarg[1] == 't')
+		      gpx_set_end(&gpx, 0);
 		 break;
 	    case 'b':
 #if !defined(SERIAL_SUPPORT)

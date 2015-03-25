@@ -265,6 +265,7 @@ extern "C" {
         double commandAtZ;
 
 	const char *preamble;
+	int nostart, noend;
 
         // SETTINGS
 
@@ -342,6 +343,10 @@ extern "C" {
     int eeprom_load_config(Gpx *gpx, const char *filename);
 
     void gpx_set_preamble(Gpx *gpx, const char *preamble);
+
+    void gpx_set_start(Gpx *gpx, int head);
+
+    void gpx_set_end(Gpx *gpx, int tail);
 
 #ifdef __cplusplus
 }

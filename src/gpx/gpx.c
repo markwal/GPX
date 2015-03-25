@@ -227,6 +227,8 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->sdCardPath = NULL;
         gpx->buildName = "GPX " GPX_VERSION;
 	gpx->preamble = NULL;
+	gpx->nostart = 0;
+	gpx->noend = 0;
     }
 
     gpx->flag.relativeCoordinates = 0;
@@ -3898,7 +3900,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 if(program_is_running()) {
                     end_program();
                     CALL( set_build_progress(gpx, 100) );
-                    CALL( end_build(gpx) );
+		    CALL( end_build(gpx) );
                 }
                 return END_OF_FILE;
 
@@ -4078,7 +4080,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     if(percent > 100) percent = 100;
                     if(program_is_ready()) {
                         start_program();
-                        CALL( start_build(gpx, gpx->buildName) );
+                        if(!gpx->nostart) {
+			     CALL( start_build(gpx, gpx->buildName) );
+			}
                         CALL( set_build_progress(gpx, 0) );
                         // start extruder in a known state
                         CALL( change_extruder_offset(gpx, gpx->current.extruder) );
@@ -4089,7 +4093,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                             gpx->flag.macrosEnabled = 0;
                             end_program();
                             CALL( set_build_progress(gpx, 100) );
-                            CALL( end_build(gpx) );
+			    if(!gpx->noend) {
+				 CALL( end_build(gpx) );
+			    }
                             gpx->current.percent = 100;
                         }
                         else {
@@ -4526,7 +4532,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             case 136:
                 if(program_is_ready()) {
                     start_program();
-                    CALL( start_build(gpx, gpx->buildName) );
+		    if(!gpx->nostart) {
+			 CALL( start_build(gpx, gpx->buildName) );
+		    }
                     CALL( set_build_progress(gpx, 0) );
                     // start extruder in a known state
                     CALL( change_extruder_offset(gpx, gpx->current.extruder) );
@@ -4540,7 +4548,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->flag.macrosEnabled = 0;
                     end_program();
                     CALL( set_build_progress(gpx, 100) );
-                    CALL( end_build(gpx) );
+		    CALL( end_build(gpx) );
                     gpx->current.percent = 100;
                 }
                 break;
@@ -4638,7 +4646,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
         if(percent > gpx->current.percent) {
             if(program_is_ready()) {
                 start_program();
-                CALL( start_build(gpx, gpx->buildName) );
+		if(!gpx->nostart) {
+		     CALL( start_build(gpx, gpx->buildName) );
+		}
                 CALL( set_build_progress(gpx, 0) );
                 // start extruder in a known state
                 CALL( change_extruder_offset(gpx, gpx->current.extruder) );
@@ -4738,8 +4748,10 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
 
         if(program_is_running()) {
             end_program();
-            CALL( set_build_progress(gpx, 100) );
-            CALL( end_build(gpx) );
+	    if (!gpx->noend) {
+		 CALL( set_build_progress(gpx, 100) );
+		 CALL( end_build(gpx) );
+	    }
         }
 
         CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
@@ -5462,11 +5474,19 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
 
         if(program_is_running()) {
             end_program();
-            CALL( set_build_progress(gpx, 100) );
-            CALL( end_build(gpx) );
+	    if(!gpx->noend) {
+		 CALL( set_build_progress(gpx, 100) );
+		 CALL( end_build(gpx) );
+	    }
         }
 
-        CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
+	// Ending gcode should disable the heaters and stepper motors
+	// This line of code here in GPX was making it such that people
+	// could not convert gcode utility scripts to x3g with GPX.  For
+	// instance, a script for build plate leveling which wanted to
+	// home the axes and then leave Z enabled
+
+        // CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
 
         gpx->total.length = gpx->accumulated.a + gpx->accumulated.b;
         gpx->total.time = gpx->accumulated.time;
@@ -5603,4 +5623,16 @@ void gpx_set_preamble(Gpx *gpx, const char *preamble)
 {
      if(gpx)
 	  gpx->preamble = preamble;
+}
+
+void gpx_set_start(Gpx *gpx, int head)
+{
+     if(gpx)
+	  gpx->nostart = head ? 0 : 1;
+}
+
+void gpx_set_end(Gpx *gpx, int tail)
+{
+     if(gpx)
+	  gpx->noend = tail ? 0 : 1;
 }
