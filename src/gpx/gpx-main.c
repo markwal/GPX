@@ -135,7 +135,7 @@ static void usage(int err)
     fputs(EOL "Options:" EOL, fp);
     fputs("\t-C\tCreate temporary file with a copy of the machine configuration" EOL, fp);
     fputs("\t-F\twrite X3G on-wire framing data to output file" EOL, fp);
-    fputs("\t-N\tDisable writing of the X3G 'header' (start build notice)," EOL, fp);
+    fputs("\t-N\tDisable writing of the X3G header (start build notice)," EOL, fp);
     fputs("\t  \ttail (end build notice), or both" EOL, fp);
     fputs("\t-d\tsimulated ditto printing" EOL, fp);
     fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, fp);
