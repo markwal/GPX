@@ -29,7 +29,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-//#include <strings.h>
 
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <unistd.h>
@@ -47,13 +46,14 @@ typedef long speed_t;
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
-#   include "getopt.h"
-    // strcasecmp() is not provided on Windows
-    // _stricmp() is equivalent but may require <string.h>
-#   define strcasecmp _stricmp
+#include "getopt_.h"
+// strcasecmp() is not provided on Windows
+// _stricmp() is equivalent but may require <string.h>
+#define strcasecmp _stricmp
 #endif
 
 #include "gpx.h"
+#include "config.h"
 
 // Global variables
 
@@ -63,6 +63,7 @@ static FILE *file_in = NULL;
 static FILE *file_out = NULL;
 static FILE *file_out2 = NULL;
 static int sio_port = -1;
+static char temp_config_name[24];
 
 // cleanup code in case we encounter an error that causes the program to exit
 
@@ -76,9 +77,11 @@ static void exit_handler(void)
                 perror("Error writing to output file");
             }
             fclose(file_out);
+	    file_out = NULL;
         }
         if(file_out2) {
             fclose(file_out2);
+	    file_out2 = NULL;
         }
     }
 
@@ -90,11 +93,16 @@ static void exit_handler(void)
 
     if(sio_port >= 0) {
         close(sio_port);
-        sio_port = -1;
+	sio_port = -1;
+    }
+
+    if(temp_config_name[0]) {
+	 unlink(temp_config_name);
+	 temp_config_name[0] = '\0';
     }
 }
 
-// display usage and exit
+// display usage
 
 static void usage(int err)
 {
@@ -124,8 +132,12 @@ static void usage(int err)
     fputs("GNU General Public License for more details." EOL, fp);
 
     fputs(EOL "Usage:" EOL, fp);
-    fputs("gpx [-dgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
+    fputs("gpx [-CFdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
     fputs(EOL "Options:" EOL, fp);
+    fputs("\t-C\tCreate temporary file with a copy of the machine configuration" EOL, fp);
+    fputs("\t-F\twrite X3G on-wire framing data to output file" EOL, fp);
+    fputs("\t-N\tDisable writing of the X3G header (start build notice)," EOL, fp);
+    fputs("\t  \ttail (end build notice), or both" EOL, fp);
     fputs("\t-d\tsimulated ditto printing" EOL, fp);
     fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, fp);
     fputs("\t-i\tenable stdin and stdout support for command line pipes" EOL, fp);
@@ -146,33 +158,19 @@ static void usage(int err)
     fputs("EEPROM: the filename of an eeprom settings definition (ini file)" EOL, fp);
     fputs("DIAMETER: the actual filament diameter in the printer" EOL, fp);
     fputs(EOL "MACHINE: the predefined machine type" EOL, fp);
-    fputs("\tc3  = Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, fp);
-    fputs("\tc4  = Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, fp);
-    fputs("\tcp4 = Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, fp);
-    fputs("\tcpp = Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, fp);
-    fputs("\tcxy = Core-XY with HBP - single extruder" EOL, fp);
-    fputs("\tcxysz = Core-XY with HBP - single extruder, slow Z" EOL, fp);
-    fputs("\tr1  = Replicator 1 - single extruder" EOL, fp);
-    fputs("\tr1d = Replicator 1 - dual extruder" EOL, fp);
-    fputs("\tr2  = Replicator 2 (default)" EOL, fp);
-    fputs("\tr2h = Replicator 2 with HBP" EOL, fp);
-    fputs("\tr2x = Replicator 2X" EOL, fp);
-    fputs("\tt6  = TOM Mk6 - single extruder" EOL, fp);
-    fputs("\tt7  = TOM Mk7 - single extruder" EOL, fp);
-    fputs("\tt7d = TOM Mk7 - dual extruder" EOL, fp);
-    fputs("\tz   = ZYYX - single extruder" EOL, fp);
-    fputs("\tzd  = ZYYX - dual extruder" EOL, fp);
+    gpx_list_machines(fp);
     fputs(EOL "SCALE: the coordinate system scale for the conversion (ABS = 1.0035)" EOL, fp);
     fputs("X,Y & Z: the coordinate system offsets for the conversion" EOL, fp);
     fputs("\tX = the x axis offset" EOL, fp);
     fputs("\tY = the y axis offset" EOL, fp);
     fputs("\tZ = the z axis offset" EOL, fp);
     fputs(EOL "IN: the name of the sliced gcode input filename" EOL, fp);
-    fputs("OUT: the name of the x3g output filename"
+    fputs("OUT: the name of the X3G output filename"
 #if defined(SERIAL_SUPPORT)
 	  "or the serial I/O port"
 #endif
 	  EOL, fp);
+    fputs("       specify '--' to write to stdout" EOL, fp);
     fputs(EOL "Examples:" EOL, fp);
     fputs("\tgpx -p -m r2 my-sliced-model.gcode" EOL, fp);
     fputs("\tgpx -c custom-tom.ini example.gcode /volumes/things/example.x3g" EOL, fp);
@@ -180,8 +178,6 @@ static void usage(int err)
 #if defined(SERIAL_SUPPORT)
     fputs("\tgpx -m c4 -s sio-example.gcode /dev/tty.usbmodem" EOL EOL, fp);
 #endif
-
-    exit(err);
 }
 
 #if !defined(SERIAL_SUPPORT)
@@ -275,7 +271,8 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_por
 
 int main(int argc, char * const argv[])
 {
-    int c, i, rval;
+    int c, i, rval = 1;
+    int force_framing = 0;
     int log_to_file = 0;
     int standard_io = 0;
     int serial_io = 0;
@@ -287,6 +284,11 @@ int main(int argc, char * const argv[])
     char *filename;
     int ini_loaded = 0;
     speed_t baud_rate = B115200;
+    int make_temp_config = 0;
+
+    // Blank the temporary config file name.  If it isn't blank
+    //   on exit and an error has occurred, then it is deleted
+    temp_config_name[0] = '\0';
 
     // default to standard I/O
     file_in = stdin;
@@ -317,6 +319,7 @@ int main(int argc, char * const argv[])
 		  else if (i > 0) {
 		       fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, fbuf);
 		       usage(1);
+		       goto done;
 		  }
 	     }
 	}
@@ -352,6 +355,7 @@ int main(int argc, char * const argv[])
         else if (i > 0) {
 	    fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, appname);
             usage(1);
+	    goto done;
         }
     }
 
@@ -362,12 +366,27 @@ int main(int argc, char * const argv[])
     // error message should they be attempted when the code
     // is compiled without serial I/O support.
 
-    while ((c = getopt(argc, argv, "b:c:de:gf:ilm:n:pqrstvwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CFN:b:c:de:gf:ilm:n:pqrstvwx:y:z:?")) != -1) {
         switch (c) {
-            case 'b':
+	    case 'C':
+		 // Write config data to a temp file
+		 // Write output to stdout
+		 make_temp_config = 1;
+		 break;
+	    case 'F':
+		 force_framing = ITEM_FRAMING_ENABLE;
+		 break;
+	    case 'N':
+		 if(optarg[0] == 'h' || optarg[1] == 'h')
+		      gpx_set_start(&gpx, 0);
+		 if(optarg[0] == 't' || optarg[1] == 't')
+		      gpx_set_end(&gpx, 0);
+		 break;
+	    case 'b':
 #if !defined(SERIAL_SUPPORT)
 		fprintf(stderr, NO_SERIAL_SUPPORT_MSG EOL);
 		usage(1);
+		goto done;
 #else
                 i = atoi(optarg);
                 switch(i) {
@@ -402,6 +421,7 @@ int main(int argc, char * const argv[])
                     default:
                         fprintf(stderr, "Command line error: unsupported baud rate '%s'" EOL, optarg);
                         usage(1);
+			goto done;
                 }
                 if(gpx.flag.verboseMode) fprintf(stderr, "Setting baud rate to: %i bps" EOL, i);
 #endif
@@ -410,6 +430,7 @@ int main(int argc, char * const argv[])
 #if !defined(SERIAL_SUPPORT)
 		 fprintf(stderr, NO_SERIAL_SUPPORT_MSG EOL);
 		usage(1);
+		goto done;
 #else
                 serial_io = 1;
                 gpx.flag.framingEnabled = 1;
@@ -444,6 +465,7 @@ int main(int argc, char * const argv[])
             case 'm':
                 if(gpx_set_property(&gpx, "printer", "machine_type", optarg)) {
                     usage(1);
+		    goto done;
                 }
                 break;
             case 'n':
@@ -478,10 +500,11 @@ int main(int argc, char * const argv[])
                 break;
             case '?':
 		usage(0);
-		// NEVER REACHED
-		break;
+		rval = SUCCESS;
+		goto done;
             default:
                 usage(1);
+		goto done;
         }
     }
 
@@ -526,14 +549,41 @@ int main(int argc, char * const argv[])
         if (i < 0) {
             fprintf(stderr, "Command line error: cannot load configuration file '%s'" EOL, config);
             usage(1);
+	    goto done;
         }
         else if (i > 0) {
             fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, config);
             usage(1);
+	    goto done;
         }
     }
 
-    if(baud_rate == B57600 && gpx.machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+    if(make_temp_config) {
+	 FILE *temp_config = NULL;
+#if !defined(_WIN32) && !defined(_WIN64)
+	 int fd;
+	 strncpy(temp_config_name, "/tmp/gpx-XXXXXX.ini",
+		 sizeof(temp_config_name) - 1);
+	 fd = mkstemps(temp_config_name, 4);
+	 temp_config = (fd >= 0) ? fdopen(fd, "w") : NULL;
+#else
+	 strcpy(temp_config_name, "gpx-XXXXXX");
+	 _mktemp(temp_config_name);
+	 strncat(temp_config_name, ".ini", sizeof(temp_config_name)-1);
+	 temp_config = fopen(temp_config_name, "w");
+#endif
+	 if(temp_config) {
+	      config_dump(temp_config, &gpx.machine);
+	      fclose(temp_config);
+	 }
+	 else {
+	      perror("Error writing a temporary configuration file for "
+		     "the -C option");
+	      goto done;
+	 }
+    }
+
+    if(baud_rate == B57600 && gpx.machine.id >= MACHINE_TYPE_REPLICATOR_1) {
         if(gpx.flag.verboseMode) fputs("WARNING: a 57600 bps baud rate will cause problems with Repicator 2/2X Mightyboards" EOL, gpx.log);
     }
 
@@ -548,6 +598,7 @@ int main(int argc, char * const argv[])
             else {
                 fputs("Command line error: port required for serial I/O" EOL, stderr);
                 usage(1);
+		goto done;
             }
         }
     }
@@ -557,7 +608,7 @@ int main(int argc, char * const argv[])
         if(gpx.flag.verboseMode) fprintf(gpx.log, "Reading from: %s" EOL, filename);
         if((file_in = fopen(filename, "rw")) == NULL) {
             perror("Error opening input");
-            exit(1);
+	    goto done;
         }
         // assign build name
         buildname = strrchr(filename, PATH_DELIM);
@@ -578,6 +629,7 @@ int main(int argc, char * const argv[])
             if(serial_io) {
                 fputs("Command line error: port required for serial I/O" EOL, stderr);
                 usage(1);
+		goto done;
             }
             // or use the input filename with a .x3g extension
             char *dot = strrchr(filename, '.');
@@ -627,39 +679,42 @@ int main(int argc, char * const argv[])
             sio_open(filename, baud_rate);
         }
         else {
-            if((file_out = fopen(filename, "wb")) == NULL) {
-                perror("Error creating output");
-                exit(-1);
-            }
-            if(gpx.flag.verboseMode) fprintf(gpx.log, "Writing to: %s" EOL, filename);
-            // write a second copy to the SD Card
-            if(gpx.sdCardPath) {
-                long sl = strlen(gpx.sdCardPath);
-                if(gpx.sdCardPath[sl - 1] == PATH_DELIM) {
-                    gpx.sdCardPath[--sl] = 0;
-                }
-                char *delim = strrchr(filename, PATH_DELIM);
-                if(delim) {
-                    memcpy(gpx.buffer.out, gpx.sdCardPath, sl);
-                    long l = strlen(delim);
-                    memcpy(gpx.buffer.out + sl, delim, l);
-                    gpx.buffer.out[sl + l] = 0;
-                }
-                else {
-                    memcpy(gpx.buffer.out, gpx.sdCardPath, sl);
-                    gpx.buffer.out[sl++] = PATH_DELIM;
-                    long l = strlen(filename);
-                    memcpy(gpx.buffer.out + sl, filename, l);
-                    gpx.buffer.out[sl + l] = 0;
-                }
-                file_out2 = fopen(gpx.buffer.out, "wb");
-                if(file_out2 && gpx.flag.verboseMode) fprintf(gpx.log, "Writing to: %s" EOL, gpx.buffer.out);
-            }
+	    if(filename[0] != '-' || filename[1] != '-' || filename[2] != '\0') {
+              if((file_out = fopen(filename, "wb")) == NULL) {
+                  perror("Error creating output");
+		  goto done;
+              }
+              if(gpx.flag.verboseMode) fprintf(gpx.log, "Writing to: %s" EOL, filename);
+              // write a second copy to the SD Card
+              if(gpx.sdCardPath) {
+                  long sl = strlen(gpx.sdCardPath);
+                  if(gpx.sdCardPath[sl - 1] == PATH_DELIM) {
+                      gpx.sdCardPath[--sl] = 0;
+                  }
+                  char *delim = strrchr(filename, PATH_DELIM);
+                  if(delim) {
+                      memcpy(gpx.buffer.out, gpx.sdCardPath, sl);
+                      long l = strlen(delim);
+                      memcpy(gpx.buffer.out + sl, delim, l);
+                      gpx.buffer.out[sl + l] = 0;
+                  }
+                  else {
+                      memcpy(gpx.buffer.out, gpx.sdCardPath, sl);
+                      gpx.buffer.out[sl++] = PATH_DELIM;
+                      long l = strlen(filename);
+                      memcpy(gpx.buffer.out + sl, filename, l);
+                      gpx.buffer.out[sl + l] = 0;
+                  }
+                  file_out2 = fopen(gpx.buffer.out, "wb");
+                  if(file_out2 && gpx.flag.verboseMode) fprintf(gpx.log, "Writing to: %s" EOL, gpx.buffer.out);
+              }
+	   }
         }
     }
     else {
         fputs("Command line error: provide an input file or enable standard I/O" EOL, stderr);
         usage(1);
+	goto done;
     }
 
     if(log_to_file) {
@@ -674,6 +729,9 @@ int main(int argc, char * const argv[])
        and both the input and output files or ports are open, so its time to parse
        the gcode input and convert it to x3g output. */
 
+    if(make_temp_config)
+	 gpx_set_preamble(&gpx, temp_config_name);
+
     if(serial_io) {
         // READ CONFIG AND WRITE EEPROM SETTINGS
         if(eeprom) {
@@ -682,27 +740,38 @@ int main(int argc, char * const argv[])
             if (i < 0) {
                 fprintf(stderr, "Command line error: cannot load eeprom configuration file '%s'" EOL, eeprom);
                 usage(1);
+		goto done;
             }
             else if (i > 0) {
                 fprintf(stderr, "(line %u) Eeprom configuration syntax error in %s: unrecognised paremeters" EOL, i, eeprom);
                 usage(1);
+		goto done;
             }
-            exit(SUCCESS);
+            rval = SUCCESS;
+	    goto done;
         }
         else {
             // READ INPUT AND SEND OUTPUT TO PRINTER
 
-            gpx_start_convert(&gpx, buildname);
-            rval = gpx_convert_and_send(&gpx, file_in, sio_port);
+	    gpx_start_convert(&gpx, buildname, force_framing, 0);
+            rval = gpx_convert_and_send(&gpx, file_in, sio_port, force_framing, 0);
             gpx_end_convert(&gpx);
         }
     }
     else {
         // READ INPUT AND CONVERT TO OUTPUT
 
-        gpx_start_convert(&gpx, buildname);
+	gpx_start_convert(&gpx, buildname, force_framing, 0);
         rval = gpx_convert(&gpx, file_in, file_out, file_out2);
         gpx_end_convert(&gpx);
     }
-    exit(rval);
+
+done:
+    if (temp_config_name[0])
+    {
+	 if (rval != SUCCESS)
+	      unlink(temp_config_name);
+	 temp_config_name[0] = '\0';
+    }
+    return(rval);
 }

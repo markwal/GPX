@@ -64,7 +64,7 @@ The options argument is a string that specifies the option characters that are
 valid for this program. An option character in this string can be followed
 by a colon (':') to indicate that it takes a required argument. */
 
-int getopt(int argc, char **argv, char *opts);
+int getopt(int argc, char * const argv[], char *opts);
 
 
 #ifdef __cplusplus

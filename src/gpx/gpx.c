@@ -33,6 +33,8 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdarg.h>
+#include <time.h>
 
 #include "gpx.h"
 
@@ -44,385 +46,59 @@
 #define CALL(FN) if((rval = FN) != SUCCESS) return rval
 
 // Machine definitions
+#ifndef MACHINE_ARRAY
+#define MACHINE_ARRAY
+#endif
 
-//  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
-//  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
+#include "std_machines.h"
 
-static Machine cupcake_G3 = {
-    {9600, 500, 11.767463, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 11.767463, ENDSTOP_IS_MIN}, // y axis
-    {450, 450, 320, ENDSTOP_IS_MIN},        // z axis
-    {7200, 50.235478806907409, 400, 1}, // a extruder
-    {7200, 50.235478806907409, 400, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CUPCAKE_G3
-};
+#undef MACHINE_ARRAY
 
-static Machine cupcake_G4 = {
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
-    {450, 450, 1280, ENDSTOP_IS_MIN},        // z axis
-    {7200, 50.235478806907409, 400, 1}, // a extruder
-    {7200, 50.235478806907409, 400, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CUPCAKE_G4
-};
+void gpx_list_machines(FILE *fp)
+{
+     Machine **ptr = machines;
+     size_t i;
 
-static Machine cupcake_P4 = {
-    {9600, 500, 94.13970462, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 94.13970462, ENDSTOP_IS_MIN}, // y axis
-    {450, 450, 2560, ENDSTOP_IS_MIN},        // z axis
-    {7200, 50.235478806907409, 400, 1}, // a extruder
-    {7200, 50.235478806907409, 400, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CUPCAKE_P4
-};
-
-static Machine cupcake_PP = {
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 47.069852, ENDSTOP_IS_MIN}, // y axis
-    {450, 450, 1280, ENDSTOP_IS_MIN},        // z axis
-    {7200, 100.470957613814818, 400, 1}, // a extruder
-    {7200, 100.470957613814818, 400, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CUPCAKE_PP
-};
-
-//  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
-//  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
-
-static Machine thing_o_matic_7 = {
-    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // y axis
-    {1000, 500, 200, ENDSTOP_IS_MAX},        // z axis
-    {1600, 50.235478806907409, 1600, 1}, // a extruder
-    {1600, 50.235478806907409, 1600, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_THINGOMATIC_7
-};
-
-static Machine thing_o_matic_7D = {
-    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // x axis
-    {9600, 500, 47.058824, ENDSTOP_IS_MIN}, // y axis
-    {1000, 500, 200, ENDSTOP_IS_MAX},        // z axis
-    {1600, 50.235478806907409, 1600, 1}, // a extruder
-    {1600, 50.235478806907409, 1600, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    2,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_THINGOMATIC_7D
-};
-
-//  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
-//  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
-
-static Machine replicator_1 = {
-    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_REPLICATOR_1
-};
-
-static Machine replicator_1D = {
-    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 94.117647, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    2,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_REPLICATOR_1D
-};
-
-//  Axis - max_feedrate, home_feedrate, steps_per_mm, endstop;
-//  Extruder - max_feedrate, steps_per_mm, motor_steps, has_heated_build_platform;
-
-static Machine replicator_2 = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
-    1.75, // nominal filament diameter
-    0.97, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_REPLICATOR_2
-};
-
-static Machine replicator_2H = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.97, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_REPLICATOR_2H
-};
-
-static Machine replicator_2X = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    2,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_REPLICATOR_2X
-};
-
-// Core-XY machine, 18 tooth GT2 timing pulleys for X and Y
-static Machine core_xy = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CORE_XY
-};
-
-// Core-XY machine with a slow Z axis ("sz"), 18T GT2 pulleys for X and Y
-static Machine core_xysz = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {600, 600, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 1}, // b extruder
-    1.75, // nominal filament diameter
-    0.85, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_CORE_XYSZ
-};
-
-// ZYYX 3D printer, single extruder, 18T GT2 pulleys for X and Y
-static Machine zyyx = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
-    1.75, // nominal filament diameter
-    0.97, // nominal packing density
-    0.4, // nozzle diameter
-    1,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_ZYYX
-};
-
-// ZYYX 3D printer, dual extruders, 18T GT2 pulleys for X and Y
-static Machine zyyx_d = {
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // x axis
-    {18000, 2500, 88.888889, ENDSTOP_IS_MAX}, // y axis
-    {1170, 1100, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // a extruder
-    {1600, 96.275201870333662468889989185642, 3200, 0}, // b extruder
-    1.75, // nominal filament diameter
-    0.97, // nominal packing density
-    0.4, // nozzle diameter
-    2,  // extruder count
-    20, // timeout
-    MACHINE_TYPE_ZYYX_D
-};
+     while(*ptr) {
+	  fputs("\t", fp);
+	  fputs((*ptr)->type, fp);
+	  for(i = strlen((*ptr)->type); i < 3; i++) fputc(' ', fp);
+	  fputs(" = ", fp);
+	  fputs((*ptr)->desc, fp);
+	  fputs(EOL, fp);
+	  ptr++;
+     }
+}
 
 #define MACHINE_IS(m) strcasecmp(machine, m) == 0
 
-int gpx_set_machine(Gpx *gpx, char *machine)
+int gpx_set_machine(Gpx *gpx, const char *machine)
 {
+    Machine **ptr = machines;
+
     // only load/clobber the on-board machine definition if the one specified is different
-    if(MACHINE_IS("c3")) {
-        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_G3) {
-            gpx->machine = cupcake_G3;
-            VERBOSE( fputs("Loading machine definition: Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m c3" EOL, gpx->log) );
-        }
+    while(*ptr) {
+	 if(MACHINE_IS((*ptr)->type)) {
+	      if (gpx->machine.id != (*ptr)->id) {
+		   memcpy(&gpx->machine, *ptr, sizeof(Machine));
+		   VERBOSE( fputs("Loading machine definition: ", gpx->log) );
+		   VERBOSE( fputs((*ptr)->desc, gpx->log) );
+		   VERBOSE( fputs(EOL, gpx->log) );
+	      }
+	      else {
+		   VERBOSE( fputs("Ignoring duplicate machine definition: -m ", gpx->log) );
+		   VERBOSE( fputs(machine, gpx->log) );
+		   VERBOSE( fputs(EOL, gpx->log) );
+	      }
+	      break;
+	 }
+	 ptr++;
     }
-    else if(MACHINE_IS("c4")) {
-        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_G4) {
-            gpx->machine = cupcake_G4;
-            VERBOSE( fputs("Loading machine definition: Cupcake Gen4 XYZ, Mk5/6 + Gen4 Extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m c4" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("cp4")) {
-        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_P4) {
-            gpx->machine = cupcake_P4;
-            VERBOSE( fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Gen4 Extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m cp4" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("cpp")) {
-        if(gpx->machine.type != MACHINE_TYPE_CUPCAKE_PP) {
-            gpx->machine = cupcake_PP;
-            VERBOSE( fputs("Loading machine definition: Cupcake Pololu XYZ, Mk5/6 + Pololu Extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m cpp" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("t6")) {
-        if(gpx->machine.type != MACHINE_TYPE_THINGOMATIC_7) {
-            gpx->machine = thing_o_matic_7;
-            VERBOSE( fputs("Loading machine definition: TOM Mk6 - single extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m t6" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("t7")) {
-        if(gpx->machine.type != MACHINE_TYPE_THINGOMATIC_7) {
-            gpx->machine = thing_o_matic_7;
-            VERBOSE( fputs("Loading machine definition: TOM Mk7 - single extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m t7" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("t7d")) {
-        if(gpx->machine.type != MACHINE_TYPE_THINGOMATIC_7D) {
-            gpx->machine = thing_o_matic_7D;
-            VERBOSE( fputs("Loading machine definition: TOM Mk7 - dual extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m t7d" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("r1")) {
-        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_1) {
-            gpx->machine = replicator_1;
-            VERBOSE( fputs("Loading machine definition: Replicator 1 - single extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m r1" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("r1d")) {
-        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_1D) {
-            gpx->machine = replicator_1D;
-            VERBOSE( fputs("Loading machine definition: Replicator 1 - dual extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m r1d" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("r2")) {
-        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_2) {
-            gpx->machine = replicator_2;
-            VERBOSE( fputs("Loading machine definition: Replicator 2" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m r2" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("r2h")) {
-        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_2H) {
-            gpx->machine = replicator_2H;
-            VERBOSE( fputs("Loading machine definition: Replicator 2 with HBP" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m r2h" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("r2x")) {
-        if(gpx->machine.type != MACHINE_TYPE_REPLICATOR_2X) {
-            gpx->machine = replicator_2X;
-            VERBOSE( fputs("Loading machine definition: Replicator 2X" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m r2x" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("cxysz")) {
-        if(gpx->machine.type != MACHINE_TYPE_CORE_XYSZ) {
-            gpx->machine = core_xy;
-            VERBOSE( fputs("Loading machine definition: Core-XYSZ" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m cxysz" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("cxy")) {
-        if(gpx->machine.type != MACHINE_TYPE_CORE_XY) {
-            gpx->machine = core_xy;
-            VERBOSE( fputs("Loading machine definition: Core-XY" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m cxy" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("z")) {
-        if(gpx->machine.type != MACHINE_TYPE_ZYYX) {
-            gpx->machine = zyyx;
-            VERBOSE( fputs("Loading machine definition: ZYYX - single extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m z" EOL, gpx->log) );
-        }
-    }
-    else if(MACHINE_IS("zd")) {
-        if(gpx->machine.type != MACHINE_TYPE_ZYYX_D) {
-            gpx->machine = zyyx_d;
-            VERBOSE( fputs("Loading machine definition: ZYYX - dual extruder" EOL, gpx->log) );
-        }
-        else {
-            VERBOSE( fputs("Ignoring duplicate machine definition: -m zd" EOL, gpx->log) );
-        }
-    }
-    else {
-        return ERROR;
-    }
+
+    if(*ptr == NULL)
+	 // Machine not found
+	 return ERROR;
+
     // update known position mask
     gpx->axis.mask = gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;;
     return SUCCESS;
@@ -438,6 +114,9 @@ static int pause_at_zpos(Gpx *gpx, float z_positon);
 void gpx_initialize(Gpx *gpx, int firstTime)
 {
     int i;
+
+    if(!gpx) return;
+
     gpx->buffer.ptr = gpx->buffer.out;
     // we default to using pipes
 
@@ -547,6 +226,9 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     if(firstTime) {
         gpx->sdCardPath = NULL;
         gpx->buildName = "GPX " GPX_VERSION;
+	gpx->preamble = NULL;
+	gpx->nostart = 0;
+	gpx->noend = 0;
     }
 
     gpx->flag.relativeCoordinates = 0;
@@ -571,7 +253,9 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->flag.loadMacros = 1;
         gpx->flag.runMacros = 1;
     }
-    gpx->flag.framingEnabled = 0;
+
+    if(firstTime)
+	gpx->flag.framingEnabled = 0;
 
     gpx->longestDDA = 0;
     gpx->layerHeight = 0.34;
@@ -713,7 +397,7 @@ static long read_bytes(Gpx *gpx, char *data, long length)
     return length;
 }
 
-static long write_string(Gpx *gpx, char *string, long length)
+static long write_string(Gpx *gpx, const char *string, long length)
 {
     long l = length;
     while(l--) {
@@ -1656,7 +1340,7 @@ static int set_fan(Gpx *gpx, unsigned extruder_id, unsigned state)
 static int set_valve(Gpx *gpx, unsigned extruder_id, unsigned state)
 {
     assert(extruder_id < gpx->machine.extruder_count);
-    if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+    if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
 
         begin_frame(gpx);
 
@@ -1690,7 +1374,7 @@ static int set_valve(Gpx *gpx, unsigned extruder_id, unsigned state)
 static int set_abp(Gpx *gpx, unsigned extruder_id, unsigned state)
 {
     assert(extruder_id < gpx->machine.extruder_count);
-    if(gpx->machine.type < MACHINE_TYPE_REPLICATOR_1) {
+    if(gpx->machine.id < MACHINE_TYPE_REPLICATOR_1) {
 
         begin_frame(gpx);
 
@@ -2229,7 +1913,7 @@ static int factory_defaults(Gpx *gpx)
 
 // 153 - Build start notification
 
-static int start_build(Gpx *gpx, char * filename)
+static int start_build(Gpx *gpx, const char * filename)
 {
     begin_frame(gpx);
 
@@ -2451,7 +2135,7 @@ static int set_acceleration(Gpx *gpx, int state)
 
 static int stream_version(Gpx *gpx)
 {
-    if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+    if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
         begin_frame(gpx);
 
         write_8(gpx, 157);
@@ -2470,7 +2154,7 @@ static int stream_version(Gpx *gpx)
 
         // uint16: bot type: PID for the intended bot is sent
         // Repliator 2/2X (Might Two)
-        if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_2) {
+        if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_2) {
             write_16(gpx, 0xB015);
         }
         // Replicator (Might One)
@@ -2822,10 +2506,44 @@ static int do_tool_change(Gpx *gpx, int timeout) {
     if(gpx->current.offset == gpx->current.extruder + 1) {
         gpx->current.offset = gpx->target.extruder + 1;
     }
+
     // change current toolhead in order to apply the calibration offset
     CALL( change_extruder_offset(gpx, gpx->target.extruder) );
+
+    // MBI's firmware and Sailfish 7.7 and earlier effect a tool change
+    // by adding the tool offset to the next move command.  That has two
+    // undesirable effects:
+    //
+    //  1. It changes the slope in the XY plane of the move, and
+    //  2. Since the firmwares do not recompute the distance, the acceleration
+    //       behavior is wrong.
+    //
+    // Item 2 is particularly foul in some instances causing thumps,
+    // lurches, or other odd behaviors as things move at the wrong speed
+    // (either too fast or too slow).
+    //
+    // Chow Loong Jin's simple solution solves both of these by queuing
+    // an *unaccelerated* move to the current position.  Since it is
+    // unaccelerated, there's no need for proper distance calcs and the
+    // firmware's failure to re-calc that info has no impact.  And since
+    // the motion is to the current position all that occurs is a simple
+    // travel move that does the tool offset.  The next useful motion
+    // command does not have its slope perturbed and will occur with the
+    // proper acceleration profile.
+    //
+    // Only gotcha here is that we may only do this when the position is
+    // well defined.  For example, we cannot do this for a tool change
+    // immediately after a 'recall home offsets' command.
+
+    if(XYZ_BIT_MASK == (gpx->axis.positionKnown & XYZ_BIT_MASK)) {
+	 gpx->target.position = gpx->current.position;
+	 gpx->axis.mask = XYZ_BIT_MASK;
+	 CALL( queue_absolute_point(gpx) );
+    }
+
     // set current extruder so changes in E are expressed as changes to A or B
     gpx->current.extruder = gpx->target.extruder;
+
     return SUCCESS;
 }
 
@@ -3381,7 +3099,63 @@ static int ini_parse(Gpx* gpx, const char* filename,
 #define PROPERTY_IS(n) strcasecmp(property, n) == 0
 #define VALUE_IS(v) strcasecmp(value, v) == 0
 
+int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, char* value);
+
 int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* value)
+{
+     char c, *inptr, *outptr, *ptr, *tmp, *tmp0, *tmpend;
+     int iret;
+
+     // If there is no section name or the section name has no comma, then
+     // just set the property
+
+     if(!section || !(ptr = strchr(section, ',')))
+	  return gpx_set_property_inner(gpx, section, property, value);
+
+     // Section name has a comma
+     // Strip LWSP and call gpx_set_property_inner() once for each section
+     tmp0 = strdup(section);
+     if(!tmp0)
+     {
+	  SHOW( fprintf(gpx->log, "Configuration error: insufficient virtual memory" EOL) )
+	  return gpx->lineNumber;
+     }
+
+     // Remove all LWSP
+     outptr = inptr = tmp0;
+     while((c = *inptr++))
+	  if(!isspace(c))
+	       *outptr++ = c;
+     *outptr = '\0';
+
+     // Note the end of the resulting string
+     tmpend = tmp0 + strlen(tmp0);
+     tmp = tmp0;
+
+     iret = SUCCESS;
+loop:
+     // Find the next token.  We could use strtok(_r) but it's not on all systems
+     ptr = strchr(tmp, ',');
+     if (ptr)
+	  *ptr = '\0';
+     if((iret = gpx_set_property_inner(gpx, tmp, property, value)))
+	  goto done;
+
+     // Advance to the next section
+     tmp = ptr + 1;
+
+     // If there's more left, then repeat
+     if(tmp < tmpend)
+	  goto loop;
+
+done:
+     if(tmp0)
+	  free(tmp0);
+
+     return iret;
+}
+
+int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, char* value)
 {
     int rval;
     if(SECTION_IS("") || SECTION_IS("macro")) {
@@ -3525,8 +3299,51 @@ void gpx_register_callback(Gpx *gpx, int (*callbackHandler)(Gpx*, void*, char*, 
     gpx->callbackData = callbackData;
 }
 
-void gpx_start_convert(Gpx *gpx, char *buildName)
+static int process_options(Gpx *gpx, int item_code, va_list ap)
 {
+     if(!gpx) {
+	  SHOW( fprintf(gpx->log, "GPX programming error; NULL context "
+			"passed to process_options(); aborting " EOL) );
+	  return ERROR;
+     }
+
+     while (item_code)
+     {
+	  switch (item_code) {
+
+	  case ITEM_FRAMING_ENABLE :
+	       gpx->flag.framingEnabled = 1;
+	       break;
+
+	  case ITEM_FRAMING_DISABLE :
+	       gpx->flag.framingEnabled = 0;
+	       break;
+
+	  default :
+	       // Unrecognized item code; error
+	       SHOW( fprintf(gpx->log, "GPX programming error; invalid "
+			     "item code %d used; aborting " EOL, item_code) );
+	       return ERROR;
+	  }
+	  item_code = va_arg(ap, int);
+     }
+
+     return SUCCESS;
+}
+
+void gpx_start_convert(Gpx *gpx, char *buildName, int item_code, ...)
+{
+    if(item_code) {
+	 va_list ap;
+	 int retstat;
+
+	 va_start(ap, item_code);
+	 retstat = process_options(gpx, item_code, ap);
+	 va_end(ap);
+	 if(retstat != SUCCESS)
+	      return;
+    }
+
     if(buildName) gpx->buildName = buildName;
 
     if(gpx->flag.dittoPrinting && gpx->machine.extruder_count == 1) {
@@ -4083,7 +3900,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 if(program_is_running()) {
                     end_program();
                     CALL( set_build_progress(gpx, 100) );
-                    CALL( end_build(gpx) );
+		    CALL( end_build(gpx) );
                 }
                 return END_OF_FILE;
 
@@ -4263,7 +4080,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     if(percent > 100) percent = 100;
                     if(program_is_ready()) {
                         start_program();
-                        CALL( start_build(gpx, gpx->buildName) );
+                        if(!gpx->nostart) {
+			     CALL( start_build(gpx, gpx->buildName) );
+			}
                         CALL( set_build_progress(gpx, 0) );
                         // start extruder in a known state
                         CALL( change_extruder_offset(gpx, gpx->current.extruder) );
@@ -4274,7 +4093,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                             gpx->flag.macrosEnabled = 0;
                             end_program();
                             CALL( set_build_progress(gpx, 100) );
-                            CALL( end_build(gpx) );
+			    if(!gpx->noend) {
+				 CALL( end_build(gpx) );
+			    }
                             gpx->current.percent = 100;
                         }
                         else {
@@ -4389,7 +4210,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 		// In MightyBoard electronics, turn the heatsink fan on
 
             case 106:
-                if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+                if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
 		    int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;
 		    if(gpx->flag.reprapFlavor) {
 			 // Toggle valve
@@ -4432,7 +4253,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 		// In MightyBoard electronics, turn the heatsink fan off
 
             case 107:
-                if(gpx->machine.type >= MACHINE_TYPE_REPLICATOR_1) {
+                if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
 		    int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 0;
 		    if(gpx->flag.reprapFlavor) {
 			 // Toggle valve
@@ -4713,7 +4534,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             case 136:
                 if(program_is_ready()) {
                     start_program();
-                    CALL( start_build(gpx, gpx->buildName) );
+		    if(!gpx->nostart) {
+			 CALL( start_build(gpx, gpx->buildName) );
+		    }
                     CALL( set_build_progress(gpx, 0) );
                     // start extruder in a known state
                     CALL( change_extruder_offset(gpx, gpx->current.extruder) );
@@ -4727,7 +4550,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->flag.macrosEnabled = 0;
                     end_program();
                     CALL( set_build_progress(gpx, 100) );
-                    CALL( end_build(gpx) );
+		    CALL( end_build(gpx) );
                     gpx->current.percent = 100;
                 }
                 break;
@@ -4825,7 +4648,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
         if(percent > gpx->current.percent) {
             if(program_is_ready()) {
                 start_program();
-                CALL( start_build(gpx, gpx->buildName) );
+		if(!gpx->nostart) {
+		     CALL( start_build(gpx, gpx->buildName) );
+		}
                 CALL( set_build_progress(gpx, 0) );
                 // start extruder in a known state
                 CALL( change_extruder_offset(gpx, gpx->current.extruder) );
@@ -4900,6 +4725,9 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
     for(;;) {
         int overflow = 0;
 
+	if(gpx->preamble)
+	     start_build(gpx, gpx->preamble);
+
         while(fgets(gpx->buffer.in, BUFFER_MAX, file.in) != NULL) {
             // detect input buffer overflow and ignore overflow input
             if(overflow) {
@@ -4922,11 +4750,19 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
 
         if(program_is_running()) {
             end_program();
-            CALL( set_build_progress(gpx, 100) );
-            CALL( end_build(gpx) );
+	    if (!gpx->noend) {
+		 CALL( set_build_progress(gpx, 100) );
+		 CALL( end_build(gpx) );
+	    }
         }
 
-        CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
+        // Ending gcode should disable the heaters and stepper motors
+	// This line of code here in GPX was making it such that people
+	// could not convert gcode utility scripts to x3g with GPX.  For
+	// instance, a script for build plate leveling which wanted to
+	// home the axes and then leave Z enabled
+
+        // CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
 
         gpx->total.length = gpx->accumulated.a + gpx->accumulated.b;
         gpx->total.time = gpx->accumulated.time;
@@ -5398,15 +5234,26 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
 
                     // 0x82 - Action buffer overflow, entire packet discarded
                 case 0x82:
+		{
+#ifdef HAS_NANOSLEEP
+// mingw32 cross compiler lacks nanosleep()
+// mingw32 env. on Windows has nanosleep()
+		    struct timespec ts = {0, 100000000}; // 0.1 s
+#endif
                     do {
                         // wait for 1/10 seconds
-                        usleep(100000);
+#ifdef HAS_NANOSLEEP
+			nanosleep(&ts, NULL);
+#else
+			usleep(100000);
+#endif
                         // query buffer size
                         buffer_size_query[3] = calculate_crc((unsigned char *)buffer_size_query + 2, 1);
                         CALL( port_handler(gpx, sio, buffer_size_query, 4) );
                         // loop until buffer has space for the next command
                     } while(sio->response.bufferSize < length);
                     break;
+		}
 
                     // 0x83 - CRC mismatch, packet discarded. (retry)
                 case 0x83:
@@ -5463,7 +5310,8 @@ L_ABORT:
     return rval;
 }
 
-int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port)
+int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
+			 int item_code, ...)
 {
     int i, rval;
     Sio sio;
@@ -5490,7 +5338,18 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port)
         gpx->callbackData = &sio;
     }
 
-    if(sio_port > 2) {
+    if(item_code) {
+	 va_list ap;
+	 int retstat;
+
+	 va_start(ap, item_code);
+	 retstat = process_options(gpx, item_code, ap);
+	 va_end(ap);
+	 if (retstat != SUCCESS)
+	      return retstat;
+    }
+
+    if(sio_port >= 0) {
         sio.port = sio_port;
     }
 
@@ -5519,11 +5378,19 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port)
 
         if(program_is_running()) {
             end_program();
-            CALL( set_build_progress(gpx, 100) );
-            CALL( end_build(gpx) );
+	    if(!gpx->noend) {
+		 CALL( set_build_progress(gpx, 100) );
+		 CALL( end_build(gpx) );
+	    }
         }
 
-        CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
+        // Ending gcode should disable the heaters and stepper motors
+	// This line of code here in GPX was making it such that people
+	// could not convert gcode utility scripts to x3g with GPX.  For
+	// instance, a script for build plate leveling which wanted to
+	// home the axes and then leave Z enabled
+
+        // CALL( set_steppers(gpx, AXES_BIT_MASK, 0) );
 
         gpx->total.length = gpx->accumulated.a + gpx->accumulated.b;
         gpx->total.time = gpx->accumulated.time;
@@ -5536,7 +5403,6 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port)
         gpx_initialize(gpx, 0);
 
         gpx->flag.logMessages = 1;
-        gpx->flag.framingEnabled = 1;
         gpx->callbackHandler = (int (*)(Gpx*, void*, char*, size_t))port_handler;;
         gpx->callbackData = &sio;
     }
@@ -5657,3 +5523,20 @@ int eeprom_load_config(Gpx *gpx, const char *filename)
     return ini_parse(gpx, filename, eeprom_set_property);
 }
 
+void gpx_set_preamble(Gpx *gpx, const char *preamble)
+{
+     if(gpx)
+	  gpx->preamble = preamble;
+}
+
+void gpx_set_start(Gpx *gpx, int head)
+{
+     if(gpx)
+	  gpx->nostart = head ? 0 : 1;
+}
+
+void gpx_set_end(Gpx *gpx, int tail)
+{
+     if(gpx)
+	  gpx->noend = tail ? 0 : 1;
+}

@@ -46,6 +46,10 @@ extern "C" {
 #define ESIOFRAME -4
 #define ESIOCRC -5
 
+// Item codes for passing control options
+#define ITEM_FRAMING_ENABLE 1
+#define ITEM_FRAMING_DISABLE 2
+
 #define STREAM_VERSION_HIGH 0
 #define STREAM_VERSION_LOW 0
 
@@ -165,50 +169,7 @@ extern "C" {
 #define RUNNING_STATE 1
 #define ENDED_STATE 2
 
-    typedef struct tAxis {
-        double max_feedrate;
-        double home_feedrate;
-        double steps_per_mm;
-        unsigned endstop;
-    } Axis;
-
-    typedef struct tExtruder {
-        double max_feedrate;
-        double steps_per_mm;
-        double motor_steps;
-        unsigned has_heated_build_platform;
-    } Extruder;
-
-
-#define MACHINE_TYPE_CUPCAKE_G3     1  // Cupcake Gen 3 electronics
-#define MACHINE_TYPE_CUPCAKE_G4     2  // Cupcake Gen 4 electronics
-#define MACHINE_TYPE_CUPCAKE_P4     3  // Cupcake Gen 4 + Pololu
-#define MACHINE_TYPE_CUPCAKE_PP     4  // Cupcake Gen 3 + Pololu
-#define MACHINE_TYPE_THINGOMATIC_7  5  // ToM Mk7 Single
-#define MACHINE_TYPE_THINGOMATIC_7D 6  // ToM Mk7 Dual
-#define MACHINE_TYPE_REPLICATOR_1   7  // Rep 1 Single
-#define MACHINE_TYPE_REPLICATOR_1D  8  // Rep 1 Dual
-#define MACHINE_TYPE_REPLICATOR_2   9  // Rep 2
-#define MACHINE_TYPE_REPLICATOR_2H 10  // Rep 2 w/HBP
-#define MACHINE_TYPE_REPLICATOR_2X 11  // Rep 2X
-#define MACHINE_TYPE_CORE_XY       12  // Core XY Single w/HBP
-#define MACHINE_TYPE_CORE_XYSZ     13  // Core XY Single w/HBP, slower Z
-#define MACHINE_TYPE_ZYYX          14  // ZYYX Single
-#define MACHINE_TYPE_ZYYX_D        15  // ZYYX Dual
-
-    typedef struct tMachine {
-        Axis x;
-        Axis y;
-        Axis z;
-        Extruder a;
-        Extruder b;
-        double nominal_filament_diameter;
-        double nominal_packing_density;
-        double nozzle_diameter;
-        unsigned extruder_count;
-        unsigned timeout;
-        unsigned type;
-    } Machine;
+#include "machine.h"
 
     typedef struct tTool {
         unsigned motor_enabled;
@@ -303,6 +264,9 @@ extern "C" {
         int commandAtIndex;
         int commandAtLength;
         double commandAtZ;
+
+	const char *preamble;
+	int nostart, noend;
 
         // SETTINGS
 
@@ -464,7 +428,7 @@ extern "C" {
     } Sio;
 
     void gpx_initialize(Gpx *gpx, int firstTime);
-    int gpx_set_machine(Gpx *gpx, char *machine);
+    int gpx_set_machine(Gpx *gpx, const char *machine);
 
     int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* value);
     int gpx_load_config(Gpx *gpx, const char *filename);
@@ -476,15 +440,23 @@ extern "C" {
 
     void gpx_register_callback(Gpx *gpx, int (*callbackHandler)(Gpx *gpx, void *callbackData, char *buffer, size_t length), void *callbackData);
 
-    void gpx_start_convert(Gpx *gpx, char *buildName);
+    void gpx_start_convert(Gpx *gpx, char *buildName, int item_code, ...);
 
     int gpx_convert_line(Gpx *gpx, char *gcode_line);
     int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2);
-    int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port);
+    int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port, int item_code, ...);
 
     void gpx_end_convert(Gpx *gpx);
 
+    void gpx_list_machines(FILE *fp);
+
     int eeprom_load_config(Gpx *gpx, const char *filename);
+
+    void gpx_set_preamble(Gpx *gpx, const char *preamble);
+
+    void gpx_set_start(Gpx *gpx, int head);
+
+    void gpx_set_end(Gpx *gpx, int tail);
 
 #ifdef __cplusplus
 }
