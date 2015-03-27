@@ -11,8 +11,14 @@ def params():
 	url='https://www.github.com/markwal/GPX'
 	ext_modules = [
 		Extension('gpx',
-		sources = ['gpxmodule.c', '../gpx.c', '../gpx-main.c'],
-		extra_compile_args = ['-DSERIAL_SUPPORT', '-fvisibility=hidden'],
+		sources = [
+			'gpxmodule.c',
+			'../shared/config.c',
+			'../shared/opt.c',
+			'../gpx/gpx.c',
+			'../gpx/gpx-main.c',
+			],
+		extra_compile_args = ['-DSERIAL_SUPPORT', '-fvisibility=hidden', '-I../shared', '-I../gpx'],
 		extra_link_args = ['-fvisibility=hidden'])
 		]
 	return locals()

@@ -13,7 +13,7 @@
 #include <termios.h>
 
 #define USE_GPX_SIO_OPEN
-#include "../gpx.h"
+#include "gpx.h"
 
 // TODO at the moment the module is taking twice as much memory as it needs to
 // because gpx-main also has one. We can merge them via extern or pass it one
@@ -132,7 +132,8 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
         return PyErr_SetFromErrnoWithFilename(PyExc_OSError, port);
     }
 
-    gpx_start_convert(&gpx, "");
+    // TODO build_name and framing
+    gpx_start_convert(&gpx, "", ITEM_FRAMING_DISABLE);
 
     gpx.flag.framingEnabled = 1;
     gpx.callbackHandler = (int (*)(Gpx*, void*, char*, size_t))port_handler;
