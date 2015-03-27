@@ -4376,6 +4376,8 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // M105 - Get extruder temperature
             case 105:
+                fprintf(gpx->log, "M105 - Get extruder temperature.\n");
+                CALL(get_extruder_temperature(gpx, 0));
                 break;
 
                 // M106 - Turn heatsink cooling fan on
@@ -4945,110 +4947,6 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
     return SUCCESS;
 }
 
-typedef struct tSio {
-    FILE *in;
-    int port;
-    unsigned bytes_out;
-    unsigned bytes_in;
-
-    union {
-        struct {
-            unsigned short version;
-            unsigned char variant;
-        } firmware;
-
-        unsigned int bufferSize;
-        unsigned short temperature;
-        unsigned int isReady;
-
-        union {
-            unsigned char bitfield;
-            struct {
-                unsigned char ready: 1;             // The extruder has reached target temperature
-                unsigned char notPluggedIn: 1;      // The tool or platform is not plugged in.
-                unsigned char softwareCutoff: 1;    // Temperature was recorded above maximum allowable.
-                unsigned char notHeating: 1;        // Heater is not heating up as expected.
-                unsigned char temperatureDropping: 1; // Heater temperature dropped below target temp.
-                unsigned char reserved: 1;
-                unsigned char buildPlateError: 1;   // An error was detected with the platform heater.
-                unsigned char extruderError: 1;     // An error was detected with the extruder heater.
-            } flag;
-        } extruder;
-
-        struct {
-            char buffer[31];
-            unsigned char length;
-        } eeprom;
-
-        struct {
-            short extruderError;
-            short extruderDelta;
-            short extruderOutput;
-
-            short buildPlateError;
-            short buildPlateDelta;
-            short buildPlateOutput;
-        } pid;
-
-        struct {
-            unsigned int length;
-            char filename[65];
-            unsigned char status;
-        } sd;
-
-        struct {
-            int x;
-            int y;
-            int z;
-            int a;
-            int b;
-
-            union {
-                unsigned short bitfield;
-                struct {
-                    unsigned short xMin: 1; // X min switch pressed
-                    unsigned short xMax: 1; // X max switch pressed
-
-                    unsigned short yMin: 1; // Y min switch pressed
-                    unsigned short yMax: 1; // Y max switch pressed
-
-                    unsigned short zMin: 1; // Z min switch pressed
-                    unsigned short zMax: 1; // Z max switch pressed
-
-                    unsigned short aMin: 1; // A min switch pressed
-                    unsigned short aMax: 1; // A max switch pressed
-
-                    unsigned short bMin: 1; // B min switch pressed
-                    unsigned short bMax: 1; // B max switch pressed
-                } flag;
-            } endstop;
-        } position;
-
-        union {
-            unsigned char bitfield;
-            struct {
-                unsigned char preheat: 1;         // Onboard preheat active
-                unsigned char manualMode: 1;      // Manual move mode active
-                unsigned char onboardScript: 1;   // Bot is running an onboard script
-                unsigned char onboardProcess: 1;  // Bot is running an onboard process
-                unsigned char waitForButton: 1;   // Bot is waiting for button press
-                unsigned char buildCancelling: 1; // Watchdog reset flag was set at restart
-                unsigned char heatShutdown: 1;    // Heaters were shutdown after 30 minutes of inactivity
-                unsigned char powerError: 1;      // An error was detected with the system power.
-            } flag;
-        } motherboard;
-
-        struct {
-            unsigned lineNumber;
-            unsigned char status;
-            unsigned char hours;
-            unsigned char minutes;
-        } build;
-
-    } response;
-
-} Sio;
-
 char *sd_status[] = {
     "operation successful",
     "SD Card not present",
@@ -5416,7 +5314,7 @@ char buffer_size_query[] = {
     0       // crc
 };
 
-static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
+int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
 {
     int rval = SUCCESS;
     if(length) {

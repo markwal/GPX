@@ -15,3 +15,6 @@ osx_obj
 linux_obj
 win32_obj
 win64_obj
+*.egg-info
+build
+dist

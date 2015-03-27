@@ -1,5 +1,5 @@
 //
-//  gpx.c
+//  gpx.h
 //
 //  Created by WHPThomas <me(at)henri(dot)net> on 1/04/13.
 //
@@ -259,6 +259,7 @@ extern "C" {
         struct {
             char in[BUFFER_MAX + 1];
             char out[BUFFER_MAX + 1];
+            char translated[BUFFER_MAX + 1];
             char *ptr;
         } buffer;
 
@@ -358,11 +359,120 @@ extern "C" {
         FILE *log;
     };
 
+    typedef struct tSio {
+        FILE *in;
+        int port;
+        unsigned bytes_out;
+        unsigned bytes_in;
+
+        union {
+            struct {
+                unsigned short version;
+                unsigned char variant;
+            } firmware;
+
+            unsigned int bufferSize;
+            unsigned short temperature;
+            unsigned int isReady;
+
+            union {
+                unsigned char bitfield;
+                struct {
+                    unsigned char ready: 1;             // The extruder has reached target temperature
+                    unsigned char notPluggedIn: 1;      // The tool or platform is not plugged in.
+                    unsigned char softwareCutoff: 1;    // Temperature was recorded above maximum allowable.
+                    unsigned char notHeating: 1;        // Heater is not heating up as expected.
+                    unsigned char temperatureDropping: 1; // Heater temperature dropped below target temp.
+                    unsigned char reserved: 1;
+                    unsigned char buildPlateError: 1;   // An error was detected with the platform heater.
+                    unsigned char extruderError: 1;     // An error was detected with the extruder heater.
+                } flag;
+            } extruder;
+
+            struct {
+                char buffer[31];
+                unsigned char length;
+            } eeprom;
+
+            struct {
+                short extruderError;
+                short extruderDelta;
+                short extruderOutput;
+
+                short buildPlateError;
+                short buildPlateDelta;
+                short buildPlateOutput;
+            } pid;
+
+            struct {
+                unsigned int length;
+                char filename[65];
+                unsigned char status;
+            } sd;
+
+            struct {
+                int x;
+                int y;
+                int z;
+                int a;
+                int b;
+
+                union {
+                    unsigned short bitfield;
+                    struct {
+                        unsigned short xMin: 1; // X min switch pressed
+                        unsigned short xMax: 1; // X max switch pressed
+
+                        unsigned short yMin: 1; // Y min switch pressed
+                        unsigned short yMax: 1; // Y max switch pressed
+
+                        unsigned short zMin: 1; // Z min switch pressed
+                        unsigned short zMax: 1; // Z max switch pressed
+
+                        unsigned short aMin: 1; // A min switch pressed
+                        unsigned short aMax: 1; // A max switch pressed
+
+                        unsigned short bMin: 1; // B min switch pressed
+                        unsigned short bMax: 1; // B max switch pressed
+                    } flag;
+                } endstop;
+            } position;
+
+            union {
+                unsigned char bitfield;
+                struct {
+                    unsigned char preheat: 1;         // Onboard preheat active
+                    unsigned char manualMode: 1;      // Manual move mode active
+                    unsigned char onboardScript: 1;   // Bot is running an onboard script
+                    unsigned char onboardProcess: 1;  // Bot is running an onboard process
+                    unsigned char waitForButton: 1;   // Bot is waiting for button press
+                    unsigned char buildCancelling: 1; // Watchdog reset flag was set at restart
+                    unsigned char heatShutdown: 1;    // Heaters were shutdown after 30 minutes of inactivity
+                    unsigned char powerError: 1;      // An error was detected with the system power.
+                } flag;
+            } motherboard;
+
+            struct {
+                unsigned lineNumber;
+                unsigned char status;
+                unsigned char hours;
+                unsigned char minutes;
+            } build;
+
+        } response;
+
+    } Sio;
+
     void gpx_initialize(Gpx *gpx, int firstTime);
     int gpx_set_machine(Gpx *gpx, char *machine);
 
     int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* value);
     int gpx_load_config(Gpx *gpx, const char *filename);
+
+#ifdef USE_GPX_SIO_OPEN
+    int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port);
+#endif
+    int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length);
 
     void gpx_register_callback(Gpx *gpx, int (*callbackHandler)(Gpx *gpx, void *callbackData, char *buffer, size_t length), void *callbackData);
 

@@ -37,6 +37,7 @@
 
 #if defined(SERIAL_SUPPORT)
 #include <termios.h>
+#define USE_GPX_SIO_OPEN
 #else
 typedef long speed_t;
 #define B115200 115200
@@ -89,6 +90,7 @@ static void exit_handler(void)
 
     if(sio_port >= 0) {
         close(sio_port);
+        sio_port = -1;
     }
 }
 
@@ -193,24 +195,29 @@ static void sio_open(const char *filename, speed_t baud_rate)
 }
 
 #else
+void sio_open(const char *filename, speed_t baud_rate)
+{
+    if (!gpx_sio_open(&gpx, filename, baud_rate, &sio_port))
+        exit(-1);
+}
 
-static void sio_open(const char *filename, speed_t baud_rate)
+int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port)
 {
     struct termios tp;
     // open and configure the serial port
-    if((sio_port = open(filename, O_RDWR | O_NOCTTY | O_NONBLOCK)) < 0) {
-        perror("Error opening port");
-        exit(-1);
+    if((*sio_port = open(filename, O_RDWR | O_NOCTTY | O_NONBLOCK)) < 0) {
+        fprintf(gpx->log, "Error opening port");
+        return 0;
     }
 
-    if(fcntl(sio_port, F_SETFL, O_RDWR) < 0) {
-        perror("Setting port descriptor flags");
-        exit(-1);
+    if(fcntl(*sio_port, F_SETFL, O_RDWR) < 0) {
+        fprintf(gpx->log, "Setting port descriptor flags");
+        return 0;
     }
 
-    if(tcgetattr(sio_port, &tp) < 0) {
-        perror("Error getting port attributes");
-        exit(-1);
+    if(tcgetattr(*sio_port, &tp) < 0) {
+        fprintf(gpx->log, "Error getting port attributes");
+        return 0;
     }
 
     cfmakeraw(&tp);
@@ -247,18 +254,19 @@ static void sio_open(const char *filename, speed_t baud_rate)
     // cfsetispeed(&tp, baud_rate);
     // cfsetospeed(&tp, baud_rate);
 
-    if(tcsetattr(sio_port, TCSANOW, &tp) < 0) {
-        perror("Error setting port attributes");
-        exit(-1);
+    if(tcsetattr(*sio_port, TCSANOW, &tp) < 0) {
+        fprintf(gpx->log, "Error setting port attributes");
+        return 0;
     }
 
     sleep(2);
-    if(tcflush(sio_port, TCIOFLUSH) < 0) {
-        perror("Error flushing port");
-        exit(-1);
+    if(tcflush(*sio_port, TCIOFLUSH) < 0) {
+        fprintf(gpx->log, "Error flushing port");
+        return 0;
     }
 
-    if(gpx.flag.verboseMode) fprintf(gpx.log, "Communicating via: %s" EOL, filename);
+    if(gpx->flag.verboseMode) fprintf(gpx->log, "Communicating via: %s" EOL, filename);
+    return 1;
 }
 
 #endif // SERIAL_SUPPORT
