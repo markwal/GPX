@@ -5403,6 +5403,8 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
         gpx_initialize(gpx, 0);
 
         gpx->flag.logMessages = 1;
+        if (!item_code)
+            gpx->flag.framingEnabled = 1;
         gpx->callbackHandler = (int (*)(Gpx*, void*, char*, size_t))port_handler;;
         gpx->callbackData = &sio;
     }
