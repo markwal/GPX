@@ -471,7 +471,9 @@ static int end_frame(Gpx *gpx)
     }
     size_t length = gpx->buffer.ptr - gpx->buffer.out;
     gpx->accumulated.bytes += length;
-    if(gpx->callbackHandler) return gpx->callbackHandler(gpx, gpx->callbackData, gpx->buffer.out, length);
+    if(gpx->callbackHandler) {
+        return gpx->callbackHandler(gpx, gpx->callbackData, gpx->buffer.out, length);
+    }
     return SUCCESS;
 }
 
@@ -1453,7 +1455,7 @@ static int set_steppers(Gpx *gpx, unsigned axes, unsigned state)
 
 static int queue_absolute_point(Gpx *gpx)
 {
-    double distance, feedrate;
+    double feedrate;
     long longestDDA = gpx->longestDDA ? gpx->longestDDA : get_longest_dda(gpx);
     Point5d steps = mm_to_steps(gpx, &gpx->target.position, &gpx->excess);
 
@@ -3364,6 +3366,28 @@ void gpx_start_convert(Gpx *gpx, char *buildName, int item_code, ...)
     }
 }
 
+// M105: Get Extruder Temperature
+static int get_extruder_temperature_extended(Gpx *gpx)
+{
+    int rval;
+
+    CALL(get_extruder_temperature(gpx, 0));
+    CALL(get_extruder_target_temperature(gpx, 0));
+    if (gpx->machine.extruder_count > 1) {
+        CALL(get_extruder_temperature(gpx, 1));
+        CALL(get_extruder_target_temperature(gpx, 1));
+    }
+    if (gpx->machine.a.has_heated_build_platform) {
+        CALL(get_build_platform_temperature(gpx, 0));
+        CALL(get_build_platform_target_temperature(gpx, 0));
+    }
+    else if (gpx->machine.b.has_heated_build_platform) {
+        CALL(get_build_platform_temperature(gpx, 1));
+        CALL(get_build_platform_target_temperature(gpx, 1));
+    }
+    return SUCCESS;
+}
+
 int gpx_convert_line(Gpx *gpx, char *gcode_line)
 {
     int i, rval;
@@ -3820,7 +3844,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->flag.relativeCoordinates = 1;
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Semantic error: G91 switch to relitive positioning prior to first absolute move" EOL, gpx->lineNumber) );
+                    SHOW( fprintf(gpx->log, "(line %u) Semantic error: G91 switch to relative positioning prior to first absolute move" EOL, gpx->lineNumber) );
                     return ERROR;
                 }
                 break;
@@ -4197,8 +4221,8 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // M105 - Get extruder temperature
             case 105:
-                fprintf(gpx->log, "M105 - Get extruder temperature.\n");
-                CALL(get_extruder_temperature(gpx, 0));
+                CALL(get_extruder_temperature_extended(gpx));
+                command_emitted++;
                 break;
 
                 // M106 - Turn heatsink cooling fan on
@@ -4406,6 +4430,13 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // M111 - Set debug level
             case 111:
+                break;
+
+                // M114 - Get current position
+            case 114:
+                get_extended_position(gpx);
+                command_emitted++;
+                break;
 
                 // M126 - Turn blower fan on (valve open)
             case 126: {
@@ -4928,7 +4959,7 @@ static void read_extruder_query_response(Gpx *gpx, Sio *sio, unsigned command, c
 
 static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buffer)
 {
-    gpx->buffer.ptr = gpx->buffer.in + 2;
+    gpx->buffer.ptr = gpx->buffer.in + 3;
     switch(command) {
             // 00 - Query firmware version information
         case 0:
@@ -5034,6 +5065,14 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
 
             // uint16: bitfield corresponding to the endstop status:
             sio->response.position.endstop.bitfield = read_16(gpx);
+
+            // set our current position
+            if ((gpx->axis.positionKnown & XYZ_BIT_MASK) != XYZ_BIT_MASK) {
+                gpx->current.position.x = sio->response.position.x / gpx->machine.x.steps_per_mm;
+                gpx->current.position.y = sio->response.position.y / gpx->machine.y.steps_per_mm;
+                gpx->current.position.z = sio->response.position.z / gpx->machine.z.steps_per_mm;
+                gpx->axis.positionKnown |= XYZ_BIT_MASK;
+            }
 
             if(gpx->flag.verboseMode && gpx->flag.logMessages) {
                 fputs("Current position" EOL, gpx->log);
@@ -5150,62 +5189,66 @@ char buffer_size_query[] = {
     0       // crc
 };
 
+void hexdump(FILE *out, char *p, size_t len)
+{
+    while (len--)
+        fprintf(out, "%02x ", (unsigned)*p++);
+}
+#define VERBOSESIO(fn)
+
 int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
 {
     int rval = SUCCESS;
     if(length) {
-        ssize_t bytes;
+        size_t bytes;
         int retry_count = 0;
         do {
+            VERBOSESIO( fprintf(gpx->log, "port_handler write: %u" EOL, length) );
+            VERBOSESIO( hexdump(gpx->log, buffer, length) );
             // send the packet
             if((bytes = write(sio->port, buffer, length)) == -1) {
-                return errno;
+                return EOSERROR;
             }
             else if(bytes != length) {
                 return ESIOWRITE;
             }
             sio->bytes_out += length;
 
-            if(sio->bytes_in) {
-                // recieve the response
-                if((bytes = read(sio->port, gpx->buffer.in, 2)) == -1) {
-                    return errno;
-                }
-                else if(bytes != 2) {
-                    return ESIOREAD;
-                }
-                // invalid start byte
-                if((unsigned char)gpx->buffer.in[0] != 0xD5) {
-                    return ESIOFRAME;
-                }
-            }
-            else {
-                // first read
-                for(;;) {
-                    // read start byte
-                    if((bytes = read(sio->port, gpx->buffer.in, 1)) == -1) {
-                        return errno;
-                    }
-                    else if(bytes != 1) {
-                        return ESIOREAD;
-                    }
-                    // loop until we get a valid start byte
-                    if((unsigned char)gpx->buffer.in[0] == 0xD5) break;
-                }
-                // read length
-                if((bytes = read(sio->port, gpx->buffer.in + 1, 1)) == -1) {
-                    return errno;
+            VERBOSESIO( fprintf(gpx->log, EOL "port_handler read:" EOL) );
+            for(;;) {
+                // read start byte
+                if((bytes = read(sio->port, gpx->buffer.in, 1)) == -1) {
+                    return EOSERROR;
                 }
                 else if(bytes != 1) {
+                    VERBOSESIO( fprintf(gpx->log, EOL "want 1 bytes = %u" EOL, (unsigned)bytes) );
                     return ESIOREAD;
                 }
+                VERBOSESIO( hexdump(gpx->log, gpx->buffer.in, bytes) );
+                // loop until we get a valid start byte
+                if((unsigned char)gpx->buffer.in[0] == 0xD5) break;
             }
-            size_t payload_length = gpx->buffer.in[1];
+            size_t payload_length = 0;
+            do {
+                // read length
+                if((bytes = read(sio->port, gpx->buffer.in + 1, 1)) == -1) {
+                    return EOSERROR;
+                }
+                else if(bytes != 1) {
+                    VERBOSESIO( fprintf(gpx->log, EOL "want 1 bytes = %u" EOL, (unsigned)bytes) );
+                    return ESIOREAD;
+                }
+                VERBOSESIO( hexdump(gpx->log, gpx->buffer.in, bytes) );
+                payload_length = gpx->buffer.in[1];
+            } while (gpx->buffer.in[1] == 0xd5);
             // recieve payload
             if((bytes = read(sio->port, gpx->buffer.in + 2, payload_length + 1)) == -1) {
-                return errno;
+                return EOSERROR;
             }
-            else if(bytes != payload_length + 1) {
+            VERBOSESIO( hexdump(gpx->log, gpx->buffer.in + 2, bytes) );
+            VERBOSESIO( fprintf(gpx->log, EOL) );
+            if(bytes != payload_length + 1) {
+                VERBOSESIO( fprintf(gpx->log, EOL "want %u bytes = %u" EOL, (unsigned)payload_length + 1, (unsigned)bytes) );
                 return ESIOREAD;
             }
             // check CRC

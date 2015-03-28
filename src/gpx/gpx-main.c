@@ -249,6 +249,12 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_por
     cfsetspeed(&tp, baud_rate);
     // cfsetispeed(&tp, baud_rate);
     // cfsetospeed(&tp, baud_rate);
+    
+    // let's ask the i/o system to block for up to a tenth of a second
+    // waiting for at least 255 bytes or whatever we asked for (whichever
+    // is least).
+    tp.c_cc[VMIN] = 255;
+    tp.c_cc[VTIME] = 1;
 
     if(tcsetattr(*sio_port, TCSANOW, &tp) < 0) {
         fprintf(gpx->log, "Error setting port attributes");
@@ -304,7 +310,6 @@ int main(int argc, char * const argv[])
 #if !defined(_WIN32) && !defined(_WIN64)
     // if present, read the ~/.gpx.ini
     {
-	char fbuf[1024];
         const char *home = getenv("HOME");
 	if (home && home[0]) {
 	     char fbuf[1024];

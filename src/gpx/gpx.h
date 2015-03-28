@@ -45,6 +45,8 @@ extern "C" {
 #define ESIOREAD -3
 #define ESIOFRAME -4
 #define ESIOCRC -5
+// EOSERROR means error code is in errno
+#define EOSERROR -6
 
 // Item codes for passing control options
 #define ITEM_FRAMING_ENABLE 1
@@ -220,7 +222,6 @@ extern "C" {
         struct {
             char in[BUFFER_MAX + 1];
             char out[BUFFER_MAX + 1];
-            char translated[BUFFER_MAX + 1];
             char *ptr;
         } buffer;
 
