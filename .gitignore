@@ -6,6 +6,7 @@ dmg
 *.gz
 *.zip
 *.o
+*.so
 *.svn
 .DS_Store
 *.sh

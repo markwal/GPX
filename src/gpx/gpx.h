@@ -292,6 +292,7 @@ extern "C" {
             unsigned loadMacros:1;      // used by the multi-pass converter to maintain state
             unsigned runMacros:1;       // used by the multi-pass converter to maintain state
             unsigned framingEnabled:1;  // enable framming of packets with header and crc
+            unsigned sioConnected:1;    // connected to the bot
         } flag;
 
 
@@ -459,6 +460,8 @@ extern "C" {
 
     void gpx_set_end(Gpx *gpx, int tail);
 
+    int get_next_filename(Gpx *gpx, unsigned restart);
+    int get_advanced_version_number(Gpx *gpx);
 #ifdef __cplusplus
 }
 #endif

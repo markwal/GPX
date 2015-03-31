@@ -241,6 +241,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->flag.verboseMode = 0;
         gpx->flag.logMessages = 1; // logging is enabled by default
         gpx->flag.rewrite5D = 0;
+        gpx->flag.sioConnected = 0;
     }
 
     // STATE
@@ -1046,7 +1047,7 @@ static int reset(Gpx *gpx)
 
 // 18 - Get next filename
 
-static int get_next_filename(Gpx *gpx, unsigned restart)
+int get_next_filename(Gpx *gpx, unsigned restart)
 {
     begin_frame(gpx);
 
@@ -1124,7 +1125,7 @@ static int get_build_statistics(Gpx *gpx)
 
 // 27 - Get advanced version number
 
-static int get_advanced_version_number(Gpx *gpx)
+int get_advanced_version_number(Gpx *gpx)
 {
     begin_frame(gpx);
 
@@ -3843,6 +3844,11 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 if((gpx->axis.positionKnown & XYZ_BIT_MASK) == XYZ_BIT_MASK) {
                     gpx->flag.relativeCoordinates = 1;
                 }
+                else if (gpx->flag.sioConnected) {
+                    get_extended_position(gpx);
+                    command_emitted++;
+                    gpx->flag.relativeCoordinates = 1;
+                }
                 else {
                     SHOW( fprintf(gpx->log, "(line %u) Semantic error: G91 switch to relative positioning prior to first absolute move" EOL, gpx->lineNumber) );
                     return ERROR;
@@ -4009,10 +4015,12 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // M20 - List SD card
             case 20:
-                break;
+                // fallthrough
 
                 // M21 - Init SD card
             case 21:
+                get_next_filename(gpx, 1);
+                command_emitted++;
                 break;
 
                 // M22 - Release SD card
@@ -5377,6 +5385,7 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
         // Single-pass
         i = 1;
         gpx->flag.framingEnabled = 1;
+        gpx->flag.sioConnected = 1;
         gpx->callbackHandler = (int (*)(Gpx*, void*, char*, size_t))port_handler;;
         gpx->callbackData = &sio;
     }
@@ -5450,6 +5459,7 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
             gpx->flag.framingEnabled = 1;
         gpx->callbackHandler = (int (*)(Gpx*, void*, char*, size_t))port_handler;;
         gpx->callbackData = &sio;
+        gpx->flag.sioConnected = 1;
     }
     gpx->flag.logMessages = logMessages;;
     return SUCCESS;
