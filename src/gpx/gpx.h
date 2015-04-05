@@ -108,6 +108,7 @@ extern "C" {
 #define T_IS_SET 0x4000
 
 #define COMMENT_IS_SET 0x8000
+#define ARG_IS_SET 0x10000
 
     typedef struct tPoint2d {
         double a;
@@ -153,6 +154,9 @@ extern "C" {
 
         // state
         int flag;
+
+        // argument
+        char *arg;
     } Command, *PtrCommand;
 
 // endstop flags
@@ -275,8 +279,8 @@ extern "C" {
         char *buildName;
 
         struct {
-            unsigned relativeCoordinates:1; // signals relitive or absolute coordinates
-            unsigned extruderIsRelative:1;  // signals relitive or absolute coordinates for extruder
+            unsigned relativeCoordinates:1; // signals relative or absolute coordinates
+            unsigned extruderIsRelative:1;  // signals relative or absolute coordinates for extruder
             unsigned reprapFlavor:1;    // reprap gcode flavor
             unsigned dittoPrinting:1;   // enable ditto printing
             unsigned buildProgress:1;   // override build percent
@@ -293,12 +297,14 @@ extern "C" {
             unsigned runMacros:1;       // used by the multi-pass converter to maintain state
             unsigned framingEnabled:1;  // enable framming of packets with header and crc
             unsigned sioConnected:1;    // connected to the bot
+            unsigned sd_paused:1;       // printing from sd paused
         } flag;
 
 
         double layerHeight;     // the current layer height
         unsigned lineNumber;    // the current line number
         int longestDDA;
+        char *selectedFilename; // parameter from M23 - allocated, so free before replace
 
         // STATISTICS
 
@@ -330,6 +336,9 @@ extern "C" {
         int port;
         unsigned bytes_out;
         unsigned bytes_in;
+        struct {
+            unsigned retryBufferOverflow: 1;
+        } flag;
 
         union {
             struct {
@@ -462,6 +471,11 @@ extern "C" {
 
     int get_next_filename(Gpx *gpx, unsigned restart);
     int get_advanced_version_number(Gpx *gpx);
+    char *get_build_status(unsigned int status);
+    int is_extruder_ready(Gpx *gpx, unsigned extruder_id);
+    int is_build_platform_ready(Gpx *gpx, unsigned extruder_id);
+    int get_motherboard_status(Gpx *gpx);
+    int is_ready(Gpx *gpx);
 #ifdef __cplusplus
 }
 #endif

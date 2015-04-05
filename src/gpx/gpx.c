@@ -226,6 +226,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     if(firstTime) {
         gpx->sdCardPath = NULL;
         gpx->buildName = "GPX " GPX_VERSION;
+        gpx->selectedFilename = NULL;
 	gpx->preamble = NULL;
 	gpx->nostart = 0;
 	gpx->noend = 0;
@@ -807,7 +808,7 @@ static int get_extruder_temperature(Gpx *gpx, unsigned extruder_id)
 
 // Query 22 - Is extruder ready
 
-static int is_extruder_ready(Gpx *gpx, unsigned extruder_id)
+int is_extruder_ready(Gpx *gpx, unsigned extruder_id)
 {
     begin_frame(gpx);
 
@@ -887,7 +888,7 @@ static int get_build_platform_target_temperature(Gpx *gpx, unsigned extruder_id)
 
 // Query 35 - Is build platform ready?
 
-static int is_build_platform_ready(Gpx *gpx, unsigned extruder_id)
+int is_build_platform_ready(Gpx *gpx, unsigned extruder_id)
 {
     begin_frame(gpx);
 
@@ -947,7 +948,7 @@ static int get_PID_state(Gpx *gpx, unsigned extruder_id)
 
 // 11 - Is ready
 
-static int is_ready(Gpx *gpx)
+int is_ready(Gpx *gpx)
 {
     begin_frame(gpx);
 
@@ -1034,6 +1035,20 @@ static int play_back_capture(Gpx *gpx, char *filename)
     return end_frame(gpx);
 }
 
+static int select_filename(Gpx *gpx, char *filename)
+{
+    if (gpx->selectedFilename != NULL) {
+        free(gpx->selectedFilename);
+        gpx->selectedFilename = NULL;
+    }
+    gpx->selectedFilename = strdup(filename);
+    if (gpx->selectedFilename == NULL)
+        return EOSERROR;
+    if(gpx->callbackHandler)
+        return gpx->callbackHandler(gpx, gpx->callbackData, gpx->buffer.out, 0);
+    return SUCCESS;
+}
+
 // 17 - Reset
 
 static int reset(Gpx *gpx)
@@ -1103,7 +1118,7 @@ static int extended_stop(Gpx *gpx, unsigned halt_steppers, unsigned clear_queue)
 
 // 23 - Get motherboard status
 
-static int get_motherboard_status(Gpx *gpx)
+int get_motherboard_status(Gpx *gpx)
 {
     begin_frame(gpx);
 
@@ -1582,7 +1597,7 @@ static int queue_new_point(Gpx *gpx, unsigned milliseconds)
     Point5d target;
 
     // the function is only called by dwell, which is by definition stationary,
-    // so set zero relitive position change
+    // so set zero relative position change
 
     target.x = 0;
     target.y = 0;
@@ -3508,6 +3523,11 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 case 'M':
                     gpx->command.m = atoi(digits);
                     gpx->command.flag |= M_IS_SET;
+                    if (gpx->command.m == 23 || gpx->command.m == 28) {
+                        gpx->command.arg = normalize_comment(p + 1);
+                        gpx->command.flag |= ARG_IS_SET;
+                        *p = 0;
+                    }
                     break;
                     // Tnnn	 Select extruder nnn.
                 case 't':
@@ -4019,8 +4039,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // M21 - Init SD card
             case 21:
-                get_next_filename(gpx, 1);
-                command_emitted++;
+                CALL( get_next_filename(gpx, 1) );
                 break;
 
                 // M22 - Release SD card
@@ -4029,30 +4048,55 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // M23 - Select SD file
             case 23:
+                if (gpx->command.flag & ARG_IS_SET)
+                    CALL( select_filename(gpx, gpx->command.arg) );
                 break;
 
                 // M24 - Start/resume SD print
             case 24:
+                if (gpx->flag.sd_paused) {
+                    CALL( pause_resume(gpx) );
+                    gpx->flag.sd_paused = 0;
+                }
+                else if (gpx->selectedFilename != NULL) {
+                    CALL( play_back_capture(gpx, gpx->selectedFilename) );
+                }
                 break;
 
                 // M25 - Pause SD print
             case 25:
+                if (!gpx->flag.sd_paused) {
+                    CALL( pause_resume(gpx) );
+                    gpx->flag.sd_paused = 1;
+                }
                 break;
 
                 // M26 - Set SD position
             case 26:
+                // s3g doesn't have a set SD position
+                // looks like software uses the sequence M25\nM26 S0 to cancel
+                // the print so that the next M24 will start over 
+                VERBOSE( {if (gpx->command.flag & S_IS_SET && gpx->command.s > 0)
+                    fprintf(gpx->log, "Only reset to sd position 0 is supported: M26 S0" EOL);} )
+                CALL( abort_immediately(gpx) );
+                gpx->flag.sd_paused = 0;
                 break;
 
                 // M27 - Report SD print status
             case 27:
+                CALL( get_build_statistics(gpx) );
                 break;
 
                 // M28 - Begin write to SD card
             case 28:
+                if (gpx->command.flag & ARG_IS_SET) {
+                    CALL( capture_to_file(gpx, gpx->command.arg) );
+                }
                 break;
 
                 // M29 - Stop writing to SD card
             case 29:
+                CALL( end_capture_to_file(gpx) );
                 break;
 
                 // M30 - Delete file from SD card
@@ -4230,7 +4274,6 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 // M105 - Get extruder temperature
             case 105:
                 CALL(get_extruder_temperature_extended(gpx));
-                command_emitted++;
                 break;
 
                 // M106 - Turn heatsink cooling fan on
@@ -4442,8 +4485,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // M114 - Get current position
             case 114:
-                get_extended_position(gpx);
-                command_emitted++;
+                CALL( get_extended_position(gpx) );
                 break;
 
                 // M126 - Turn blower fan on (valve open)
@@ -4848,9 +4890,9 @@ char *build_status[] = {
     "unknown status"
 };
 
-static char *get_build_status(unsigned int status)
+char *get_build_status(unsigned int status)
 {
-    return sd_status[status < 6 ? status : 6];
+    return build_status[status < 6 ? status : 6];
 }
 
 static void read_extruder_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buffer)
@@ -5286,6 +5328,8 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                     // 0x82 - Action buffer overflow, entire packet discarded
                 case 0x82:
 		{
+                    if (!sio->flag.retryBufferOverflow)
+                        goto L_ABORT;
 #ifdef HAS_NANOSLEEP
 // mingw32 cross compiler lacks nanosleep()
 // mingw32 env. on Windows has nanosleep()
@@ -5303,7 +5347,8 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                         CALL( port_handler(gpx, sio, buffer_size_query, 4) );
                         // loop until buffer has space for the next command
                     } while(sio->response.bufferSize < length);
-                    break;
+                    // we just did all the waiting we needed, skip the 2 second timeout
+                    continue;
 		}
 
                     // 0x83 - CRC mismatch, packet discarded. (retry)
@@ -5331,10 +5376,13 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                     VERBOSE( fprintf(gpx->log, "(retry %u) Tool lock timeout" EOL, retry_count) );
                     break;
 
-                // 0x89 - Cancel build (retry)
+                    // 0x89 - Cancel build (retry)
                 case 0x89:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Cancel build" EOL, retry_count) );
-                    break;
+                    // I think this means the build was cancelled from the LCD
+                    // panel or the bot overheated, we should bail out.  Is
+                    // there a way to confirm the cancel?
+                    goto L_ABORT;
 
                     // 0x8A - Bot is building from SD
                 case 0x8A:
@@ -5370,6 +5418,7 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
     sio.port = -1;
     sio.bytes_out = 0;
     sio.bytes_in = 0;
+    sio.flag.retryBufferOverflow = 1;
     int logMessages = gpx->flag.logMessages;
 
     if(file_in && file_in != stdin) {

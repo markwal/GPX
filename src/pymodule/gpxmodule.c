@@ -34,11 +34,23 @@ typedef struct tTio
     size_t cur;
     Sio sio;
     struct {
-        unsigned listingFiles:1;    // in the middle of an M20 response
+        unsigned listingFiles:1;      // in the middle of an M20 response
     } flag;
+    union {
+        unsigned waiting;
+        struct {
+            unsigned waitForPlatform:1;
+            unsigned waitForExtruderA:1;
+            unsigned waitForExtruderB:1;
+            unsigned waitForButton:1;
+        } waitflag;
+    };
 } Tio;
 static Tio tio;
-int connected = 0;
+static int connected = 0;
+
+// Some custom python exceptions
+static PyObject *pyerrBufferOverflow;
 
 static void tio_printf(Tio *tio, char const* fmt, ...)
 {
@@ -99,7 +111,10 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
 
             // Query 22 - Is extruder ready
         case 22:
-            // sio->response.isReady = read_8(gpx);
+            if (extruder_id)
+                tio->waitflag.waitForExtruderB = !tio->sio.response.isReady;
+            else
+                tio->waitflag.waitForExtruderA = !tio->sio.response.isReady;
             break;
 
             // Query 30 - Get build platform temperature
@@ -117,11 +132,11 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
 
             // Query 35 - Is build platform ready?
         case 35:
-            // sio->response.isReady = read_8(gpx);
+            tio->waitflag.waitForPlatform = !tio->sio.response.isReady;
             break;
 
             // Query 36 - Get extruder status
-        case 36: /*
+        case 36: /* NYI
             if(gpx->flag.verboseMode && gpx->flag.logMessages) {
                 fprintf(gpx->log, "Extruder T%u status" EOL, extruder_id);
                 if(sio->response.extruder.flag.ready) fputs("Target temperature reached" EOL, gpx->log);
@@ -134,7 +149,7 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
             break;
 
             // Query 37 - Get PID state
-        case 37: /*
+        case 37: /* NYI
             sio->response.pid.extruderError = read_16(gpx);
             sio->response.pid.extruderDelta = read_16(gpx);
             sio->response.pid.extruderOutput = read_16(gpx);
@@ -150,12 +165,33 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
 // s3g/x3g response into a text response that mimics a reprap printer.
 static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 {
-    unsigned command = buffer[COMMAND_OFFSET];
+    unsigned command;
 
+    if (length == 0) {
+        // we translated a command that has no translation to x3g, but there
+        // still may be something to do to emulate gcode behavior
+        if (gpx->command.flag & M_IS_SET) {
+            switch (gpx->command.m) {
+                case 23: // M23 - select SD file
+                    // answer to M23, at least on Marlin, Repetier and Sprinter: "File opened:%s Size:%d"
+                    // followed by "File selected:%s Size:%d".  Caller is going to 
+                    // be really surprised when the failure happens on start print
+                    // but other than enumerating all the files again, we don't
+                    // have a way to tell the printer to go check if it can be
+                    // opened
+                    tio_printf(tio, " File opened:%s Size:%d\nok File selected:%s", gpx->selectedFilename, 0, gpx->selectedFilename);
+                    // currently no way to ask Sailfish for the file size, that I can tell :-(
+                    break;
+            }
+        }
+        return SUCCESS;
+    }
+
+    command = buffer[COMMAND_OFFSET];
     int rval = port_handler(gpx, &tio->sio, buffer, length);
     if (rval != SUCCESS) {
         VERBOSE(fprintf(gpx->log, "port_handler returned: rval = %d\n", rval);)
-        return errno = rval;
+        return rval;
     }
 
     switch (command) {
@@ -165,6 +201,27 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             translate_extruder_query_response(gpx, tio, query_command, buffer);
             break;
         }
+
+            // 11 - Is ready?
+        case 11:
+            tio->waitflag.waitForButton = !tio->sio.response.isReady;
+            break;
+
+            // 14 - Begin capture to file
+        case 14:
+            if (gpx->command.flag & ARG_IS_SET)
+                tio_printf(tio, "\nWriting to file: %s", gpx->command.arg);
+            break;
+
+            // 15 - End capture
+        case 15:
+            tio_printf(tio, "\nDone saving file");
+            break;
+
+            // 16 - Playback capture (print from SD)
+        case 16:
+           sleep(1); // give it a moment to begin
+           break;
 
             // 18 - Get next filename
         case 18:
@@ -200,6 +257,50 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                 (double)tio->sio.response.position.b / gpx->machine.b.steps_per_mm);
             break;
 
+            // 23 - Get motherboard status
+        case 23:
+            if (!tio->sio.response.motherboard.bitfield)
+                tio->waitflag.waitForButton = 0;
+            else {
+                if (tio->sio.response.motherboard.flag.buildCancelling)
+                    return 0x89;
+                if (tio->sio.response.motherboard.flag.heatShutdown) {
+                    tio->cur = 0;
+                    tio_printf(tio, "!! Heaters were shutdown after 30 minutes of inactivity");
+                    return 0x89;
+                }
+                if (tio->sio.response.motherboard.flag.powerError) {
+                    tio->cur = 0;
+                    tio_printf(tio, "!! Error detected in system power");
+                    return 0x89;
+                }
+            }
+            break;
+
+            // Query 24 - Get build statistics
+        case 24:
+            switch (tio->sio.response.build.status) {
+                case 0:
+                    tio_printf(tio, " Not SD printing");
+                    break;
+                case 1:
+                    tio_printf(tio, " SD printing byte on line %u/0", tio->sio.response.build.lineNumber);
+                    break;
+                case 4:
+                    tio_printf(tio, " SD printing cancelled. ");
+                    // fall through
+                case 2:
+                    tio_printf(tio, " Done printing file");
+                    break;
+                case 3:
+                    tio_printf(tio, " SD printing paused at line %u", tio->sio.response.build.lineNumber);
+                    break;
+                case 5:
+                    tio_printf(tio, " SD printing sleeping at line %u", tio->sio.response.build.lineNumber);
+                    break;
+            }
+            break;
+
             // 27 - Get advanced version number
         case 27: {
             char *variant = "Unknown";
@@ -213,6 +314,8 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             }
             tio_printf(tio, "%s v%u.%u", variant, tio->sio.response.firmware.version / 100, tio->sio.response.firmware.version % 100);
             break;
+
+            // 135, 141, 148, 149, set wait state and return temps
         }
     }
 
@@ -222,24 +325,68 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 // return the translation or set the error context and return NULL if failure
 static PyObject *gpx_return_translation(int rval)
 {
-    if (rval < 0) {
+    if (rval != SUCCESS) {
         switch (rval) {
             case EOSERROR:
                 return PyErr_SetFromErrno(PyExc_IOError);
             case ERROR:
-                PyErr_SetString(PyExc_IOError, "GPX error.");
-                break;
+                PyErr_SetString(PyExc_IOError, "GPX error");
+                return NULL;
             case ESIOWRITE:
             case ESIOREAD:
             case ESIOFRAME:
             case ESIOCRC:
-                PyErr_SetString(PyExc_IOError, "Serial communication error.");
+                PyErr_SetString(PyExc_IOError, "Serial communication error");
+                return NULL;
+            case 0x80:
+                PyErr_SetString(PyExc_IOError, "Generic Packet error");
+                return NULL;
+            case 0x82: // Action buffer overflow
+                PyErr_SetString(pyerrBufferOverflow, "Buffer overflow");
+                return NULL;
+            case 0x83:
+                tio.cur = 0;
+                tio_printf(&tio, "!!checksum mismatch");
                 break;
+            case 0x84:
+                PyErr_SetString(PyExc_IOError, "Query packet too big");
+                return NULL;
+            case 0x85:
+                PyErr_SetString(PyExc_IOError, "Command not supported or recognized");
+                return NULL;
+            case 0x87:
+                tio.cur = 0;
+                tio_printf(&tio, "!!timeout downstream");
+                break;
+            case 0x88:
+                tio.cur = 0;
+                tio_printf(&tio, "!!timeout for tool lock");
+                break;
+            case 0x89:
+                tio.cur = 0;
+                tio_printf(&tio, "!!Cancel build");
+                break; 
+            case 0x8A:
+                tio.cur = 0;
+                tio_printf(&tio, "wait SD printing");
+                break;
+            case 0x8B:
+                tio.cur = 0;
+                tio_printf(&tio, "!!Shutdown due to MAXTEMP trigger");
+                break;
+            case 0x8C:
+                tio.cur = 0;
+                tio_printf(&tio, "!!timeout");
+                break;
+
+            default:
+                if (gpx.flag.verboseMode)
+                    fprintf(gpx.log, "Unknown error code: %d", rval);
+                PyErr_SetString(PyExc_IOError, "Unknown error.");
+                return NULL;
         }
-        return NULL;
     }
 
-    fprintf(gpx.log, "tio.translation = %s\n", tio.translation);
     return Py_BuildValue("s", tio.translation);
 }
 
@@ -248,7 +395,7 @@ static PyObject *gpx_write_string(const char *s)
     strncpy(gpx.buffer.in, s, sizeof(gpx.buffer.in));
 
     tio.cur = 0;
-    tio_printf(&tio, "ok");
+    tio_printf(&tio, "ok"); // ok message received, so error message needs to be \nerror
 
     return gpx_return_translation(gpx_convert_line(&gpx, gpx.buffer.in));
 }
@@ -359,6 +506,7 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
 
     tio.sio.in = NULL;
     tio.sio.bytes_out = tio.sio.bytes_in = 0;
+    tio.sio.flag.retryBufferOverflow = 1;
     connected = 1;
 
     fprintf(gpx.log, "gpx connected to %s at %ld using %s and %s\n", port, baudrate, inipath, logpath);
@@ -410,6 +558,26 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
     if (tio.flag.listingFiles) {
         rval = get_next_filename(&gpx, 0);
     }
+    else if (tio.waiting) {
+        tio.cur = 0;
+        tio_printf(&tio, "wait\n");
+        if (tio.waitflag.waitForPlatform) 
+            rval = is_build_platform_ready(&gpx, 0);
+        if (rval == SUCCESS && tio.waitflag.waitForExtruderA)
+            rval = is_extruder_ready(&gpx, 0);
+        if (rval == SUCCESS && tio.waitflag.waitForExtruderA)
+            rval = is_extruder_ready(&gpx, 1);
+        if (rval == SUCCESS && tio.waitflag.waitForButton)
+            rval = is_ready(&gpx);
+        if (rval == SUCCESS) {
+            if (tio.waiting) {
+                sleep(1);
+                return gpx_write_string("M105");
+            }
+            tio.cur = 0;
+            tio_printf(&tio, "ok");
+        }
+    } 
     return gpx_return_translation(rval);
 }
 
@@ -465,7 +633,13 @@ PyMODINIT_FUNC initgpx(void)
     PyObject *m = Py_InitModule("gpx", GpxMethods);
     if (m == NULL)
         return;
+
+    pyerrBufferOverflow = PyErr_NewException("gpx.BufferOverflow", NULL, NULL);
+    Py_INCREF(pyerrBufferOverflow);
+    PyModule_AddObject(m, "BufferOverflow", pyerrBufferOverflow);
+
     tio.sio.port = -1;
     tio.flag.listingFiles = 0;
+    tio.waiting = 0;
     gpx_initialize(&gpx, 1);
 }
