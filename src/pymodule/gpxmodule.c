@@ -166,6 +166,7 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
 static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 {
     unsigned command;
+    unsigned extruder;
 
     if (length == 0) {
         // we translated a command that has no translation to x3g, but there
@@ -188,6 +189,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
     }
 
     command = buffer[COMMAND_OFFSET];
+    extruder = buffer[EXTRUDER_ID_OFFSET];
     int rval = port_handler(gpx, &tio->sio, buffer, length);
     if (rval != SUCCESS) {
         VERBOSE(fprintf(gpx->log, "port_handler returned: rval = %d\n", rval);)
@@ -318,7 +320,24 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             tio_printf(tio, "%s v%u.%u", variant, tio->sio.response.firmware.version / 100, tio->sio.response.firmware.version % 100);
             break;
 
-            // 135, 141, 148, 149, set wait state and return temps
+            // 135 - wait for extruder
+        case 135:
+            if (extruder == 0)
+                tio->waitflag.waitForExtruderA = 1;
+            else
+                tio->waitflag.waitForExtruderB = 1;
+            break;
+
+            // 141 - wait for build platform
+        case 141:
+            tio->waitflag.waitForPlatform = 1;
+            break;
+
+            // 148, 149 - message to the LCD, may be waiting for a button
+        case 148:
+        case 149:
+            tio->waitflag.waitForButton = 1;
+            break;
         }
     }
 
@@ -396,9 +415,6 @@ static PyObject *gpx_return_translation(int rval)
 static PyObject *gpx_write_string(const char *s)
 {
     strncpy(gpx.buffer.in, s, sizeof(gpx.buffer.in));
-
-    tio.cur = 0;
-    tio_printf(&tio, "ok"); // ok message received, so error message needs to be \nerror
 
     return gpx_return_translation(gpx_convert_line(&gpx, gpx.buffer.in));
 }
@@ -540,6 +556,9 @@ static PyObject *gpx_write(PyObject *self, PyObject *args)
 
     if (!PyArg_ParseTuple(args, "s", &line))
         return NULL;
+
+    tio.cur = 0;
+    tio_printf(&tio, "ok"); // ok message received, so error message needs to be \nerror
 
     return gpx_write_string(line);
 }
