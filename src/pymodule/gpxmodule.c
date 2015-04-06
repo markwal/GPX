@@ -220,8 +220,11 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
             // 16 - Playback capture (print from SD)
         case 16:
-           sleep(1); // give it a moment to begin
-           break;
+            if (tio->sio.response.sd.status == 0)
+                sleep(1); // give the bot a chance to clear the BUILD_CANCELLED from the previous build
+            else
+                tio_printf(tio, "\n!!SD init fail %s", get_sd_status(tio->sio.response.sd.status));
+            break;
 
             // 18 - Get next filename
         case 18:
@@ -559,6 +562,8 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
         rval = get_next_filename(&gpx, 0);
     }
     else if (tio.waiting) {
+        if (gpx.flag.verboseMode && gpx.flag.logMessages)
+            fprintf(gpx.log, "tio.waiting = %u\n", tio.waiting);
         tio.cur = 0;
         tio_printf(&tio, "wait\n");
         if (tio.waitflag.waitForPlatform) 
@@ -569,6 +574,8 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
             rval = is_extruder_ready(&gpx, 1);
         if (rval == SUCCESS && tio.waitflag.waitForButton)
             rval = is_ready(&gpx);
+        if (gpx.flag.verboseMode && gpx.flag.logMessages)
+            fprintf(gpx.log, "tio.waiting = %u and rval = %d\n", tio.waiting, rval);
         if (rval == SUCCESS) {
             if (tio.waiting) {
                 sleep(1);

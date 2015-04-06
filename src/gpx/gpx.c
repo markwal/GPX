@@ -4872,12 +4872,19 @@ char *sd_status[] = {
     "filesystem could not be opened",
     "root directory could not be opened",
     "SD Card is locked",
+    "file not found",
+    "general error",
+    "changed working dir",
+    "volume too big",
+    "CRC failure",
+    "SD Card read error",
+    "SD operating at low speeds",
     "unknown status"
 };
 
-static char *get_sd_status(unsigned int status)
+char *get_sd_status(unsigned int status)
 {
-    return sd_status[status < 7 ? status : 7];
+    return sd_status[status < 14 ? status : 14];
 }
 
 char *build_status[] = {
@@ -5073,8 +5080,8 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
         case 16:
             // uint8: SD response code
             sio->response.sd.status = read_8(gpx);
-            VERBOSE( fprintf(gpx->log, "Play back captured file: %s" EOL,
-                        get_sd_status(sio->response.sd.status)) );
+            VERBOSE( fprintf(gpx->log, "Play back captured file: %d, %s" EOL,
+                        sio->response.sd.status, get_sd_status(sio->response.sd.status)) );
             break;
 
             // 18 - Get next filename

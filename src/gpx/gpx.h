@@ -476,6 +476,7 @@ extern "C" {
     int is_build_platform_ready(Gpx *gpx, unsigned extruder_id);
     int get_motherboard_status(Gpx *gpx);
     int is_ready(Gpx *gpx);
+    char *get_sd_status(unsigned int status);
 #ifdef __cplusplus
 }
 #endif
