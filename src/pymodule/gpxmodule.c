@@ -474,8 +474,9 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
     long baudrate = 0;
     const char *inipath = NULL;
     const char *logpath = NULL;
+    int verbose = 0;
 
-    if (!PyArg_ParseTuple(args, "s|lss", &port, &baudrate, &inipath, &logpath))
+    if (!PyArg_ParseTuple(args, "s|lssi", &port, &baudrate, &inipath, &logpath, &verbose))
         return NULL;
 
     gpx_cleanup();
@@ -483,12 +484,12 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
 
     // open the log file
     if (logpath != NULL && (gpx.log = fopen(logpath, "w+")) == NULL) {
-        fprintf(gpx.log, "Unable to open logfile (%s) for writing\n", logpath);
+        fprintf(stderr, "Unable to open logfile (%s) for writing\n", logpath);
     }
     if (gpx.log == NULL)
         gpx.log = stderr;
 
-    gpx.flag.verboseMode = 1;
+    gpx.flag.verboseMode = verbose;
     gpx.flag.logMessages = 1;
 #ifdef ALWAYS_USE_STDERR
     if (gpx.log != NULL && gpx.log != stderr)
