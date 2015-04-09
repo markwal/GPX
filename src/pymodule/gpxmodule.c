@@ -668,4 +668,5 @@ PyMODINIT_FUNC initgpx(void)
     tio.flag.listingFiles = 0;
     tio.waiting = 0;
     gpx_initialize(&gpx, 1);
+    gpx.flag.M106AlwaysValve = 1;
 }

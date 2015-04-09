@@ -243,6 +243,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->flag.logMessages = 1; // logging is enabled by default
         gpx->flag.rewrite5D = 0;
         gpx->flag.sioConnected = 0;
+        gpx->flag.M106AlwaysValve = 0;
     }
 
     // STATE
@@ -4287,7 +4288,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             case 106:
                 if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
 		    int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;
-		    if(gpx->flag.reprapFlavor) {
+		    if(gpx->flag.reprapFlavor || gpx->flag.M106AlwaysValve) {
 			 // Toggle valve
 			 if(gpx->flag.dittoPrinting) {
 			      CALL( set_valve(gpx, B, state) );
@@ -4330,7 +4331,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             case 107:
                 if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
 		    int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 0;
-		    if(gpx->flag.reprapFlavor) {
+		    if(gpx->flag.reprapFlavor || gpx->flag.M106AlwaysValve) {
 			 // Toggle valve
 			 if(gpx->flag.dittoPrinting) {
 			      CALL( set_valve(gpx, B, state) );
