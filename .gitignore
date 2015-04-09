@@ -15,6 +15,8 @@ osx_obj
 linux_obj
 win32_obj
 win64_obj
+cscope.out
+tags
 *.egg-info
 build
 dist
