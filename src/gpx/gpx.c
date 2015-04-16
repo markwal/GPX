@@ -4086,6 +4086,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 // M27 - Report SD print status
             case 27:
                 CALL( get_build_statistics(gpx) );
+                CALL( get_extended_position(gpx) );
                 break;
 
                 // M28 - Begin write to SD card

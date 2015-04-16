@@ -293,6 +293,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     break;
                 case 4:
                     tio_printf(tio, " SD printing cancelled. ");
+                    tio->waitflag.waiting = 0;
                     // fall through
                 case 2:
                     tio_printf(tio, " Done printing file");
@@ -322,6 +323,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
             // 135 - wait for extruder
         case 135:
+            VERBOSE( fprintf(gpx->log, "waiting for extruder %d\n", extruder) );
             if (extruder == 0)
                 tio->waitflag.waitForExtruderA = 1;
             else
@@ -330,12 +332,14 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
             // 141 - wait for build platform
         case 141:
+            VERBOSE( fprintf(gpx->log, "waiting for platform\n") );
             tio->waitflag.waitForPlatform = 1;
             break;
 
             // 148, 149 - message to the LCD, may be waiting for a button
         case 148:
         case 149:
+            VERBOSE( fprintf(gpx->log, "waiting for button\n") );
             tio->waitflag.waitForButton = 1;
             break;
         }
