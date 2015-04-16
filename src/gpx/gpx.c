@@ -4581,9 +4581,30 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // M134
                 // M190 - Wait for build platform to reach (or exceed) temperature
+                // Cura intends M190 to mean *set* and wait
             case 134:
             case 190: {
                 if(gpx->machine.a.has_heated_build_platform || gpx->machine.b.has_heated_build_platform) {
+                    if(gpx->command.flag & S_IS_SET) {
+                        unsigned temperature = (unsigned)gpx->command.s;
+                        if(temperature > HBP_MAX) temperature = HBP_MAX;
+                        unsigned tool_id = gpx->machine.a.has_heated_build_platform ? A : B;
+                        if(gpx->command.flag & T_IS_SET) {
+                            tool_id = gpx->target.extruder;
+                        }
+                        if(tool_id ? gpx->machine.b.has_heated_build_platform : gpx->machine.a.has_heated_build_platform) {
+                            if(temperature && gpx->override[tool_id].build_platform_temperature) {
+                                temperature = gpx->override[tool_id].build_platform_temperature;
+                            }
+                            CALL( set_build_platform_temperature(gpx, tool_id, temperature) );
+                            command_emitted++;
+                            gpx->tool[tool_id].build_platform_temperature = temperature;
+                        }
+                        else {
+                            SHOW( fprintf(gpx->log, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, gpx->lineNumber, gpx->command.m, tool_id) );
+                        }
+                    }
+
                     int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : MAX_TIMEOUT;
                     unsigned tool_id = gpx->machine.a.has_heated_build_platform ? A : B;
                     if(gpx->command.flag & T_IS_SET) {
