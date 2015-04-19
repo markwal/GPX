@@ -617,6 +617,11 @@ int main(int argc, char * const argv[])
         // use the output filename if one is provided
         if(argc > 0) {
             filename = argv[0];
+            // prefer output filename over input for the buildname
+            char *s = strrchr(filename, PATH_DELIM);
+            s = strdup(s ? s+1 : filename);
+            if (s)
+                buildname = s;
         }
         else {
             if(serial_io) {
@@ -624,22 +629,18 @@ int main(int argc, char * const argv[])
                 usage(1);
 		goto done;
             }
+
             // or use the input filename with a .x3g extension
-            char *dot = strrchr(filename, '.');
-            if(dot) {
-                long l = dot - filename;
-                memcpy(gpx.buffer.out, filename, l);
-                filename = gpx.buffer.out + l;
-            }
-            // or just append one if no .gcode extension is present
-            else {
-                size_t sl = strlen(filename);
-                memcpy(gpx.buffer.out, filename, sl);
-                filename = gpx.buffer.out + sl;
-            }
+            char *ext = strrchr(filename, '.');
+            size_t l = ext ? ext - filename : strlen(filename);
+            memcpy(gpx.buffer.out, filename, l);
+            filename = gpx.buffer.out;
+            ext = filename + l;
+
             if(truncate_filename) {
+                // truncate, replace all non alnum with '_' and uppercase
                 char *s = gpx.buffer.out;
-                for(i = 0; s < filename && i < 8; i++) {
+                for(i = 0; s < ext && i < 8; i++) {
                     char c = *s;
                     if(isalnum(c)) {
                         *s++ = toupper(c);
@@ -648,20 +649,11 @@ int main(int argc, char * const argv[])
                         *s++ = '_';
                     }
                 }
-                *s++ = '.';
-                *s++ = 'X';
-                *s++ = '3';
-                *s++ = 'G';
-                *s++ = '\0';
+                strcpy(s, ".X3G");
             }
             else {
-                *filename++ = '.';
-                *filename++ = 'x';
-                *filename++ = '3';
-                *filename++ = 'g';
-                *filename++ = '\0';
+                strcpy(ext, ".x3g");
             }
-            filename = gpx.buffer.out;
         }
 
         // trim build name extension
@@ -681,23 +673,29 @@ int main(int argc, char * const argv[])
               // write a second copy to the SD Card
               if(gpx.sdCardPath) {
                   long sl = strlen(gpx.sdCardPath);
-                  if(gpx.sdCardPath[sl - 1] == PATH_DELIM) {
+                  if(sl > 0 && gpx.sdCardPath[sl - 1] == PATH_DELIM) {
                       gpx.sdCardPath[--sl] = 0;
                   }
-                  char *delim = strrchr(filename, PATH_DELIM);
-                  if(delim) {
-                      memcpy(gpx.buffer.out, gpx.sdCardPath, sl);
-                      long l = strlen(delim);
-                      memcpy(gpx.buffer.out + sl, delim, l);
-                      gpx.buffer.out[sl + l] = 0;
+
+                  char *leaf = strrchr(filename, PATH_DELIM);
+                  if (!leaf)
+                      leaf = filename;
+                  else
+                      leaf++;
+                  // strdup because we could be pointing into gpx.buffer.out
+                  // and we're about to use that to prepend the sdCardPath
+                  leaf = strdup(leaf);
+                  if(leaf == NULL) {
+                      fputs("Insufficient memory" EOL, stderr);
+                      goto done;
                   }
-                  else {
-                      memcpy(gpx.buffer.out, gpx.sdCardPath, sl);
-                      gpx.buffer.out[sl++] = PATH_DELIM;
-                      long l = strlen(filename);
-                      memcpy(gpx.buffer.out + sl, filename, l);
-                      gpx.buffer.out[sl + l] = 0;
-                  }
+
+                  memcpy(gpx.buffer.out, gpx.sdCardPath, sl);
+                  gpx.buffer.out[sl++] = PATH_DELIM;
+                  strcpy(gpx.buffer.out + sl, filename);
+
+                  free(leaf);
+
                   file_out2 = fopen(gpx.buffer.out, "wb");
                   if(file_out2 && gpx.flag.verboseMode) fprintf(gpx.log, "Writing to: %s" EOL, gpx.buffer.out);
               }
