@@ -395,6 +395,10 @@ int s3g_stdio_open(s3g_context_t *ctx, const char *src, int create_file, int mod
      {
 	  const char *fname = (const char *)src;
 	  int oflag =  create_file ? O_CREAT | O_WRONLY : O_RDONLY;
+#ifdef O_BINARY
+          if (!create_file)
+              oflag |= O_BINARY;
+#endif
 	  int fd = open(fname, oflag, mode);
 	  if (fd < 0)
 	  {
