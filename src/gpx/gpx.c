@@ -1915,6 +1915,8 @@ static int factory_defaults(Gpx *gpx)
 
 static int start_build(Gpx *gpx, const char * filename)
 {
+    size_t len;
+
     begin_frame(gpx);
 
     write_8(gpx, 153);
@@ -1923,7 +1925,17 @@ static int start_build(Gpx *gpx, const char * filename)
     write_32(gpx, 0);
 
     // 1+N bytes: Name of the build, in ASCII, null terminated
-    write_string(gpx, filename, strlen(filename));
+    // 32 bytes max in a payload
+    //  4 bytes used for "reserved"
+    //  1 byte used for NUL terminator
+    // that leaves 27 bytes for the build name
+    // (But the LCD actually has far less room)
+    // We'll just truncate at 24
+    if (!filename)
+	 filename = "GPX";
+    len = strlen(filename);
+    if (len > 24) len = 24;
+    write_string(gpx, filename, len);
 
     return end_frame(gpx);
 }
