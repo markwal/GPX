@@ -293,7 +293,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     break;
                 case 4:
                     tio_printf(tio, " SD printing cancelled. ");
-                    tio->waitflag.waiting = 0;
+                    tio->waiting = 0;
                     // fall through
                 case 2:
                     tio_printf(tio, " Done printing file");
