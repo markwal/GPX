@@ -664,7 +664,7 @@ static Point5d mm_to_steps(Gpx *gpx, Ptr5d mm, Ptr2d excess)
 static Point5d delta_mm(Gpx *gpx)
 {
     Point5d deltaMM;
-    // compute the relative distance traveled along each axis and convert to steps
+    // compute the relative distance traveled along each axis
     if(gpx->command.flag & X_IS_SET) deltaMM.x = gpx->target.position.x - gpx->current.position.x; else deltaMM.x = 0;
     if(gpx->command.flag & Y_IS_SET) deltaMM.y = gpx->target.position.y - gpx->current.position.y; else deltaMM.y = 0;
     if(gpx->command.flag & Z_IS_SET) deltaMM.z = gpx->target.position.z - gpx->current.position.z; else deltaMM.z = 0;
@@ -676,7 +676,7 @@ static Point5d delta_mm(Gpx *gpx)
 static Point5d delta_steps(Gpx *gpx,Point5d deltaMM)
 {
     Point5d deltaSteps;
-    // compute the relative distance traveled along each axis and convert to steps
+    // Convert the relative distance traveled along each axis from units of mm to steps
     if(gpx->command.flag & X_IS_SET) deltaSteps.x = round(fabs(deltaMM.x) * gpx->machine.x.steps_per_mm); else deltaSteps.x = 0;
     if(gpx->command.flag & Y_IS_SET) deltaSteps.y = round(fabs(deltaMM.y) * gpx->machine.y.steps_per_mm); else deltaSteps.y = 0;
     if(gpx->command.flag & Z_IS_SET) deltaSteps.z = round(fabs(deltaMM.z) * gpx->machine.z.steps_per_mm); else deltaSteps.z = 0;
@@ -1934,6 +1934,8 @@ static int factory_defaults(Gpx *gpx)
 
 static int start_build(Gpx *gpx, const char * filename)
 {
+    size_t len;
+
     begin_frame(gpx);
 
     write_8(gpx, 153);
@@ -1942,7 +1944,17 @@ static int start_build(Gpx *gpx, const char * filename)
     write_32(gpx, 0);
 
     // 1+N bytes: Name of the build, in ASCII, null terminated
-    write_string(gpx, filename, strlen(filename));
+    // 32 bytes max in a payload
+    //  4 bytes used for "reserved"
+    //  1 byte used for NUL terminator
+    // that leaves 27 bytes for the build name
+    // (But the LCD actually has far less room)
+    // We'll just truncate at 24
+    if (!filename)
+	 filename = "GPX";
+    len = strlen(filename);
+    if (len > 24) len = 24;
+    write_string(gpx, filename, len);
 
     return end_frame(gpx);
 }
@@ -2091,11 +2103,16 @@ static int queue_ext_point(Gpx *gpx, double feedrate)
 
         Point5d steps = mm_to_steps(gpx, &target, &gpx->excess);
 
+	// Total time required for the motion in units of microseconds
         double usec = (60000000.0 * minutes);
 
+	// Time interval between steps along the axis with the highest step count
+	//   total-time / highest-step-count
+	// Has units of microseconds per step
         double dda_interval = usec / largest_axis(gpx->command.flag, &deltaSteps);
 
         // Convert dda_interval into dda_rate (dda steps per second on the longest axis)
+	// steps-per-microsecond * 1000000 us/s = 1000000 * (1 / dda_interval)
         double dda_rate = 1000000.0 / dda_interval;
 
         gpx->accumulated.time += (minutes * 60) * ACCELERATION_TIME;
