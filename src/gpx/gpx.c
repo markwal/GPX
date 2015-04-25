@@ -4381,6 +4381,21 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 #endif
                 break;
 
+                // M112 - Emergency stop
+            case 112:
+                // In Marlin this appears to be emergency!, emergency!, which
+                // according to reprap.org/wiki/G-code is supposed to shutdown
+                // the bot.  Closest thing we have in s3g/x3g is "abort immediately"
+                // which is the same as "reset" and "clear command buffer".
+                // In SailFish, it clears the command buffer, cancels SD printing
+                // if any, and turns off the steppers and heaters.  So at the moment
+                // this is the closest thing gcode has for controlled cancel.
+                // weird.
+                // We only pay attention to this when connected to the bot, why would
+                // you just put it in an offline file?
+                if (gpx->flag.sioConnected)
+                    CALL( abort_immediately(gpx) );
+                break;
 
                 // M109 - Set extruder temperature and wait
             case 109:

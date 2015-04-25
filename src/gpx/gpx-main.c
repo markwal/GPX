@@ -261,7 +261,7 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_por
         return 0;
     }
 
-    sleep(2);
+    sleep(1);
     if(tcflush(*sio_port, TCIOFLUSH) < 0) {
         fprintf(gpx->log, "Error flushing port");
         return 0;

@@ -197,6 +197,15 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
     }
 
     switch (command) {
+            // 03 - Clear buffer
+        case 3:
+            // 07 - Abort immediately
+        case 7:
+            // 17 - reset
+        case 17:
+            tio->waiting = 0;
+            break;
+
             // 10 - Extruder (tool) query response
         case 10: {
             unsigned query_command = buffer[QUERY_COMMAND_OFFSET];
@@ -323,6 +332,8 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
             // 135 - wait for extruder
         case 135:
+            tio->cur = 0;
+            tio_printf(tio, "wait");
             VERBOSE( fprintf(gpx->log, "waiting for extruder %d\n", extruder) );
             if (extruder == 0)
                 tio->waitflag.waitForExtruderA = 1;
@@ -332,6 +343,8 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
             // 141 - wait for build platform
         case 141:
+            tio->cur = 0;
+            tio_printf(tio, "wait");
             VERBOSE( fprintf(gpx->log, "waiting for platform\n") );
             tio->waitflag.waitForPlatform = 1;
             break;
@@ -339,6 +352,8 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             // 148, 149 - message to the LCD, may be waiting for a button
         case 148:
         case 149:
+            tio->cur = 0;
+            tio_printf(tio, "wait");
             VERBOSE( fprintf(gpx->log, "waiting for button\n") );
             tio->waitflag.waitForButton = 1;
             break;
@@ -602,7 +617,6 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
             fprintf(gpx.log, "tio.waiting = %u and rval = %d\n", tio.waiting, rval);
         if (rval == SUCCESS) {
             if (tio.waiting) {
-                sleep(1);
                 return gpx_write_string("M105");
             }
             tio.cur = 0;
