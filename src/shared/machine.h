@@ -83,4 +83,10 @@ typedef struct {
      unsigned id;
 } Machine;
 
+typedef struct {
+    const char *alias;
+    const char *type;
+    const char *desc;
+} MachineAlias;
+
 #endif

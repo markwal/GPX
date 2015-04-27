@@ -60,13 +60,13 @@ void gpx_list_machines(FILE *fp)
      size_t i;
 
      while(*ptr) {
-	  fputs("\t", fp);
-	  fputs((*ptr)->type, fp);
-	  for(i = strlen((*ptr)->type); i < 3; i++) fputc(' ', fp);
-	  fputs(" = ", fp);
-	  fputs((*ptr)->desc, fp);
-	  fputs(EOL, fp);
-	  ptr++;
+         fprintf(fp, "\t%-3s = %s" EOL, (*ptr)->type, (*ptr)->desc);
+         ptr++;
+     }
+
+     MachineAlias **pma = machine_aliases;
+     for (; *pma; pma++) {
+         fprintf(fp, "\t%-3s = %s" EOL, (*pma)->alias, (*pma)->desc);
      }
 }
 
@@ -75,8 +75,10 @@ void gpx_list_machines(FILE *fp)
 int gpx_set_machine(Gpx *gpx, const char *machine)
 {
     Machine **ptr = machines;
+    MachineAlias **pma = machine_aliases;
 
     // only load/clobber the on-board machine definition if the one specified is different
+LSearchForMachine:
     while(*ptr) {
 	 if(MACHINE_IS((*ptr)->type)) {
 	      if (gpx->machine.id != (*ptr)->id) {
@@ -95,9 +97,21 @@ int gpx_set_machine(Gpx *gpx, const char *machine)
 	 ptr++;
     }
 
-    if(*ptr == NULL)
-	 // Machine not found
-	 return ERROR;
+    if (*ptr == NULL) {
+        // check the aliases
+        while (*pma != NULL) {
+            if (MACHINE_IS((*pma)->alias)) {
+                ptr = machines;
+                machine = (*pma)->type;
+                pma = NULL;
+                goto LSearchForMachine;
+            }
+        pma++;
+        }
+
+        // Machine not found
+        return ERROR;
+    }
 
     // update known position mask
     gpx->axis.mask = gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;;
