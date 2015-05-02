@@ -660,6 +660,57 @@ static PyObject *gpx_disconnect(PyObject *self, PyObject *args)
     return Py_BuildValue("i", 0);
 }
 
+// def get_machine_defaults(machine_type_id)
+// for example: machine_info = get_machine_defaults("r1d")
+static PyObject *gpx_get_machine_defaults(PyObject *self, PyObject *args)
+{
+    char *machine_type_id;
+
+    if (!PyArg_ParseTuple(args, "s", &machine_type_id))
+        return NULL;
+
+    Machine *machine = gpx_find_machine(machine_type_id);
+    if (machine == NULL) {
+        PyErr_SetString(PyExc_ValueError, "Machine id not found");
+        return NULL;
+    }
+
+    return Py_BuildValue("{s{sd,sd,sd,si}s{sd,sd,sd,si}s{sd,sd,sd,si}s{sd,sd,sd,si}s{sd,sd,sd,si}s{sdsdsdsisi}}",
+        "x",
+            "max_feedrate", machine->x.max_feedrate,
+            "home_feedrate", machine->x.home_feedrate,
+            "steps_per_mm", machine->x.steps_per_mm,
+            "endstop", machine->x.endstop,
+        "y",
+            "max_feedrate", machine->y.max_feedrate,
+            "home_feedrate", machine->y.home_feedrate,
+            "steps_per_mm", machine->y.steps_per_mm,
+            "endstop", machine->y.endstop,
+        "z",
+            "max_feedrate", machine->z.max_feedrate,
+            "home_feedrate", machine->z.home_feedrate,
+            "steps_per_mm", machine->z.steps_per_mm,
+            "endstop", machine->z.endstop,
+        "a",
+            "max_feedrate", machine->a.max_feedrate,
+            "steps_per_mm", machine->a.steps_per_mm,
+            "motor_steps", machine->a.motor_steps,
+            "has_heated_build_platform", machine->a.has_heated_build_platform,
+        "b",
+            "max_feedrate", machine->b.max_feedrate,
+            "steps_per_mm", machine->b.steps_per_mm,
+            "motor_steps", machine->b.motor_steps,
+            "has_heated_build_platform", machine->b.has_heated_build_platform,
+        "machine",
+            "slicer_filament_diameter", machine->nominal_filament_diameter,
+            "packing_density", machine->nominal_packing_density,
+            "nozzle_diameter", machine->nozzle_diameter,
+            "extruder_count", machine->extruder_count,
+            "timeout", machine->timeout
+    );
+
+}
+
 // method table describes what is exposed to python
 static PyMethodDef GpxMethods[] = {
     {"connect", gpx_connect, METH_VARARGS, "connect(port, baud = 0, inifilepath = None, logfilepath = None) Open the serial port to the printer and initialize the channel"},
@@ -667,6 +718,7 @@ static PyMethodDef GpxMethods[] = {
     {"write", gpx_write, METH_VARARGS, "write(string) Translate g-code into x3g and send."},
     {"readnext", gpx_readnext, METH_VARARGS, "readnext() read next response if any"},
     {"set_baudrate", gpx_set_baudrate, METH_VARARGS, "set_baudrate(long) Set the current baudrate for the connection to the printer."},
+    {"get_machine_defaults", gpx_get_machine_defaults, METH_VARARGS, "get_machine_defaults(string) Return a dict with the default settings for the indicated machine type."},
     {NULL, NULL, 0, NULL} // sentinel
 };
 

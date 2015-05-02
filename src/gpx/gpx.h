@@ -478,6 +478,7 @@ extern "C" {
     int get_motherboard_status(Gpx *gpx);
     int is_ready(Gpx *gpx);
     char *get_sd_status(unsigned int status);
+    Machine *gpx_find_machine(const char *machine);
 #ifdef __cplusplus
 }
 #endif

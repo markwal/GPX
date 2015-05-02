@@ -57,7 +57,6 @@
 void gpx_list_machines(FILE *fp)
 {
      Machine **ptr = machines;
-     size_t i;
 
      while(*ptr) {
          fprintf(fp, "\t%-3s = %s" EOL, (*ptr)->type, (*ptr)->desc);
@@ -72,45 +71,52 @@ void gpx_list_machines(FILE *fp)
 
 #define MACHINE_IS(m) strcasecmp(machine, m) == 0
 
-int gpx_set_machine(Gpx *gpx, const char *machine)
+Machine *gpx_find_machine(const char *machine)
 {
     Machine **ptr = machines;
     MachineAlias **pma = machine_aliases;
 
-    // only load/clobber the on-board machine definition if the one specified is different
-LSearchForMachine:
+    // look through the list
     while(*ptr) {
-	 if(MACHINE_IS((*ptr)->type)) {
-	      if (gpx->machine.id != (*ptr)->id) {
-		   memcpy(&gpx->machine, *ptr, sizeof(Machine));
-		   VERBOSE( fputs("Loading machine definition: ", gpx->log) );
-		   VERBOSE( fputs((*ptr)->desc, gpx->log) );
-		   VERBOSE( fputs(EOL, gpx->log) );
-	      }
-	      else {
-		   VERBOSE( fputs("Ignoring duplicate machine definition: -m ", gpx->log) );
-		   VERBOSE( fputs(machine, gpx->log) );
-		   VERBOSE( fputs(EOL, gpx->log) );
-	      }
-	      break;
-	 }
+	 if(MACHINE_IS((*ptr)->type))
+	      return *ptr;
 	 ptr++;
     }
 
-    if (*ptr == NULL) {
-        // check the aliases
-        while (*pma != NULL) {
-            if (MACHINE_IS((*pma)->alias)) {
-                ptr = machines;
-                machine = (*pma)->type;
-                pma = NULL;
-                goto LSearchForMachine;
+    // check the aliases
+    while (*pma) {
+        if (MACHINE_IS((*pma)->alias)) {
+            machine = (*pma)->type;
+            for (ptr = machines; *ptr; ptr++) {
+                if (MACHINE_IS((*ptr)->type))
+                    return *ptr;
             }
-        pma++;
+            return NULL;
         }
+        pma++;
+    }
 
-        // Machine not found
+    // Machine not found
+    return NULL;
+}
+
+int gpx_set_machine(Gpx *gpx, const char *machine_type)
+{
+    Machine *machine = gpx_find_machine(machine_type);
+    if (machine == NULL)
         return ERROR;
+
+    // only load/clobber the on-board machine definition if the one specified is different
+    if (gpx->machine.id != machine->id) {
+        memcpy(&gpx->machine, machine, sizeof(Machine));
+        VERBOSE( fputs("Loading machine definition: ", gpx->log) );
+        VERBOSE( fputs(machine->desc, gpx->log) );
+        VERBOSE( fputs(EOL, gpx->log) );
+    }
+    else {
+        VERBOSE( fputs("Ignoring duplicate machine definition: -m ", gpx->log) );
+        VERBOSE( fputs(machine_type, gpx->log) );
+        VERBOSE( fputs(EOL, gpx->log) );
     }
 
     // update known position mask
