@@ -233,6 +233,8 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
         case 16:
             if (tio->sio.response.sd.status == 0)
                 sleep(1); // give the bot a chance to clear the BUILD_CANCELLED from the previous build
+            else if (tio->sio.response.sd.status == 7)
+                tio_printf(tio, "\n!! Not SD printing file not found");
             else
                 tio_printf(tio, "\n!!SD init fail %s", get_sd_status(tio->sio.response.sd.status));
             break;
@@ -262,13 +264,16 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             break;
 
             // 21 - Get extended position
-        case 21:
-            tio_printf(tio, " X:%0.2f Y:%0.2f Z:%0.2f A:%0.2f B:%0.2f",
+        case 21: {
+            double epos = (double)tio->sio.response.position.a / gpx->machine.a.steps_per_mm;
+            if (gpx->current.extruder == 1)
+                epos = (double)tio->sio.response.position.b / gpx->machine.b.steps_per_mm;
+            tio_printf(tio, " X:%0.2f Y:%0.2f Z:%0.2f E:%0.2f",
                 (double)tio->sio.response.position.x / gpx->machine.x.steps_per_mm,
                 (double)tio->sio.response.position.y / gpx->machine.y.steps_per_mm,
                 (double)tio->sio.response.position.z / gpx->machine.z.steps_per_mm,
-                (double)tio->sio.response.position.a / gpx->machine.a.steps_per_mm,
-                (double)tio->sio.response.position.b / gpx->machine.b.steps_per_mm);
+                epos);
+            }
             break;
 
             // 23 - Get motherboard status
