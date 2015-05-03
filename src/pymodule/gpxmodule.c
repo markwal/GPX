@@ -25,6 +25,87 @@ static Gpx gpx;
 #define SHOW(FN) if(gpx->flag.logMessages) {FN;}
 #define VERBOSE(FN) if(gpx->flag.verboseMode && gpx->flag.logMessages) {FN;}
 
+// Sttb - string table
+// need one of these to hang onto the filename list so that we can emulate
+// case insensitivty since some host software expects that of gcode M23
+typedef struct tSttb
+{
+    char **rgs;         // array of pointers
+    size_t cb;          // count of bytes - allocated size of rgs
+    size_t cb_expand;   // count of bytes to expand by each expansion
+    long cs;            // count of strings currently stored Assert(cs * sizeof(char *) <= cb)
+} Sttb;
+
+// make a new string table
+// cs_chunk -- count of strings -- grow the string array in chunks of this many strings
+Sttb *sttb_init(Sttb *psttb, long cs_chunk)
+{
+    size_t cb = (size_t)cs_chunk * sizeof(char *);
+
+    psttb->cs = 0;
+    psttb->rgs = malloc(cb);
+    if (psttb->rgs == NULL)
+        return NULL;
+
+    psttb->cb_expand = psttb->cb = cb;
+    return psttb;
+}
+
+void sttb_cleanup(Sttb *psttb)
+{
+    char **ps = NULL;
+
+    if (psttb->rgs == NULL)
+        return;
+
+    for (ps = psttb->rgs; ps < psttb->rgs + psttb->cs; ps++)
+        free(*ps);
+
+    free(psttb->rgs);
+    psttb->rgs = NULL;
+    psttb->cb = psttb->cb_expand = 0;
+    psttb->cs = 0;
+}
+
+char *sttb_add(Sttb *psttb, char *s)
+{
+    if (psttb->rgs == NULL)
+        return NULL;
+    size_t cb_needed = sizeof(char *) * ((size_t)psttb->cs + 1);
+    if (cb_needed > psttb->cb) {
+        if (psttb->cb + psttb->cb_expand > cb_needed)
+            cb_needed = psttb->cb + psttb->cb_expand;
+        char **rgs_new = realloc(psttb->rgs, cb_needed);
+        if (rgs_new == NULL)
+            return NULL;
+        psttb->rgs = rgs_new;
+        psttb->cb = cb_needed;
+    }
+    if ((s = strdup(s)) == NULL)
+        return NULL;
+    return psttb->rgs[psttb->cs++] = s;
+}
+
+void sttb_remove(Sttb *psttb, long i)
+{
+    if (i < 0 || i >= psttb->cs) // a little bounds checking
+        return;
+    free(psttb->rgs[i]);
+    memcpy(psttb->rgs + i, psttb->rgs + i + 1, (psttb->cs - i - 1) * sizeof(char *));
+    psttb->cs--;
+}
+
+long sttb_find_nocase(Sttb *psttb, char *s)
+{
+    long i;
+    for (i = 0; i < psttb->cs; i++) {
+        if (strcasecmp(s, psttb->rgs[i]) == 0)
+            return i;
+    }
+    return -1;
+}
+
+
 // Tio - translated serial io
 // wraps Sio and adds translation output buffer
 // translation is reprap style response
@@ -45,6 +126,7 @@ typedef struct tTio
             unsigned waitForButton:1;
         } waitflag;
     };
+    Sttb sttb;
 } Tio;
 static Tio tio;
 static int connected = 0;
@@ -72,15 +154,17 @@ static void tio_printf(Tio *tio, char const* fmt, ...)
 static void gpx_cleanup(void)
 {
     connected = 0;
-    if (gpx.log != NULL && gpx.log != stderr)
-    {
+    if (gpx.log != NULL && gpx.log != stderr) {
         fclose(gpx.log);
         gpx.log = stderr;
     }
-    if (tio.sio.port >= -1)
-    {
+    if (tio.sio.port >= -1) {
         close(tio.sio.port);
         tio.sio.port = -1;
+    }
+    if (tio.sttb.cs > 0) {
+        sttb_cleanup(&tio.sttb);
+        sttb_init(&tio.sttb, 10);
     }
 }
 
@@ -173,7 +257,16 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
         // still may be something to do to emulate gcode behavior
         if (gpx->command.flag & M_IS_SET) {
             switch (gpx->command.m) {
-                case 23: // M23 - select SD file
+                case 23: { // M23 - select SD file
+                    // Some host software expects case insensitivity for M23
+                    long i = sttb_find_nocase(&tio->sttb, gpx->selectedFilename);
+                    if (i >= 0) {
+                        char *s = strdup(tio->sttb.rgs[i]);
+                        if (s != NULL) {
+                            free(gpx->selectedFilename);
+                            gpx->selectedFilename = s;
+                        }
+                    }
                     // answer to M23, at least on Marlin, Repetier and Sprinter: "File opened:%s Size:%d"
                     // followed by "File selected:%s Size:%d".  Caller is going to 
                     // be really surprised when the failure happens on start print
@@ -183,6 +276,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     tio_printf(tio, " File opened:%s Size:%d\nok File selected:%s", gpx->selectedFilename, 0, gpx->selectedFilename);
                     // currently no way to ask Sailfish for the file size, that I can tell :-(
                     break;
+                }
             }
         }
         return SUCCESS;
@@ -253,13 +347,18 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                 if (!tio->flag.listingFiles) {
                     tio_printf(tio, "\nBegin file list\n");
                     tio->flag.listingFiles = 1;
+                    if (tio->sttb.cs > 0)
+                        sttb_cleanup(&tio->sttb);
+                    sttb_init(&tio->sttb, 10);
                 }
                 if (!tio->sio.response.sd.filename[0]) {
                     tio_printf(tio, "End file list");
                     tio->flag.listingFiles = 0;
                 }
-                else
+                else {
                     tio_printf(tio, "%s", tio->sio.response.sd.filename);
+                    sttb_add(&tio->sttb, tio->sio.response.sd.filename);
+                }
             }
             break;
 
@@ -411,7 +510,7 @@ static PyObject *gpx_return_translation(int rval)
             case 0x89:
                 tio.cur = 0;
                 tio_printf(&tio, "!!Cancel build");
-                break; 
+                break;
             case 0x8A:
                 tio.cur = 0;
                 tio_printf(&tio, "wait SD printing");
@@ -529,7 +628,7 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
         int lineno = gpx_load_config(&gpx, inipath);
         if (lineno < 0)
             fprintf(gpx.log, "Unable to load configuration file (%s)\n", inipath);
-        if (lineno > 0) 
+        if (lineno > 0)
             fprintf(gpx.log, "(line %u) Configuration syntax error in %s: unrecognized parameters\n", lineno, inipath);
     }
 
@@ -610,7 +709,7 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
             fprintf(gpx.log, "tio.waiting = %u\n", tio.waiting);
         tio.cur = 0;
         tio_printf(&tio, "wait\n");
-        if (tio.waitflag.waitForPlatform) 
+        if (tio.waitflag.waitForPlatform)
             rval = is_build_platform_ready(&gpx, 0);
         if (rval == SUCCESS && tio.waitflag.waitForExtruderA)
             rval = is_extruder_ready(&gpx, 0);
@@ -627,7 +726,7 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
             tio.cur = 0;
             tio_printf(&tio, "ok");
         }
-    } 
+    }
     return gpx_return_translation(rval);
 }
 
@@ -716,6 +815,55 @@ static PyObject *gpx_get_machine_defaults(PyObject *self, PyObject *args)
 
 }
 
+static PyObject *gpx_read_ini(PyObject *self, PyObject *args)
+{
+    const char *inipath = NULL;
+
+    if (!connected)
+        return PyErr_NotConnected();
+
+    if (!PyArg_ParseTuple(args, "s", &inipath))
+        return NULL;
+
+    int lineno = gpx_load_config(&gpx, inipath);
+    if (lineno == 0)
+        return Py_BuildValue("i", 0); // success
+
+    if (lineno < 0)
+        fprintf(gpx.log, "Unable to load configuration file (%s)\n", inipath);
+    if (lineno > 0)
+        fprintf(gpx.log, "(line %u) Configuration syntax error in %s: unrecognized parameters\n", lineno, inipath);
+
+    PyErr_SetString(PyExc_ValueError, "Unable to load ini file");
+    return Py_BuildValue("i", 0);
+}
+
+static PyObject *gpx_reset_ini(PyObject *self, PyObject *args)
+{
+    if (!connected)
+        return PyErr_NotConnected();
+
+    // some state survives reset_ini
+    void *callbackHandler = gpx.callbackHandler;
+    void *callbackData = gpx.callbackData;
+    FILE *log = gpx.log;
+    unsigned verbose = gpx.flag.verboseMode;
+
+    // nuke it all
+    gpx_initialize(&gpx, 1);
+
+    // restore some stuff, plus we're still in pymodule mode
+    gpx.callbackHandler = callbackHandler;
+    gpx.callbackData = callbackData;
+    gpx.log = log;
+    gpx.flag.framingEnabled = 1;
+    gpx.flag.sioConnected = 1;
+    gpx.flag.verboseMode = verbose;
+    gpx.flag.logMessages = 1;
+
+    return Py_BuildValue("i", 0);
+}
+
 // method table describes what is exposed to python
 static PyMethodDef GpxMethods[] = {
     {"connect", gpx_connect, METH_VARARGS, "connect(port, baud = 0, inifilepath = None, logfilepath = None) Open the serial port to the printer and initialize the channel"},
@@ -724,6 +872,8 @@ static PyMethodDef GpxMethods[] = {
     {"readnext", gpx_readnext, METH_VARARGS, "readnext() read next response if any"},
     {"set_baudrate", gpx_set_baudrate, METH_VARARGS, "set_baudrate(long) Set the current baudrate for the connection to the printer."},
     {"get_machine_defaults", gpx_get_machine_defaults, METH_VARARGS, "get_machine_defaults(string) Return a dict with the default settings for the indicated machine type."},
+    {"read_ini", gpx_read_ini, METH_VARARGS, "gpx_read_ini(string) Parse indicated ini file for gpx settings and macros and update current converter state. Loading ini files is additive. They just build on the ini's that have been read before. Use reset_ini to start from a clean state again."},
+    {"reset_ini", gpx_reset_ini, METH_VARARGS, "gpx_reset_ini() Reset configuration state to default"},
     {NULL, NULL, 0, NULL} // sentinel
 };
 
@@ -743,6 +893,7 @@ PyMODINIT_FUNC initgpx(void)
     tio.sio.port = -1;
     tio.flag.listingFiles = 0;
     tio.waiting = 0;
+    sttb_init(&tio.sttb, 10);
     gpx_initialize(&gpx, 1);
     gpx.flag.M106AlwaysValve = 1;
 }
