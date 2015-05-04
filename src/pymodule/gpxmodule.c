@@ -713,7 +713,7 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
             rval = is_build_platform_ready(&gpx, 0);
         if (rval == SUCCESS && tio.waitflag.waitForExtruderA)
             rval = is_extruder_ready(&gpx, 0);
-        if (rval == SUCCESS && tio.waitflag.waitForExtruderA)
+        if (rval == SUCCESS && tio.waitflag.waitForExtruderB)
             rval = is_extruder_ready(&gpx, 1);
         if (rval == SUCCESS && tio.waitflag.waitForButton)
             rval = is_ready(&gpx);
