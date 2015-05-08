@@ -8,9 +8,10 @@
 
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <unistd.h>
-#endif
-
 #include <termios.h>
+#else
+#include "winsio.h"
+#endif
 
 #define USE_GPX_SIO_OPEN
 #include "gpx.h"
@@ -158,7 +159,7 @@ static void gpx_cleanup(void)
         fclose(gpx.log);
         gpx.log = stderr;
     }
-    if (tio.sio.port >= -1) {
+    if (tio.sio.port > -1) {
         close(tio.sio.port);
         tio.sio.port = -1;
     }
@@ -612,7 +613,7 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
     if (gpx.log == NULL)
         gpx.log = stderr;
 
-    gpx.flag.verboseMode = verbose;
+    gpx.flag.verboseMode = 1; //verbose;
     gpx.flag.logMessages = 1;
 #ifdef ALWAYS_USE_STDERR
     if (gpx.log != NULL && gpx.log != stderr)
@@ -730,6 +731,7 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
     return gpx_return_translation(rval);
 }
 
+#if !defined(_WIN32) && !defined(_WIN64)
 // def baudrate(long)
 static PyObject *gpx_set_baudrate(PyObject *self, PyObject *args)
 {
@@ -754,6 +756,22 @@ static PyObject *gpx_set_baudrate(PyObject *self, PyObject *args)
 
     return Py_BuildValue("i", 0);
 }
+#else
+static PyObject *gpx_set_baudrate(PyObject *self, PyObject *args)
+{
+    long baudrate;
+
+    if (!connected)
+        return PyErr_NotConnected();
+
+    if (!PyArg_ParseTuple(args, "l", &baudrate))
+        return NULL;
+
+    // TODO Windows set_baudrate
+
+    return NULL;
+}
+#endif // _WIN32 || _WIN64
 
 // def disconnect()
 static PyObject *gpx_disconnect(PyObject *self, PyObject *args)

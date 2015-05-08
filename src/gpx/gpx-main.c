@@ -35,7 +35,11 @@
 #endif
 
 #if defined(SERIAL_SUPPORT)
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <termios.h>
+#else
+#include "winsio.h"
+#endif
 #define USE_GPX_SIO_OPEN
 #else
 typedef long speed_t;
@@ -116,10 +120,18 @@ static void usage(int err)
 #define SERIAL_MSG2 ""
 #endif
 
+    if (err)
+        fputs(EOL, fp);
+
     fputs("GPX " GPX_VERSION EOL, fp);
     fputs("Copyright (c) 2013 WHPThomas, All rights reserved." EOL, fp);
 
     fputs("Additional changes Copyright (c) 2014, 2015 DNewman, All rights reserved." EOL, fp);
+
+    if (err) {
+        fputs(EOL "For usage information: gpx -?" EOL, fp);
+        return;
+    }
 
     fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, fp);
     fputs("it under the terms of the GNU General Public License as published by" EOL, fp);
@@ -197,6 +209,7 @@ void sio_open(const char *filename, speed_t baud_rate)
         exit(-1);
 }
 
+#if !defined(_WIN32) && !defined(_WIN64)
 int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port)
 {
     struct termios tp;
@@ -270,7 +283,7 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_por
     if(gpx->flag.verboseMode) fprintf(gpx->log, "Communicating via: %s" EOL, filename);
     return 1;
 }
-
+#endif
 #endif // SERIAL_SUPPORT
 
 // GPX program entry point
@@ -307,7 +320,6 @@ int main(int argc, char * const argv[])
 
     // READ GPX.INI
 
-#if !defined(_WIN32) && !defined(_WIN64)
     // if present, read the ~/.gpx.ini
     {
         const char *home = getenv("HOME");
@@ -329,7 +341,6 @@ int main(int argc, char * const argv[])
 	     }
 	}
     }
-#endif
 
     // if present, read the gpx.ini file from the program directory
     if(!ini_loaded) {
