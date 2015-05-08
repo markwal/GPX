@@ -5336,7 +5336,7 @@ static int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
             }
             // check response code
             rval = gpx->buffer.in[2];
-            switch((unsigned)gpx->buffer.in[2]) {
+            switch((unsigned char)gpx->buffer.in[2]) {
                     // 0x80 - Generic Packet error, packet discarded (retry)
                 case 0x80:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Generic Packet error: packet discarded" EOL, retry_count) );

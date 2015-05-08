@@ -8,17 +8,18 @@ include $(SRCDIR)/defines/defines.mk
 
 EXE_TARGETS = gpx
 
-gpx_SRCS = gpx.c gpx-main.c config.c opt.c $(EXTRA_SRCS)
+ifeq ($(PLATFORM), win32)
+SIO_SRCS = winsio.c
+endif
+ifeq ($(PLATFORM), win64)
+SIO_SRCS = winsio.c
+endif
+
+gpx_SRCS = gpx.c gpx-main.c config.c opt.c $(EXTRA_SRCS) $(SIO_SRCS)
 gpx_OBJS = $(notdir $(gpx_SRCS:.c=$(OBJ)))
 gpx_LIBS = m
 
-ifeq ($(PLATFORM), osx)
 gpx-main_DEFS = -DSERIAL_SUPPORT
-endif
-
-ifeq ($(PLATFORM), linux)
-gpx-main_DEFS = -DSERIAL_SUPPORT
-endif
 
 ifdef PYTHON
 ifdef DIFF
