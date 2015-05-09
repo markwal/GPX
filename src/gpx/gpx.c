@@ -1150,7 +1150,7 @@ int get_motherboard_status(Gpx *gpx)
 
 // 24 - Get build statistics
 
-static int get_build_statistics(Gpx *gpx)
+int get_build_statistics(Gpx *gpx)
 {
     begin_frame(gpx);
 

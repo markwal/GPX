@@ -125,9 +125,11 @@ typedef struct tTio
             unsigned waitForExtruderA:1;
             unsigned waitForExtruderB:1;
             unsigned waitForButton:1;
+            unsigned waitForStart:1;
         } waitflag;
     };
     Sttb sttb;
+    time_t sec;
 } Tio;
 static Tio tio;
 static int connected = 0;
@@ -167,6 +169,7 @@ static void gpx_cleanup(void)
         sttb_cleanup(&tio.sttb);
         sttb_init(&tio.sttb, 10);
     }
+    tio.sec = 0;
 }
 
 // wrap port_handler and translate to the expect gcode response
@@ -326,12 +329,15 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
             // 16 - Playback capture (print from SD)
         case 16:
-            if (tio->sio.response.sd.status == 0)
-                sleep(1); // give the bot a chance to clear the BUILD_CANCELLED from the previous build
-            else if (tio->sio.response.sd.status == 7)
+            // give the bot a chance to clear the BUILD_CANCELLED from the previous build
+            if (tio->sio.response.sd.status == 7)
                 tio_printf(tio, "\n!! Not SD printing file not found");
-            else
-                tio_printf(tio, "\n!!SD init fail %s", get_sd_status(tio->sio.response.sd.status));
+            else {
+                tio->cur = 0;
+                tio_printf(tio, "wait");
+                tio->sec = time(NULL) + 3;
+                tio->waitflag.waitForStart = 1;
+            }
             break;
 
             // 18 - Get next filename
@@ -397,12 +403,25 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             break;
 
             // Query 24 - Get build statistics
-        case 24:
+        case 24: {
+            time_t t;
+            if (tio->sec && tio->sio.response.build.status != 1 && time(&t) < tio->sec) {
+                if ((tio->sec - t) > 4) {
+                    // in case we have a clock discontinuity we don't want to ignore status forever
+                    tio->sec = 0;
+                    tio->waitflag.waitForStart = 0;
+                }
+                break; // ignore it if we haven't started yet
+            }
             switch (tio->sio.response.build.status) {
                 case 0:
+                    // this is a matter of Not SD printing *yet* when we just
+                    // kicked off the print, let's give it a moment
                     tio_printf(tio, " Not SD printing");
                     break;
                 case 1:
+                    tio->sec = 0;
+                    tio->waitflag.waitForStart = 0;
                     tio_printf(tio, " SD printing byte on line %u/0", tio->sio.response.build.lineNumber);
                     break;
                 case 4:
@@ -420,6 +439,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     break;
             }
             break;
+        }
 
             // 27 - Get advanced version number
         case 27: {
@@ -710,7 +730,9 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
             fprintf(gpx.log, "tio.waiting = %u\n", tio.waiting);
         tio.cur = 0;
         tio_printf(&tio, "wait\n");
-        if (tio.waitflag.waitForPlatform)
+        if (tio.waitflag.waitForStart)
+            rval = get_build_statistics(&gpx);
+        if (rval == SUCCESS && tio.waitflag.waitForPlatform)
             rval = is_build_platform_ready(&gpx, 0);
         if (rval == SUCCESS && tio.waitflag.waitForExtruderA)
             rval = is_extruder_ready(&gpx, 0);
@@ -911,6 +933,7 @@ PyMODINIT_FUNC initgpx(void)
     tio.sio.port = -1;
     tio.flag.listingFiles = 0;
     tio.waiting = 0;
+    tio.sec = 0;
     sttb_init(&tio.sttb, 10);
     gpx_initialize(&gpx, 1);
     gpx.flag.M106AlwaysValve = 1;
