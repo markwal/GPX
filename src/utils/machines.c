@@ -30,17 +30,51 @@
 #include <string.h>
 #include <errno.h>
 
+#include "getopt.h"
 #include "opt.h"
 #include "config.h"
 
 #define MACHINE_ARRAY
 #include "std_machines.h"
+#include "classic_machines.h"
 
-int main(int argc, const char *argv[])
+void usage(void)
+{
+    printf("machines\n");
+    printf("Copyright (c) 2015 Dan Newman, All rights reserved.\n");
+
+    printf("\nCreate machine definition files (machine.ini) for all the standard\n");
+    printf("machines built-in to GPX.\n");
+
+    printf("\nUsage:\n");
+    printf("machines [-c] [dir]\n");
+    printf("\nOptions:\n");
+    printf("\t-c\talso create classic (wrong) machine ini files\n");
+}
+
+int main(int argc, char * const argv[])
 {
      size_t dlen = 0;
      int iret = 0;
      Machine machine, **ptr = machines;
+     char c;
+     int also_dump_wrong = 0;
+
+     while ((c = getopt(argc, argv, "c?")) != -1)
+     {
+	  switch (c)
+	  {
+	  case 'c':
+	       also_dump_wrong = 1;
+	       break;
+
+	  case '?':
+	       usage();
+	       return 0;
+	  }
+     }
+     argc -= optind;
+     argv += optind;
 
      // Directory path
      //   Must include "/" or "\".  You supply it; code is
@@ -48,37 +82,47 @@ int main(int argc, const char *argv[])
      if (argc == 2)
 	  dlen = strlen(argv[1]);
 
-     while (*ptr)
+     do
      {
-	  if ((*ptr)->type)
+	  while (*ptr)
 	  {
-	       char *fname;
-	       size_t len = strlen((*ptr)->type);
-	       fname = (char *)malloc(dlen + len + 5);
-	       if (fname)
+	       if ((*ptr)->type)
 	       {
-		    FILE *fp;
+		    char *fname;
+		    size_t len = strlen((*ptr)->type);
+		    fname = (char *)malloc(dlen + len + 5);
+		    if (fname)
+		    {
+			 FILE *fp;
 
-		    if (dlen) memcpy(fname, argv[1], dlen);
-		    memcpy(fname + dlen, (*ptr)->type, len);
-		    memcpy(fname + dlen + len, ".ini", 5);
-		    fp = fopen(fname, "w");
-		    if (fp)
-		    {
-			 memcpy(&machine, *ptr, sizeof(Machine));
-			 config_dump(fp, &machine);
-			 fclose(fp);
+			 if (dlen) memcpy(fname, argv[1], dlen);
+			 memcpy(fname + dlen, (*ptr)->type, len);
+			 memcpy(fname + dlen + len, ".ini", 5);
+			 fp = fopen(fname, "w");
+			 if (fp)
+			 {
+			      memcpy(&machine, *ptr, sizeof(Machine));
+			      config_dump(fp, &machine);
+			      fclose(fp);
+			 }
+			 else
+			 {
+			      fprintf(stderr, "Unable to create the file \"%s\"\n", fname);
+			      iret = 1;
+			 }
+			 free(fname);
 		    }
-		    else
-		    {
-			 fprintf(stderr, "Unable to create the file \"%s\"\n", fname);
-			 iret = 1;
-		    }
-		    free(fname);
+		    ptr++;
 	       }
-	       ptr++;
+	  }
+
+	  if (also_dump_wrong)
+	  {
+	       also_dump_wrong = 0;
+	       ptr = wrong_machines;
 	  }
      }
+     while(*ptr);
 
      return(iret);
 }
