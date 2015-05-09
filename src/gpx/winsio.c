@@ -44,7 +44,7 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_por
         fprintf(gpx->log, "Error opening port");
         return 0;
     }
-    *sio_port = _open_osfhandle(h, 0);
+    *sio_port = _open_osfhandle((intptr_t)h, 0);
 
     DCB dcb = {0};
     dcb.DCBlength = sizeof(dcb);
