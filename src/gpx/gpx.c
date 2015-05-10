@@ -4634,20 +4634,20 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 SHOW( fprintf(gpx->log, "(line %u) Syntax warning: unsupported mcode command 'M%u'" EOL, gpx->lineNumber, gpx->command.m) );
         }
     }
-    else if(!(gpx->command.flag & COMMENT_IS_SET)) {
-        // X,Y,Z,A,B,E,F
-        if(gpx->command.flag & (AXES_BIT_MASK | F_IS_SET)) {
+    // X,Y,Z,A,B,E,F
+    else if(gpx->command.flag & (AXES_BIT_MASK | F_IS_SET)) {
+        if(!(gpx->command.flag & COMMENT_IS_SET)) {
             CALL( calculate_target_position(gpx) );
             CALL( queue_ext_point(gpx, 0.0) );
             update_current_position(gpx);
             command_emitted++;
         }
-        // Tn
-        else if(!gpx->flag.dittoPrinting && gpx->target.extruder != gpx->current.extruder) {
-            int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : MAX_TIMEOUT;
-            CALL( do_tool_change(gpx, timeout) );
-            command_emitted++;
-        }
+    }
+    // Tn
+    else if(gpx->command.flag & T_IS_SET && !gpx->flag.dittoPrinting && gpx->target.extruder != gpx->current.extruder) {
+        int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : MAX_TIMEOUT;
+        CALL( do_tool_change(gpx, timeout) );
+        command_emitted++;
     }
     // check for pending pause @ zPos
     if(gpx->flag.doPauseAtZPos) {
