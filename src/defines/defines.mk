@@ -15,6 +15,7 @@ EXE = .exe
 OBJ = .o
 DEP = .d
 PYTHON = python
+CROSS = true
 
 else ifeq ($(TARGET), mingw32)
 
@@ -26,6 +27,7 @@ EXE = .exe
 OBJ = .o
 DEP = .d
 PYTHON = python
+CROSS = true
 
 else ifeq ($(UNAME_OS), Darwin)
 

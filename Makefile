@@ -56,7 +56,11 @@ test:
 	done
 
 machines:
+ifndef CROSS
+# cross compiled platforms can't run the stuff they build, have to depend
+# on an earlier native build for the machines
 	make -C $(SRCDIR)/utils machines
+endif
 
 # dist dependencies are not quite correct
 dist: $(SRCDIR)/gpx/$(OBJDIR)/gpx$(EXE) machines
