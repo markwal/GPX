@@ -212,7 +212,14 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
 
             // Query 32 - Get extruder target temperature
         case 32:
+            if (tio->waiting && tio->sio.response.temperature == 0) {
+                if (extruder_id)
+                    tio->waitflag.waitForExtruderB = 0;
+                else
+                    tio->waitflag.waitForExtruderA = 0;
+            }
             // fallthrough
+            //
             // Query 33 - Get build platform target temperature
         case 33:
             tio_printf(tio, " /%u", tio->sio.response.temperature);
@@ -331,10 +338,10 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
         case 16:
             // give the bot a chance to clear the BUILD_CANCELLED from the previous build
             if (tio->sio.response.sd.status == 7)
-                tio_printf(tio, "\n!! Not SD printing file not found");
+                tio_printf(tio, "\nError:  Not SD printing file not found");
             else {
                 tio->cur = 0;
-                tio_printf(tio, "wait");
+                tio->translation[0] = 0;
                 tio->sec = time(NULL) + 3;
                 tio->waitflag.waitForStart = 1;
             }
@@ -391,12 +398,12 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     return 0x89;
                 if (tio->sio.response.motherboard.flag.heatShutdown) {
                     tio->cur = 0;
-                    tio_printf(tio, "!! Heaters were shutdown after 30 minutes of inactivity");
+                    tio_printf(tio, "Error:  Heaters were shutdown after 30 minutes of inactivity");
                     return 0x89;
                 }
                 if (tio->sio.response.motherboard.flag.powerError) {
                     tio->cur = 0;
-                    tio_printf(tio, "!! Error detected in system power");
+                    tio_printf(tio, "Error:  Error detected in system power");
                     return 0x89;
                 }
             }
@@ -458,7 +465,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             // 135 - wait for extruder
         case 135:
             tio->cur = 0;
-            tio_printf(tio, "wait");
+            tio->translation[0] = 0;
             VERBOSE( fprintf(gpx->log, "waiting for extruder %d\n", extruder) );
             if (extruder == 0)
                 tio->waitflag.waitForExtruderA = 1;
@@ -469,7 +476,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             // 141 - wait for build platform
         case 141:
             tio->cur = 0;
-            tio_printf(tio, "wait");
+            tio->translation[0] = 0;
             VERBOSE( fprintf(gpx->log, "waiting for platform\n") );
             tio->waitflag.waitForPlatform = 1;
             break;
@@ -478,7 +485,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
         case 148:
         case 149:
             tio->cur = 0;
-            tio_printf(tio, "wait");
+            tio->translation[0] = 0;
             VERBOSE( fprintf(gpx->log, "waiting for button\n") );
             tio->waitflag.waitForButton = 1;
             break;
@@ -491,66 +498,75 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 // return the translation or set the error context and return NULL if failure
 static PyObject *gpx_return_translation(int rval)
 {
-    if (rval != SUCCESS) {
-        switch (rval) {
-            case EOSERROR:
-                return PyErr_SetFromErrno(PyExc_IOError);
-            case ERROR:
-                PyErr_SetString(PyExc_IOError, "GPX error");
-                return NULL;
-            case ESIOWRITE:
-            case ESIOREAD:
-            case ESIOFRAME:
-            case ESIOCRC:
-                PyErr_SetString(PyExc_IOError, "Serial communication error");
-                return NULL;
-            case 0x80:
-                PyErr_SetString(PyExc_IOError, "Generic Packet error");
-                return NULL;
-            case 0x82: // Action buffer overflow
-                PyErr_SetString(pyerrBufferOverflow, "Buffer overflow");
-                return NULL;
-            case 0x83:
-                tio.cur = 0;
-                tio_printf(&tio, "!!checksum mismatch");
-                break;
-            case 0x84:
-                PyErr_SetString(PyExc_IOError, "Query packet too big");
-                return NULL;
-            case 0x85:
-                PyErr_SetString(PyExc_IOError, "Command not supported or recognized");
-                return NULL;
-            case 0x87:
-                tio.cur = 0;
-                tio_printf(&tio, "!!timeout downstream");
-                break;
-            case 0x88:
-                tio.cur = 0;
-                tio_printf(&tio, "!!timeout for tool lock");
-                break;
-            case 0x89:
-                tio.cur = 0;
-                tio_printf(&tio, "!!Cancel build");
-                break;
-            case 0x8A:
-                tio.cur = 0;
-                tio_printf(&tio, "wait SD printing");
-                break;
-            case 0x8B:
-                tio.cur = 0;
-                tio_printf(&tio, "!!Shutdown due to MAXTEMP trigger");
-                break;
-            case 0x8C:
-                tio.cur = 0;
-                tio_printf(&tio, "!!timeout");
-                break;
+    // if we're waiting for something and we haven't produced any output
+    // give back current temps
+    if (rval == SUCCESS && tio.waiting && tio.cur == 0) {
+        strncpy(gpx.buffer.in, "M105", sizeof(gpx.buffer.in));
+        rval = gpx_convert_line(&gpx, gpx.buffer.in);
+    }
 
-            default:
-                if (gpx.flag.verboseMode)
-                    fprintf(gpx.log, "Unknown error code: %d", rval);
-                PyErr_SetString(PyExc_IOError, "Unknown error.");
-                return NULL;
-        }
+    switch (rval) {
+        case SUCCESS:
+            break;
+
+        case EOSERROR:
+            return PyErr_SetFromErrno(PyExc_IOError);
+        case ERROR:
+            PyErr_SetString(PyExc_IOError, "GPX error");
+            return NULL;
+        case ESIOWRITE:
+        case ESIOREAD:
+        case ESIOFRAME:
+        case ESIOCRC:
+            PyErr_SetString(PyExc_IOError, "Serial communication error");
+            return NULL;
+        case 0x80:
+            PyErr_SetString(PyExc_IOError, "Generic Packet error");
+            return NULL;
+        case 0x82: // Action buffer overflow
+            PyErr_SetString(pyerrBufferOverflow, "Buffer overflow");
+            return NULL;
+        case 0x83:
+            tio.cur = 0;
+            tio_printf(&tio, "Error: checksum mismatch");
+            break;
+        case 0x84:
+            PyErr_SetString(PyExc_IOError, "Query packet too big");
+            return NULL;
+        case 0x85:
+            PyErr_SetString(PyExc_IOError, "Command not supported or recognized");
+            return NULL;
+        case 0x87:
+            tio.cur = 0;
+            tio_printf(&tio, "Error: timeout downstream");
+            break;
+        case 0x88:
+            tio.cur = 0;
+            tio_printf(&tio, "Error: timeout for tool lock");
+            break;
+        case 0x89:
+            tio.cur = 0;
+            tio_printf(&tio, "Error: Cancel build");
+            tio.waiting = 0;
+            break;
+        case 0x8A:
+            tio.cur = 0;
+            tio_printf(&tio, "SD printing");
+            break;
+        case 0x8B:
+            tio.cur = 0;
+            tio_printf(&tio, "Error: Shutdown due to MAXTEMP trigger");
+            break;
+        case 0x8C:
+            tio.cur = 0;
+            tio_printf(&tio, "Error: timeout");
+            break;
+
+        default:
+            if (gpx.flag.verboseMode)
+                fprintf(gpx.log, "Unknown error code: %d", rval);
+            PyErr_SetString(PyExc_IOError, "Unknown error.");
+            return NULL;
     }
 
     return Py_BuildValue("s", tio.translation);
@@ -558,9 +574,16 @@ static PyObject *gpx_return_translation(int rval)
 
 static PyObject *gpx_write_string(const char *s)
 {
-    strncpy(gpx.buffer.in, s, sizeof(gpx.buffer.in));
+    unsigned waiting = tio.waiting;
 
-    return gpx_return_translation(gpx_convert_line(&gpx, gpx.buffer.in));
+    strncpy(gpx.buffer.in, s, sizeof(gpx.buffer.in));
+    int rval = gpx_convert_line(&gpx, gpx.buffer.in);
+
+    // if we were waiting, but now we're not, throw an ok on there
+    if (!tio.waiting && waiting)
+        tio_printf(&tio, "\nok");
+
+    return gpx_return_translation(rval);
 }
 
 // convert from a long int value to a speed_t constant
@@ -703,7 +726,9 @@ static PyObject *gpx_write(PyObject *self, PyObject *args)
         return NULL;
 
     tio.cur = 0;
-    tio_printf(&tio, "ok"); // ok message received, so error message needs to be \nerror
+    tio.translation[0] = 0;
+    if (!tio.waiting)
+        tio_printf(&tio, "ok"); // ok message received, so error message needs to be \nerror
 
     return gpx_write_string(line);
 }
@@ -728,8 +753,6 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
     else if (tio.waiting) {
         if (gpx.flag.verboseMode && gpx.flag.logMessages)
             fprintf(gpx.log, "tio.waiting = %u\n", tio.waiting);
-        tio.cur = 0;
-        tio_printf(&tio, "wait\n");
         if (tio.waitflag.waitForStart)
             rval = get_build_statistics(&gpx);
         if (rval == SUCCESS && tio.waitflag.waitForPlatform)
@@ -855,6 +878,7 @@ static PyObject *gpx_get_machine_defaults(PyObject *self, PyObject *args)
 
 }
 
+// def read_ini(ini_filepath)
 static PyObject *gpx_read_ini(PyObject *self, PyObject *args)
 {
     const char *inipath = NULL;
@@ -878,6 +902,8 @@ static PyObject *gpx_read_ini(PyObject *self, PyObject *args)
     return Py_BuildValue("i", 0);
 }
 
+// def reset_ini()
+// reset settings to defaults
 static PyObject *gpx_reset_ini(PyObject *self, PyObject *args)
 {
     if (!connected)
@@ -904,6 +930,38 @@ static PyObject *gpx_reset_ini(PyObject *self, PyObject *args)
     return Py_BuildValue("i", 0);
 }
 
+// def waiting()
+// is the bot waiting for something?
+static PyObject *gpx_waiting(PyObject *self, PyObject *args)
+{
+    if (!connected)
+        return PyErr_NotConnected();
+
+    if (tio.waiting)
+        Py_RETURN_TRUE;
+    else
+        Py_RETURN_FALSE;
+}
+
+// def reprap_flavor(turn_on_reprap)
+static PyObject *gpx_reprap_flavor(PyObject *self, PyObject *args)
+{
+    if (!connected)
+        return PyErr_NotConnected();
+
+    int reprap = 1;
+    if (!PyArg_ParseTuple(args, "i", &reprap))
+        return NULL;
+
+    int rval = gpx.flag.reprapFlavor;
+    gpx.flag.reprapFlavor = !!reprap;
+    if (rval)
+        Py_RETURN_TRUE;
+    else
+        Py_RETURN_FALSE;
+}
+
+
 // method table describes what is exposed to python
 static PyMethodDef GpxMethods[] = {
     {"connect", gpx_connect, METH_VARARGS, "connect(port, baud = 0, inifilepath = None, logfilepath = None) Open the serial port to the printer and initialize the channel"},
@@ -912,8 +970,10 @@ static PyMethodDef GpxMethods[] = {
     {"readnext", gpx_readnext, METH_VARARGS, "readnext() read next response if any"},
     {"set_baudrate", gpx_set_baudrate, METH_VARARGS, "set_baudrate(long) Set the current baudrate for the connection to the printer."},
     {"get_machine_defaults", gpx_get_machine_defaults, METH_VARARGS, "get_machine_defaults(string) Return a dict with the default settings for the indicated machine type."},
-    {"read_ini", gpx_read_ini, METH_VARARGS, "gpx_read_ini(string) Parse indicated ini file for gpx settings and macros and update current converter state. Loading ini files is additive. They just build on the ini's that have been read before. Use reset_ini to start from a clean state again."},
-    {"reset_ini", gpx_reset_ini, METH_VARARGS, "gpx_reset_ini() Reset configuration state to default"},
+    {"read_ini", gpx_read_ini, METH_VARARGS, "read_ini(string) Parse indicated ini file for gpx settings and macros and update current converter state. Loading ini files is additive. They just build on the ini's that have been read before. Use reset_ini to start from a clean state again."},
+    {"reset_ini", gpx_reset_ini, METH_VARARGS, "reset_ini() Reset configuration state to default"},
+    {"waiting", gpx_waiting, METH_VARARGS, "waiting() Returns True if the bot reports it is waiting for a temperature, pause or prompt"},
+    {"reprap_flavor", gpx_reprap_flavor, METH_VARARGS, "reprap_flavor(boolean) Sets the expected gcode flavor (true = reprap, false = makerbot), returns the previous setting"},
     {NULL, NULL, 0, NULL} // sentinel
 };
 
