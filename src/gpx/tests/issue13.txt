@@ -1,0 +1,35 @@
+Command count: (Command ID) Command description
+1: (153) Start build notification, steps 0, name "issue13"
+2: (150) Set build percentage 0%, reserved 0
+3: (134) Switch to Tool 0
+4: (140) Define position as (0, 0, 0, 0, 0)
+5: (136) Tool 0: (31) Set build platform temperature to 100 C
+6: (150) Set build percentage 1%, reserved 0
+7: (136) Tool 0: (3) Set target temperature to 0 C
+8: (150) Set build percentage 80%, reserved 0
+9: (136) Tool 1: (3) Set target temperature to 210 C
+10: (150) Set build percentage 99%, reserved 0
+11: (134) Switch to Tool 1
+12: (139) Absolute move to (0, 0, 0, 0, 0) with DDA 37
+13: (141) Wait until platform 0 is ready, 100 ms between polls, 65535 s timeout
+14: (135) Wait until Tool 1 is ready, 100 ms between polls, 65535 s timeout
+15: (155) Move to (0, 0, 0, 0, 96), DDA rate 2560, A, B relative, distance 1.000000 mm, feedrate*64 1706 steps/s
+16: (155) Move to (1308, -1049, 0, 0, 0), DDA rate 4159, A, B relative, distance 18.865799 mm, feedrate*64 3840 steps/s
+17: (155) Move to (1308, -1049, 84, 0, 0), DDA rate 4000, A, B relative, distance 0.210000 mm, feedrate*64 640 steps/s
+18: (155) Move to (1308, -1049, 84, 0, 97), DDA rate 2560, A, B relative, distance 1.000000 mm, feedrate*64 1706 steps/s
+19: (155) Move to (-825, 825, 84, 0, 0), DDA rate 4006, A, B relative, distance 31.943174 mm, feedrate*64 3840 steps/s
+20: (155) Move to (-825, 825, 204, 0, 0), DDA rate 3999, A, B relative, distance 0.300000 mm, feedrate*64 640 steps/s
+21: (155) Move to (-825, 825, 204, 0, -97), DDA rate 2560, A, B relative, distance 1.000000 mm, feedrate*64 1706 steps/s
+22: (155) Move to (-825, 825, 204, 0, 97), DDA rate 2560, A, B relative, distance 1.000000 mm, feedrate*64 1706 steps/s
+23: (136) Tool 0: (31) Set build platform temperature to 74 C
+24: (155) Move to (-825, 825, 324, 0, 0), DDA rate 3999, A, B relative, distance 0.300000 mm, feedrate*64 640 steps/s
+25: (155) Move to (-825, 825, 324, 0, -97), DDA rate 2560, A, B relative, distance 1.000000 mm, feedrate*64 1706 steps/s
+26: (155) Move to (-825, -825, 324, 0, -101), DDA rate 4000, A, B relative, distance 18.559999 mm, feedrate*64 2880 steps/s
+27: (155) Move to (791, 752, 324, 0, -2), DDA rate 2862, A, B relative, distance 25.401812 mm, feedrate*64 2880 steps/s
+28: (155) Move to (791, 752, 324, 0, 96), DDA rate 2560, A, B relative, distance 1.000000 mm, feedrate*64 1706 steps/s
+29: (155) Move to (-825, 825, 324, 0, 0), DDA rate 5329, A, B relative, distance 18.194263 mm, feedrate*64 3840 steps/s
+30: (155) Move to (-825, 825, 444, 0, 0), DDA rate 3999, A, B relative, distance 0.300000 mm, feedrate*64 640 steps/s
+31: (155) Move to (-825, 825, 444, 0, -96), DDA rate 2560, A, B relative, distance 1.000000 mm, feedrate*64 1706 steps/s
+32: (150) Set build percentage 100%, reserved 0
+33: (154) End build notification, options 0x00
+EOF

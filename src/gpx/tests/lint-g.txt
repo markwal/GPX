@@ -2,7 +2,7 @@ Command count: (Command ID) Command description
 1: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M103 - extruder off"
 2: (137) Disable A stepper motors
 3: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M73 - start build"
-4: (153) Start build notification, steps 0, name "lint"
+4: (153) Start build notification, steps 0, name "lint-g"
 5: (150) Set build percentage 0%, reserved 0
 6: (134) Switch to Tool 0
 7: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "G0 - rapid move"
@@ -34,9 +34,9 @@ Command count: (Command ID) Command description
 33: (155) Move to (5333, 5333, 24000, -97, 0), DDA rate 7698, A, B relative, distance 17.320509 mm, feedrate*64 2133 steps/s
 34: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "G53 - machine zero"
 35: (155) Move to (0, 0, 0, -96, 0), DDA rate 7698, A, B relative, distance 103.923050 mm, feedrate*64 2133 steps/s
-36: (150) Set build percentage 2%, reserved 0
-37: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "G91 - relative"
-38: (155) Move to (889, 889, 4000, 1059, 0), DDA rate 7698, A, B relative, distance 17.320509 mm, feedrate*64 2133 steps/s
+36: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "G91 - relative"
+37: (155) Move to (889, 889, 4000, 1059, 0), DDA rate 7698, A, B relative, distance 17.320509 mm, feedrate*64 2133 steps/s
+38: (150) Set build percentage 2%, reserved 0
 39: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "G90 - absolute"
 40: (155) Move to (0, 0, 0, -1252, 0), DDA rate 7698, A, B relative, distance 17.320509 mm, feedrate*64 2133 steps/s
 41: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "G92 - define pos"
@@ -54,9 +54,9 @@ Command count: (Command ID) Command description
 53: (131) Home minimum on Z, feedrate 136 us/step, timeout 20 s
 54: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M104 - set temp"
 55: (136) Tool 0: (3) Set target temperature to 230 C
-56: (150) Set build percentage 19%, reserved 0
+56: (150) Set build percentage 18%, reserved 0
 57: (136) Tool 1: (3) Set target temperature to 230 C
-58: (150) Set build percentage 36%, reserved 0
+58: (150) Set build percentage 34%, reserved 0
 59: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M6 - wait for tool"
 60: (135) Wait until Tool 0 is ready, 100 ms between polls, 65535 s timeout
 61: (134) Switch to Tool 1
@@ -94,33 +94,32 @@ Command count: (Command ID) Command description
 93: (136) Tool 0: (3) Set target temperature to 230 C
 94: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M108 - set rpm"
 95: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M109 - hbp temp"
-96: (136) Tool 0: (3) Set target temperature to 110 C
-97: (135) Wait until Tool 0 is ready, 100 ms between polls, 65535 s timeout
-98: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M126 - blower on"
-99: (136) Tool 0: (13) Toggle blower fan 1
-100: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M127 - blower off"
-101: (136) Tool 0: (13) Toggle blower fan 0
-102: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M131 - store EEPROM"
-103: (143) Store home position for X, Y, Z, A, B
-104: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M132 - load EEPROM"
-105: (144) Recall home position for X, Y, Z, A, B
-106: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M140 - hbp temp"
-107: (136) Tool 0: (31) Set build platform temperature to 100 C
-108: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M300 - set beep"
-109: (147) Set buzzer frequency 4000, duration 100 ms, effect 0
-110: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M320 - acc on"
-111: (156) Set segment acceleration on
-112: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M21 - acc off"
-113: (156) Set segment acceleration off
-114: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M322 - pause@z"
-115: (158) Pause @ Z position 10.000000
-116: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M420 - set LED"
-117: (146) Set RGB LED (0xff, 0x00, 0x00), blink rate 0, effect 0
-118: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "T1 - set tool"
-119: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "T0 - set tool"
-120: (134) Switch to Tool 0
-121: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M73 - end build"
-122: (150) Set build percentage 100%, reserved 0
-123: (154) End build notification, options 0x00
-124: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "after the end"
+96: (136) Tool 0: (31) Set build platform temperature to 110 C
+97: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M126 - blower on"
+98: (136) Tool 1: (13) Toggle blower fan 1
+99: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M127 - blower off"
+100: (136) Tool 1: (13) Toggle blower fan 0
+101: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M131 - store EEPROM"
+102: (143) Store home position for X, Y, Z, A, B
+103: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M132 - load EEPROM"
+104: (144) Recall home position for X, Y, Z, A, B
+105: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M140 - hbp temp"
+106: (136) Tool 0: (31) Set build platform temperature to 100 C
+107: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M300 - set beep"
+108: (147) Set buzzer frequency 4000, duration 100 ms, effect 0
+109: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M320 - acc on"
+110: (156) Set segment acceleration on
+111: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M21 - acc off"
+112: (156) Set segment acceleration off
+113: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M322 - pause@z"
+114: (158) Pause @ Z position 10.000000
+115: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M420 - set LED"
+116: (146) Set RGB LED (0xff, 0x00, 0x00), blink rate 0, effect 0
+117: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "T1 - set tool"
+118: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "T0 - set tool"
+119: (134) Switch to Tool 0
+120: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M73 - end build"
+121: (150) Set build percentage 100%, reserved 0
+122: (154) End build notification, options 0x00
+123: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "after the end"
 EOF
