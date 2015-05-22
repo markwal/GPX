@@ -44,6 +44,8 @@
 #define MACHINE_TYPE_CORE_XYSZ     14  // Core XY Single w/HBP, slower Z
 #define MACHINE_TYPE_ZYYX          15  // ZYYX Single
 #define MACHINE_TYPE_ZYYX_D        16  // ZYYX Dual
+#define MACHINE_TYPE_CLONE_R1      17  // Clone R1 Single w/HBP
+#define MACHINE_TYPE_CLONE_R1D     18  // Clone R1 Dual w/HBP
 
 typedef struct {
      double max_feedrate;	// mm/minute

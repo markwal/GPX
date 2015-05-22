@@ -1,0 +1,35 @@
+G90
+M83
+M73 P0; enable build progress
+G21; set units to mm
+G90; set positioning to absolute
+G92 X0 Y0 Z0 A0 B0
+M140 S100 T0
+M104 S0 T0
+M104 S210 T1
+M6
+G1 E-1 F1800
+; layer 1, Z = 0.21
+M135 T1
+; tool H0.3 W0.48
+G1 X14.72 Y-11.8 F3600
+G1 Z0.21 F600
+G1 E-1 F1800
+; layer 2, Z = 0.51
+G1 X-9.28 Y9.28 F3600
+G1 Z0.51 F600
+G1 E1 F1800
+G1 E-1 F1800
+; layer 3, Z = 0.81
+M140 S74 T0
+G1 X-9.28 Y9.28 F3600
+G1 Z0.81 F600
+G1 E1 F1800
+G1 X-9.28 Y-9.28 E1.0474 F2700
+G1 X8.896 Y8.465 E0.0244
+G1 E-1 F1800
+; layer 4, Z = 1.11
+G1 X-9.28 Y9.28 E0 F3600
+G1 Z1.11 E0 F600
+G1 E1 F1800
+M73 P100 ; end build progress

@@ -307,11 +307,41 @@ static Machine zyyx_D = {
     MACHINE_TYPE_ZYYX_D
 };
 
-// FlashForge Creator Pro
-static MachineAlias fcp = {
-    "fcp", "r1d",
-    "FlashForge Creator Pro"
+static Machine clone_r1 = {
+    "cr1", "Clone R1 Single with HBP", 0, 0,
+    {18000, 1000, 15, 2500, 300, 88.888889, ENDSTOP_IS_MAX}, // x axis
+    {18000, 1000, 15, 2500, 195, 88.888889, ENDSTOP_IS_MAX}, // y axis
+    {1170, 150, 10, 1100, 210, 400, ENDSTOP_IS_MIN},        // z axis
+    {1600, 2000, 20, 96.275201870333662468889989185642, 3200, 0}, // a extruder
+    {1600, 2000, 20, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1.75, // nominal filament diameter
+    0.97, // nominal packing density
+    0.4, // nozzle diameter
+    {0, 0, 0}, // toolhead offsets
+    {0.0050, 0.0550},  // JKN
+    1,  // extruder count
+    20, // timeout
+    MACHINE_TYPE_CLONE_R1
 };
+
+
+static Machine clone_r1d = {
+    "cr1d", "Clone R1 Dual with HBP", 0, 0,
+    {18000, 1000, 15, 2500, 280, 88.888889, ENDSTOP_IS_MAX}, // x axis
+    {18000, 1000, 15, 2500, 195, 88.888889, ENDSTOP_IS_MAX}, // y axis
+    {1170, 150, 10, 1100, 210, 400, ENDSTOP_IS_MIN},        // z axis
+    {1600, 2000, 20, 96.275201870333662468889989185642, 3200, 0}, // a extruder
+    {1600, 2000, 20, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    1.75, // nominal filament diameter
+    0.97, // nominal packing density
+    0.4, // nozzle diameter
+    {33, 0, 0}, // toolhead offsets
+    {0.0050, 0.0550},  // JKN
+    2,  // extruder count
+    20, // timeout
+    MACHINE_TYPE_CLONE_R1D
+};
+
 
 #if defined(MACHINE_ARRAY)
 
@@ -322,6 +352,8 @@ static Machine *machines[] = {
      &cupcake_PP,
      &core_xy,
      &core_xysz,
+     &clone_r1,
+     &clone_r1d,
      &replicator_1,
      &replicator_1D,
      &replicator_2,
@@ -334,6 +366,14 @@ static Machine *machines[] = {
      &zyyx_D,
      NULL
 };
+
+
+// FlashForge Creator Pro
+static MachineAlias fcp = {
+    "fcp", "r1d",
+    "FlashForge Creator Pro"
+};
+
 
 static MachineAlias *machine_aliases[] = {
     &fcp,
