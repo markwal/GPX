@@ -181,6 +181,10 @@ M17 X Y Z A B
 M70 (M18 - steppers off)
 M18 X Y Z A B
 
+; We're actually on Tool 1 right now...
+M70 (T0 - tool change)
+T0
+
 M70 (T1 - tool change)
 T1
 

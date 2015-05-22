@@ -68,61 +68,63 @@ Command count: (Command ID) Command description
 67: (137) Enable X, Y, Z, A, B stepper motors
 68: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M18 - steppers off"
 69: (137) Disable X, Y, Z, A, B stepper motors
-70: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "T1 - tool change"
-71: (149) Display message, options 0x00, position (0, 0), timeout 0 s, message "This is a really lar"
-72: (149) Display message, options 0x01, position (0, 0), timeout 0 s, message "ge message that will"
-73: (149) Display message, options 0x01, position (0, 0), timeout 0 s, message " take up quite a few"
-74: (149) Display message, options 0x03, position (0, 0), timeout 20 s, message " rows to display on "
-75: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M71 - wait for input"
-76: (149) Display message, options 0x06, position (0, 0), timeout 0 s, message "Press the M Button"
-77: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M72 - play song"
-78: (151) Queue song 0
-79: (151) Queue song 1
-80: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M73 - progress"
-81: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M101 - extruder on-f"
-82: (137) Enable B stepper motors
-83: (137) Enable A stepper motors
-84: (134) Switch to Tool 0
-85: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M102 - extruder on-r"
-86: (137) Enable B stepper motors
-87: (137) Enable A stepper motors
-88: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M103 - extruder off"
-89: (137) Disable B stepper motors
-90: (137) Disable A stepper motors
-91: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M104 - set temp"
-92: (136) Tool 1: (3) Set target temperature to 240 C
-93: (136) Tool 0: (3) Set target temperature to 230 C
-94: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M108 - set rpm"
-95: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M109 - hbp temp"
-96: (136) Tool 0: (3) Set target temperature to 110 C
-97: (135) Wait until Tool 0 is ready, 100 ms between polls, 65535 s timeout
-98: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M126 - blower on"
-99: (136) Tool 0: (13) Toggle blower fan 1
-100: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M127 - blower off"
-101: (136) Tool 0: (13) Toggle blower fan 0
-102: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M131 - store EEPROM"
-103: (143) Store home position for X, Y, Z, A, B
-104: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M132 - load EEPROM"
-105: (144) Recall home position for X, Y, Z, A, B
-106: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M140 - hbp temp"
-107: (136) Tool 0: (31) Set build platform temperature to 100 C
-108: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M300 - set beep"
-109: (147) Set buzzer frequency 4000, duration 100 ms, effect 0
-110: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M320 - acc on"
-111: (156) Set segment acceleration on
-112: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M21 - acc off"
-113: (156) Set segment acceleration off
-114: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M322 - pause@z"
-115: (158) Pause @ Z position 10.000000
-116: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M420 - set LED"
-117: (146) Set RGB LED (0xff, 0x00, 0x00), blink rate 0, effect 0
-118: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "T1 - set tool"
-119: (134) Switch to Tool 1
-120: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "T0 - set tool"
-121: (134) Switch to Tool 0
-122: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M73 - end build"
-123: (150) Set build percentage 100%, reserved 0
-124: (154) End build notification, options 0x00
-125: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "after the end"
-126: (137) Disable X, Y, Z, A, B stepper motors
+70: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "T0 - tool change"
+71: (134) Switch to Tool 0
+72: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "T1 - tool change"
+73: (134) Switch to Tool 1
+74: (149) Display message, options 0x00, position (0, 0), timeout 0 s, message "This is a really lar"
+75: (149) Display message, options 0x01, position (0, 0), timeout 0 s, message "ge message that will"
+76: (149) Display message, options 0x01, position (0, 0), timeout 0 s, message " take up quite a few"
+77: (149) Display message, options 0x03, position (0, 0), timeout 20 s, message " rows to display on "
+78: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M71 - wait for input"
+79: (149) Display message, options 0x06, position (0, 0), timeout 0 s, message "Press the M Button"
+80: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M72 - play song"
+81: (151) Queue song 0
+82: (151) Queue song 1
+83: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M73 - progress"
+84: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M101 - extruder on-f"
+85: (137) Enable B stepper motors
+86: (137) Enable A stepper motors
+87: (134) Switch to Tool 0
+88: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M102 - extruder on-r"
+89: (137) Enable B stepper motors
+90: (137) Enable A stepper motors
+91: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M103 - extruder off"
+92: (137) Disable B stepper motors
+93: (137) Disable A stepper motors
+94: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M104 - set temp"
+95: (136) Tool 1: (3) Set target temperature to 240 C
+96: (136) Tool 0: (3) Set target temperature to 230 C
+97: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M108 - set rpm"
+98: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M109 - hbp temp"
+99: (136) Tool 0: (3) Set target temperature to 110 C
+100: (135) Wait until Tool 0 is ready, 100 ms between polls, 65535 s timeout
+101: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M126 - blower on"
+102: (136) Tool 0: (13) Toggle blower fan 1
+103: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M127 - blower off"
+104: (136) Tool 0: (13) Toggle blower fan 0
+105: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M131 - store EEPROM"
+106: (143) Store home position for X, Y, Z, A, B
+107: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M132 - load EEPROM"
+108: (144) Recall home position for X, Y, Z, A, B
+109: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M140 - hbp temp"
+110: (136) Tool 0: (31) Set build platform temperature to 100 C
+111: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M300 - set beep"
+112: (147) Set buzzer frequency 4000, duration 100 ms, effect 0
+113: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M320 - acc on"
+114: (156) Set segment acceleration on
+115: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M21 - acc off"
+116: (156) Set segment acceleration off
+117: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M322 - pause@z"
+118: (158) Pause @ Z position 10.000000
+119: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M420 - set LED"
+120: (146) Set RGB LED (0xff, 0x00, 0x00), blink rate 0, effect 0
+121: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "T1 - set tool"
+122: (134) Switch to Tool 1
+123: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "T0 - set tool"
+124: (134) Switch to Tool 0
+125: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "M73 - end build"
+126: (150) Set build percentage 100%, reserved 0
+127: (154) End build notification, options 0x00
+128: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "after the end"
 EOF
