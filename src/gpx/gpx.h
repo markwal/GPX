@@ -280,6 +280,7 @@ typedef long speed_t;
 
         char *sdCardPath;
         char *buildName;
+        char *iniPath;
 
         struct {
             unsigned relativeCoordinates:1; // signals relative or absolute coordinates

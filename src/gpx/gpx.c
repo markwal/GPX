@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <time.h>
+#include <libgen.h>
 
 #include "gpx.h"
 
@@ -49,6 +50,7 @@
 #ifndef MACHINE_ARRAY
 #define MACHINE_ARRAY
 #endif
+#define MACHINE_ALIAS_ARRAY
 
 #include "std_machines.h"
 
@@ -100,6 +102,10 @@ Machine *gpx_find_machine(const char *machine)
     return NULL;
 }
 
+static int ini_parse(Gpx* gpx, const char* filename,
+                     int (*handler)(Gpx*, const char*, const char*, char*));
+int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* value);
+
 int gpx_set_machine(Gpx *gpx, const char *machine_type)
 {
     Machine *machine = gpx_find_machine(machine_type);
@@ -109,9 +115,22 @@ int gpx_set_machine(Gpx *gpx, const char *machine_type)
     // only load/clobber the on-board machine definition if the one specified is different
     if (gpx->machine.id != machine->id) {
         memcpy(&gpx->machine, machine, sizeof(Machine));
-        VERBOSE( fputs("Loading machine definition: ", gpx->log) );
-        VERBOSE( fputs(machine->desc, gpx->log) );
-        VERBOSE( fputs(EOL, gpx->log) );
+        VERBOSE( fprintf(gpx->log, "Loading machine definition: %s" EOL, machine->desc) );
+        if (gpx->iniPath != NULL) {
+            // if there's a gpx->iniPath + "/" + machine->type + ".ini" load it
+            // here recursively
+            char machineIni[1024];
+            machineIni[0];
+            int i = snprintf(machineIni, sizeof(machineIni), "%s/%s.ini", gpx->iniPath, machine->type);
+            if (i > 0 && i < sizeof(machineIni)) {
+                if (access(machineIni, R_OK) == SUCCESS) {
+                    VERBOSE( fprintf(gpx->log, "Using custom machine definition from: %s" EOL, machineIni) );
+                    ini_parse(gpx, machineIni, gpx_set_property);
+                }
+                else
+                    VERBOSE( fprintf(gpx->log, "errno = %d\n", errno) );
+            }
+        }
     }
     else {
         VERBOSE( fputs("Ignoring duplicate machine definition: -m ", gpx->log) );
@@ -245,6 +264,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
 
     if(firstTime) {
         gpx->sdCardPath = NULL;
+        gpx->iniPath = NULL;
         gpx->buildName = "GPX " GPX_VERSION;
         gpx->selectedFilename = NULL;
 	gpx->preamble = NULL;
@@ -3346,6 +3366,15 @@ SECTION_ERROR:
 
 int gpx_load_config(Gpx *gpx, const char *filename)
 {
+    if (gpx->iniPath != NULL) {
+        free(gpx->iniPath);
+        gpx->iniPath = NULL;
+    }
+    char *t = strdup(filename);
+    if (t != NULL) {
+        gpx->iniPath = strdup(dirname(t));
+        free(t);
+    }
     return ini_parse(gpx, filename, gpx_set_property);
 }
 

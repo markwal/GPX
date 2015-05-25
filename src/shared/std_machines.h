@@ -307,12 +307,6 @@ static Machine zyyx_D = {
     MACHINE_TYPE_ZYYX_D
 };
 
-// FlashForge Creator Pro
-static MachineAlias fcp = {
-    "fcp", "r1d",
-    "FlashForge Creator Pro"
-};
-
 #if defined(MACHINE_ARRAY)
 
 static Machine *machines[] = {
@@ -333,6 +327,16 @@ static Machine *machines[] = {
      &zyyx,
      &zyyx_D,
      NULL
+};
+
+#endif
+
+#ifdef MACHINE_ALIAS_ARRAY
+
+// FlashForge Creator Pro
+static MachineAlias fcp = {
+    "fcp", "r1d",
+    "FlashForge Creator Pro"
 };
 
 static MachineAlias *machine_aliases[] = {

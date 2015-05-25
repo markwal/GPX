@@ -158,6 +158,7 @@ static void gpx_cleanup(void)
 {
     connected = 0;
     if (gpx.log != NULL && gpx.log != stderr) {
+        fflush(gpx.log);
         fclose(gpx.log);
         gpx.log = stderr;
     }
@@ -505,6 +506,7 @@ static PyObject *gpx_return_translation(int rval)
         rval = gpx_convert_line(&gpx, gpx.buffer.in);
     }
 
+    fflush(gpx.log);
     switch (rval) {
         case SUCCESS:
             break;
@@ -569,6 +571,7 @@ static PyObject *gpx_return_translation(int rval)
             return NULL;
     }
 
+    fflush(gpx.log);
     return Py_BuildValue("s", tio.translation);
 }
 
@@ -655,16 +658,16 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
     }
     if (gpx.log == NULL)
         gpx.log = stderr;
-
-    gpx.flag.verboseMode = 1; //verbose;
-    gpx.flag.logMessages = 1;
 #ifdef ALWAYS_USE_STDERR
-    if (gpx.log != NULL && gpx.log != stderr)
+    else if (gpx.log != stderr)
     {
         fclose(gpx.log);
         gpx.log = stderr;
     }
 #endif
+
+    gpx.flag.verboseMode = verbose;
+    gpx.flag.logMessages = 1;
 
     // load the config
     if (inipath != NULL)
@@ -837,6 +840,7 @@ static PyObject *gpx_get_machine_defaults(PyObject *self, PyObject *args)
         return NULL;
 
     Machine *machine = gpx_find_machine(machine_type_id);
+    fflush(gpx.log);
     if (machine == NULL) {
         PyErr_SetString(PyExc_ValueError, "Machine id not found");
         return NULL;
@@ -897,6 +901,7 @@ static PyObject *gpx_read_ini(PyObject *self, PyObject *args)
         fprintf(gpx.log, "Unable to load configuration file (%s)\n", inipath);
     if (lineno > 0)
         fprintf(gpx.log, "(line %u) Configuration syntax error in %s: unrecognized parameters\n", lineno, inipath);
+    fflush(gpx.log);
 
     PyErr_SetString(PyExc_ValueError, "Unable to load ini file");
     return Py_BuildValue("i", 0);
