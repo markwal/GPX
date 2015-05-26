@@ -307,6 +307,7 @@ static Machine zyyx_D = {
     MACHINE_TYPE_ZYYX_D
 };
 
+
 static Machine clone_r1 = {
     "cr1", "Clone R1 Single with HBP", 0, 0,
     {18000, 1000, 15, 2500, 300, 88.888889, ENDSTOP_IS_MAX}, // x axis
@@ -367,13 +368,15 @@ static Machine *machines[] = {
      NULL
 };
 
+#endif
+
+#ifdef MACHINE_ALIAS_ARRAY
 
 // FlashForge Creator Pro
 static MachineAlias fcp = {
     "fcp", "r1d",
     "FlashForge Creator Pro"
 };
-
 
 static MachineAlias *machine_aliases[] = {
     &fcp,
