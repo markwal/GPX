@@ -115,10 +115,18 @@ static void usage(int err)
 #define SERIAL_MSG2 ""
 #endif
 
+    if (err)
+        fputs(EOL, fp);
+
     fputs("GPX " GPX_VERSION EOL, fp);
     fputs("Copyright (c) 2013 WHPThomas, All rights reserved." EOL, fp);
 
     fputs("Additional changes Copyright (c) 2014, 2015 DNewman, All rights reserved." EOL, fp);
+
+    if (err) {
+        fputs(EOL "For usage information: gpx -?" EOL, fp);
+        return;
+    }
 
     fputs(EOL "This program is free software; you can redistribute it and/or modify" EOL, fp);
     fputs("it under the terms of the GNU General Public License as published by" EOL, fp);
@@ -297,7 +305,6 @@ int main(int argc, char * const argv[])
 #if !defined(_WIN32) && !defined(_WIN64)
     // if present, read the ~/.gpx.ini
     {
-	char fbuf[1024];
         const char *home = getenv("HOME");
 	if (home && home[0]) {
 	     char fbuf[1024];
