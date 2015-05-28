@@ -60,6 +60,17 @@ OBJ = .o
 DEP = .d
 PYTHON =
 
+else ifeq ($(findstring CYGWIN,$(UNAME_OS)), CYGWIN)
+
+CC = gcc
+CC_FLAGS =
+LD_FLAGS =
+PLATFORM = win32
+EXE = .exe
+OBJ = .o
+DEP = .d
+PYTHON =
+
 else
 
 $(error Unsupported build platform $(UNAME_OS))
