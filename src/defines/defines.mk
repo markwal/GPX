@@ -52,7 +52,18 @@ PYTHON = python
 else ifeq ($(findstring MINGW32,$(UNAME_OS)), MINGW32)
 
 CC = gcc
-CC_FLAGS =
+CC_FLAGS = -DHAS_NANOSLEEP
+LD_FLAGS =
+PLATFORM = win32
+EXE = .exe
+OBJ = .o
+DEP = .d
+PYTHON =
+
+else ifeq ($(findstring CYGWIN,$(UNAME_OS)), CYGWIN)
+
+CC = gcc
+CC_FLAGS = -DHAS_NANOSLEEP
 LD_FLAGS =
 PLATFORM = win32
 EXE = .exe

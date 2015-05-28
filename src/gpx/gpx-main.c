@@ -35,7 +35,12 @@
 #endif
 
 #if defined(SERIAL_SUPPORT)
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <termios.h>
+#else
+#include "winsio.h"
+#endif
+#define USE_GPX_SIO_OPEN
 #else
 typedef long speed_t;
 #define B115200 115200
@@ -199,7 +204,14 @@ static void sio_open(const char *filename, speed_t baud_rate)
 
 #else
 
-static void sio_open(const char *filename, speed_t baud_rate)
+void sio_open(const char *filename, speed_t baud_rate)
+{
+    if (!gpx_sio_open(&gpx, filename, baud_rate, &sio_port))
+        exit(-1);
+}
+
+#if !defined(_WIN32) && !defined(_WIN64)
+int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port)
 {
     struct termios tp;
     // open and configure the serial port
@@ -265,7 +277,7 @@ static void sio_open(const char *filename, speed_t baud_rate)
 
     if(gpx.flag.verboseMode) fprintf(gpx.log, "Communicating via: %s" EOL, filename);
 }
-
+#endif
 #endif // SERIAL_SUPPORT
 
 // GPX program entry point
@@ -302,7 +314,6 @@ int main(int argc, char * const argv[])
 
     // READ GPX.INI
 
-#if !defined(_WIN32) && !defined(_WIN64)
     // if present, read the ~/.gpx.ini
     {
         const char *home = getenv("HOME");
@@ -324,7 +335,6 @@ int main(int argc, char * const argv[])
 	     }
 	}
     }
-#endif
 
     // if present, read the gpx.ini file from the program directory
     if(!ini_loaded) {
