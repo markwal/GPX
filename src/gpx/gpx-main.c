@@ -220,17 +220,17 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
     // open and configure the serial port
     if((port = open(filename, O_RDWR | O_NOCTTY | O_NONBLOCK)) < 0) {
         perror("Error opening port");
-        exit(-1);
+	return 0;
     }
 
     if(fcntl(port, F_SETFL, O_RDWR) < 0) {
         perror("Setting port descriptor flags");
-        exit(-1);
+	return 0;
     }
 
     if(tcgetattr(port, &tp) < 0) {
         perror("Error getting port attributes");
-        exit(-1);
+	return 0;
     }
 
     cfmakeraw(&tp);
@@ -275,18 +275,20 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
 
     if(tcsetattr(port, TCSANOW, &tp) < 0) {
         perror("Error setting port attributes");
-        exit(-1);
+	return 0;
     }
 
     sleep(2);
     if(tcflush(port, TCIOFLUSH) < 0) {
         perror("Error flushing port");
-        exit(-1);
+	return 0;
     }
 
     if(gpx->flag.verboseMode) fprintf(gpx->log, "Communicating via: %s" EOL, filename);
     if(sio_port)
 	 *sio_port = port;
+
+    return 1;
 }
 #endif
 
