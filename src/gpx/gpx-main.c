@@ -207,12 +207,6 @@ static void sio_open(const char *filename, speed_t baud_rate)
 
 #else
 
-void sio_open(const char *filename, speed_t baud_rate)
-{
-    if (!gpx_sio_open(&gpx, filename, baud_rate, &sio_port))
-        exit(-1);
-}
-
 #if !defined(_WIN32) && !defined(_WIN64)
 int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port)
 {
@@ -287,6 +281,13 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_por
     if(gpx.flag.verboseMode) fprintf(gpx.log, "Communicating via: %s" EOL, filename);
 }
 #endif
+
+void sio_open(const char *filename, speed_t baud_rate)
+{
+    if (!gpx_sio_open(&gpx, filename, baud_rate, &sio_port))
+        exit(-1);
+}
+
 #endif // SERIAL_SUPPORT
 
 // GPX program entry point
