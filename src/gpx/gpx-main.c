@@ -208,21 +208,27 @@ static void sio_open(const char *filename, speed_t baud_rate)
 #else
 
 #if !defined(_WIN32) && !defined(_WIN64)
-int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port)
+int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
+		 int *sio_port)
 {
     struct termios tp;
+    int port;
+
+    if (sio_port)
+	 *sio_port = -1;
+
     // open and configure the serial port
-    if((sio_port = open(filename, O_RDWR | O_NOCTTY | O_NONBLOCK)) < 0) {
+    if((port = open(filename, O_RDWR | O_NOCTTY | O_NONBLOCK)) < 0) {
         perror("Error opening port");
         exit(-1);
     }
 
-    if(fcntl(sio_port, F_SETFL, O_RDWR) < 0) {
+    if(fcntl(port, F_SETFL, O_RDWR) < 0) {
         perror("Setting port descriptor flags");
         exit(-1);
     }
 
-    if(tcgetattr(sio_port, &tp) < 0) {
+    if(tcgetattr(port, &tp) < 0) {
         perror("Error getting port attributes");
         exit(-1);
     }
@@ -267,18 +273,20 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_por
     tp.c_cc[VMIN] = 255;
     tp.c_cc[VTIME] = 1;
 
-    if(tcsetattr(sio_port, TCSANOW, &tp) < 0) {
+    if(tcsetattr(port, TCSANOW, &tp) < 0) {
         perror("Error setting port attributes");
         exit(-1);
     }
 
     sleep(2);
-    if(tcflush(sio_port, TCIOFLUSH) < 0) {
+    if(tcflush(port, TCIOFLUSH) < 0) {
         perror("Error flushing port");
         exit(-1);
     }
 
     if(gpx.flag.verboseMode) fprintf(gpx.log, "Communicating via: %s" EOL, filename);
+    if (sio_port)
+	 *sio_port = port;
 }
 #endif
 
