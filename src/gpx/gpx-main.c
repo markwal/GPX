@@ -214,7 +214,7 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
     struct termios tp;
     int port;
 
-    if (sio_port)
+    if(sio_port)
 	 *sio_port = -1;
 
     // open and configure the serial port
@@ -284,8 +284,8 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
         exit(-1);
     }
 
-    if(gpx.flag.verboseMode) fprintf(gpx.log, "Communicating via: %s" EOL, filename);
-    if (sio_port)
+    if(gpx->flag.verboseMode) fprintf(gpx->log, "Communicating via: %s" EOL, filename);
+    if(sio_port)
 	 *sio_port = port;
 }
 #endif
