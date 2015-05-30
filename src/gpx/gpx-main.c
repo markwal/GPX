@@ -170,6 +170,9 @@ static void usage(int err)
     fputs("EEPROM: the filename of an eeprom settings definition (ini file)" EOL, fp);
     fputs("DIAMETER: the actual filament diameter in the printer" EOL, fp);
     fputs(EOL "MACHINE: the predefined machine type" EOL, fp);
+    fputs("\tsome machine definitions have been updated with corrected steps per mm" EOL, fp);
+    fputs("\tthe original can be selected by prefixing o to the machine id" EOL, fp);
+    fputs("\t(or1, or1d, or2, or2h, orx, ot7, ot7d)" EOL, fp);
     gpx_list_machines(fp);
     fputs(EOL "SCALE: the coordinate system scale for the conversion (ABS = 1.0035)" EOL, fp);
     fputs("X,Y & Z: the coordinate system offsets for the conversion" EOL, fp);

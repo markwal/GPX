@@ -51,6 +51,7 @@
 #endif
 
 #include "std_machines.h"
+#include "classic_machines.h"
 
 #undef MACHINE_ARRAY
 
@@ -74,34 +75,37 @@ void gpx_list_machines(FILE *fp)
 
 int gpx_set_machine(Gpx *gpx, const char *machine)
 {
-    Machine **ptr = machines;
+    Machine **all_machines[] = {machines, wrong_machines, NULL};
+    Machine ***ptr_all;
+    Machine **ptr;
 
-    // only load/clobber the on-board machine definition if the one specified is different
-    while(*ptr) {
-	 if(MACHINE_IS((*ptr)->type)) {
-	      if (gpx->machine.id != (*ptr)->id) {
-		   memcpy(&gpx->machine, *ptr, sizeof(Machine));
-		   VERBOSE( fputs("Loading machine definition: ", gpx->log) );
-		   VERBOSE( fputs((*ptr)->desc, gpx->log) );
-		   VERBOSE( fputs(EOL, gpx->log) );
-	      }
-	      else {
-		   VERBOSE( fputs("Ignoring duplicate machine definition: -m ", gpx->log) );
-		   VERBOSE( fputs(machine, gpx->log) );
-		   VERBOSE( fputs(EOL, gpx->log) );
-	      }
-	      break;
-	 }
-	 ptr++;
+    for (ptr_all = all_machines; *ptr_all != NULL; ptr_all++) {
+        ptr = *ptr_all;
+        // only load/clobber the on-board machine definition if the one specified is different
+        while(*ptr) {
+            if(MACHINE_IS((*ptr)->type)) {
+                if (gpx->machine.id != (*ptr)->id) {
+                    memcpy(&gpx->machine, *ptr, sizeof(Machine));
+                    VERBOSE( fputs("Loading machine definition: ", gpx->log) );
+                    VERBOSE( fputs((*ptr)->desc, gpx->log) );
+                    VERBOSE( fputs(EOL, gpx->log) );
+                }
+                else {
+                    VERBOSE( fputs("Ignoring duplicate machine definition: -m ", gpx->log) );
+                    VERBOSE( fputs(machine, gpx->log) );
+                    VERBOSE( fputs(EOL, gpx->log) );
+                }
+                // update known position mask
+                gpx->axis.mask = gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;;
+                return SUCCESS;
+            }
+            ptr++;
+        }
     }
 
-    if(*ptr == NULL)
-	 // Machine not found
-	 return ERROR;
+    // Machine not found
+    return ERROR;
 
-    // update known position mask
-    gpx->axis.mask = gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;;
-    return SUCCESS;
 }
 
 // PRIVATE FUNCTION PROTOTYPES
