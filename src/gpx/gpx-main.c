@@ -170,6 +170,9 @@ static void usage(int err)
     fputs("EEPROM: the filename of an eeprom settings definition (ini file)" EOL, fp);
     fputs("DIAMETER: the actual filament diameter in the printer" EOL, fp);
     fputs(EOL "MACHINE: the predefined machine type" EOL, fp);
+    fputs("\tsome machine definitions have been updated with corrected steps per mm" EOL, fp);
+    fputs("\tthe original can be selected by prefixing o to the machine id" EOL, fp);
+    fputs("\t(or1, or1d, or2, or2h, orx, ot7, ot7d)" EOL, fp);
     gpx_list_machines(fp);
     fputs(EOL "SCALE: the coordinate system scale for the conversion (ABS = 1.0035)" EOL, fp);
     fputs("X,Y & Z: the coordinate system offsets for the conversion" EOL, fp);
@@ -203,30 +206,31 @@ static void sio_open(const char *filename, speed_t baud_rate)
 }
 
 #else
-void sio_open(const char *filename, speed_t baud_rate)
-{
-    if (!gpx_sio_open(&gpx, filename, baud_rate, &sio_port))
-        exit(-1);
-}
 
 #if !defined(_WIN32) && !defined(_WIN64)
-int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port)
+int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
+		 int *sio_port)
 {
     struct termios tp;
+    int port;
+
+    if(sio_port)
+	 *sio_port = -1;
+
     // open and configure the serial port
-    if((*sio_port = open(filename, O_RDWR | O_NOCTTY | O_NONBLOCK)) < 0) {
-        fprintf(gpx->log, "Error opening port");
-        return 0;
+    if((port = open(filename, O_RDWR | O_NOCTTY | O_NONBLOCK)) < 0) {
+        perror("Error opening port");
+	return 0;
     }
 
-    if(fcntl(*sio_port, F_SETFL, O_RDWR) < 0) {
-        fprintf(gpx->log, "Setting port descriptor flags");
-        return 0;
+    if(fcntl(port, F_SETFL, O_RDWR) < 0) {
+        perror("Setting port descriptor flags");
+	return 0;
     }
 
-    if(tcgetattr(*sio_port, &tp) < 0) {
-        fprintf(gpx->log, "Error getting port attributes");
-        return 0;
+    if(tcgetattr(port, &tp) < 0) {
+        perror("Error getting port attributes");
+	return 0;
     }
 
     cfmakeraw(&tp);
@@ -262,28 +266,38 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_por
     cfsetspeed(&tp, baud_rate);
     // cfsetispeed(&tp, baud_rate);
     // cfsetospeed(&tp, baud_rate);
-    
+
     // let's ask the i/o system to block for up to a tenth of a second
     // waiting for at least 255 bytes or whatever we asked for (whichever
     // is least).
     tp.c_cc[VMIN] = 255;
     tp.c_cc[VTIME] = 1;
 
-    if(tcsetattr(*sio_port, TCSANOW, &tp) < 0) {
-        fprintf(gpx->log, "Error setting port attributes");
-        return 0;
+    if(tcsetattr(port, TCSANOW, &tp) < 0) {
+        perror("Error setting port attributes");
+	return 0;
     }
 
-    sleep(1);
-    if(tcflush(*sio_port, TCIOFLUSH) < 0) {
-        fprintf(gpx->log, "Error flushing port");
-        return 0;
+    sleep(2);
+    if(tcflush(port, TCIOFLUSH) < 0) {
+        perror("Error flushing port");
+	return 0;
     }
 
     if(gpx->flag.verboseMode) fprintf(gpx->log, "Communicating via: %s" EOL, filename);
+    if(sio_port)
+	 *sio_port = port;
+
     return 1;
 }
 #endif
+
+void sio_open(const char *filename, speed_t baud_rate)
+{
+    if (!gpx_sio_open(&gpx, filename, baud_rate, &sio_port))
+        exit(-1);
+}
+
 #endif // SERIAL_SUPPORT
 
 // GPX program entry point

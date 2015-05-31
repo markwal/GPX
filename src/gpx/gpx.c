@@ -53,6 +53,7 @@
 #define MACHINE_ALIAS_ARRAY
 
 #include "std_machines.h"
+#include "classic_machines.h"
 
 #undef MACHINE_ARRAY
 
@@ -75,27 +76,26 @@ void gpx_list_machines(FILE *fp)
 
 Machine *gpx_find_machine(const char *machine)
 {
-    Machine **ptr = machines;
-    MachineAlias **pma = machine_aliases;
-
-    // look through the list
-    while(*ptr) {
-	 if(MACHINE_IS((*ptr)->type))
-	      return *ptr;
-	 ptr++;
-    }
+    Machine **all_machines[] = {machines, wrong_machines, NULL};
+    Machine ***ptr_all;
+    Machine **ptr;
 
     // check the aliases
-    while (*pma) {
+    MachineAlias **pma;
+    for (pma = machine_aliases; *pma; pma++) {
         if (MACHINE_IS((*pma)->alias)) {
             machine = (*pma)->type;
-            for (ptr = machines; *ptr; ptr++) {
-                if (MACHINE_IS((*ptr)->type))
-                    return *ptr;
-            }
-            return NULL;
+            break;
         }
-        pma++;
+    }
+
+    // check the machine list
+    for (ptr_all = all_machines; *ptr_all != NULL; ptr_all++) {
+        for (ptr = *ptr_all; *ptr; ptr++) {
+            if(MACHINE_IS((*ptr)->type))
+                return *ptr;
+            ptr++;
+        }
     }
 
     // Machine not found
