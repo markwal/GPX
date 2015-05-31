@@ -50,6 +50,7 @@ void usage(void)
     printf("machines [-c] [dir]\n");
     printf("\nOptions:\n");
     printf("\t-c\talso create classic (wrong) machine ini files\n");
+    printf("\tdir\tdestination directory, must end with separator ('/' or '\\')\n");
 }
 
 int main(int argc, char * const argv[])
@@ -79,8 +80,8 @@ int main(int argc, char * const argv[])
      // Directory path
      //   Must include "/" or "\".  You supply it; code is
      //   a tad more portable that way.
-     if (argc == 2)
-	  dlen = strlen(argv[1]);
+     if (argc > 0)
+	  dlen = strlen(argv[0]);
 
      do
      {
@@ -95,7 +96,7 @@ int main(int argc, char * const argv[])
 		    {
 			 FILE *fp;
 
-			 if (dlen) memcpy(fname, argv[1], dlen);
+			 if (dlen) memcpy(fname, argv[0], dlen);
 			 memcpy(fname + dlen, (*ptr)->type, len);
 			 memcpy(fname + dlen + len, ".ini", 5);
 			 fp = fopen(fname, "w");
