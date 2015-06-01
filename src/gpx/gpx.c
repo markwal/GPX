@@ -94,7 +94,6 @@ Machine *gpx_find_machine(const char *machine)
         for (ptr = *ptr_all; *ptr; ptr++) {
             if(MACHINE_IS((*ptr)->type))
                 return *ptr;
-            ptr++;
         }
     }
 
