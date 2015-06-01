@@ -314,6 +314,7 @@ int main(int argc, char * const argv[])
     char *eeprom = NULL;
     double filament_diameter = 0;
     char *buildname = "GPX " GPX_VERSION;
+    char *otherdelim = NULL;
     char *filename;
     int ini_loaded = 0;
     speed_t baud_rate = B115200;
@@ -642,6 +643,13 @@ int main(int argc, char * const argv[])
         }
         // assign build name
         buildname = strrchr(filename, PATH_DELIM);
+#ifdef _WIN32
+        char *otherdelim = strrchr(filename, '/');
+        if (otherdelim > buildname)
+        {
+            buildname = otherdelim;
+        }
+#endif
         if(buildname) {
             buildname++;
         }
@@ -656,6 +664,11 @@ int main(int argc, char * const argv[])
             filename = argv[0];
             // prefer output filename over input for the buildname
             char *s = strrchr(filename, PATH_DELIM);
+#ifdef _WIN32
+            otherdelim = strrchr(filename, '/');
+            if (otherdelim > s)
+                s = otherdelim;
+#endif
             s = strdup(s ? s+1 : filename);
             if (s)
                 buildname = s;

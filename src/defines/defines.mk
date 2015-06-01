@@ -71,7 +71,7 @@ PLATFORM = win32
 EXE = .exe
 OBJ = .o
 DEP = .d
-PYTHON =
+PYTHON = python
 
 else
 
@@ -107,7 +107,7 @@ VPATH=./ $(SHAREDIR)
 CD = cd
 CHMOD = chmod
 CP = cp
-DIFF = diff
+DIFF = diff -b
 GZIP = gzip -9c
 MKDIR = mkdir -p
 RM = rm -f
