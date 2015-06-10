@@ -2982,7 +2982,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     }
     // ;@body
     else if(MACRO_IS("body")) {
-        if(gpx->flag.pausePending) {
+        if(gpx->flag.pausePending && gpx->flag.runMacros) {
             CALL( pause_at_zpos(gpx, gpx->commandAt[0].z) );
             gpx->flag.pausePending = 0;
         }
@@ -4244,7 +4244,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                         else {
                             // enable macros in object body
                             if(!gpx->flag.macrosEnabled && percent > 0) {
-                                if(gpx->flag.pausePending) {
+                                if(gpx->flag.pausePending && gpx->flag.runMacros) {
                                     CALL( pause_at_zpos(gpx, gpx->commandAt[0].z) );
                                     gpx->flag.pausePending = 0;
                                 }
@@ -4959,6 +4959,7 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
         gpx_initialize(gpx, 0);
         gpx->flag.loadMacros = 0;
         gpx->flag.runMacros = 1;
+        gpx->flag.pausePending = (gpx->commandAtLength > 0);
         //gpx->flag.logMessages = 0;
         gpx->callbackHandler = (int (*)(Gpx*, void*, char*, size_t))file_handler;
         gpx->callbackData = &file;
