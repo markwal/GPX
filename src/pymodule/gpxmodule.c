@@ -137,20 +137,29 @@ static int connected = 0;
 // Some custom python exceptions
 static PyObject *pyerrBufferOverflow;
 
-static void tio_printf(Tio *tio, char const* fmt, ...)
+static int tio_vprintf(Tio *tio, const char *fmt, va_list ap)
 {
     size_t result;
-    va_list args;
 
     if (tio->cur >= sizeof(tio->translation))
-        return;
-
-    va_start(args, fmt);
+        return 0;
     result = vsnprintf(tio->translation + tio->cur,
-            sizeof(tio->translation) - tio->cur, fmt, args);
+            sizeof(tio->translation) - tio->cur, fmt, ap);
     if (result > 0)
         tio->cur += result;
+    return result;
+}
+
+static int tio_printf(Tio *tio, char const* fmt, ...)
+{
+    va_list args;
+    int result;
+
+    va_start(args, fmt);
+    result = tio_vprintf(tio, fmt, args);
     va_end(args);
+
+    return result;
 }
 
 // clean up anything left over from before
@@ -496,9 +505,22 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
     return rval;
 }
 
+static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
+{
+    int rval = 0;
+    if (tio->cur == 2)
+       rval = tio_printf(tio, "\n"); 
+    return rval + tio_printf(tio, "// echo: ") + tio_vprintf(tio, fmt, ap);
+}
+
 // return the translation or set the error context and return NULL if failure
 static PyObject *gpx_return_translation(int rval)
 {
+    // ENDED -> READY
+    if (gpx.flag.programState > 1)
+        gpx.flag.programState = 0;
+    gpx.flag.macrosEnabled = 1;
+
     // if we're waiting for something and we haven't produced any output
     // give back current temps
     if (rval == SUCCESS && tio.waiting && tio.cur == 0) {
@@ -574,6 +596,7 @@ static PyObject *gpx_return_translation(int rval)
     fflush(gpx.log);
     return Py_BuildValue("s", tio.translation);
 }
+
 
 static PyObject *gpx_write_string(const char *s)
 {
@@ -693,6 +716,7 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
     gpx.flag.framingEnabled = 1;
     gpx.flag.sioConnected = 1;
     gpx_register_callback(&gpx, (int (*)(Gpx*, void*, char*, size_t))translate_handler, &tio);
+    gpx.resultHandler = (int (*)(Gpx*, void*, const char*, va_list))translate_result;
 
     tio.sio.in = NULL;
     tio.sio.bytes_out = tio.sio.bytes_in = 0;
@@ -887,9 +911,6 @@ static PyObject *gpx_read_ini(PyObject *self, PyObject *args)
 {
     const char *inipath = NULL;
 
-    if (!connected)
-        return PyErr_NotConnected();
-
     if (!PyArg_ParseTuple(args, "s", &inipath))
         return NULL;
 
@@ -911,11 +932,9 @@ static PyObject *gpx_read_ini(PyObject *self, PyObject *args)
 // reset settings to defaults
 static PyObject *gpx_reset_ini(PyObject *self, PyObject *args)
 {
-    if (!connected)
-        return PyErr_NotConnected();
-
     // some state survives reset_ini
     void *callbackHandler = gpx.callbackHandler;
+    void *resultHandler = gpx.resultHandler;
     void *callbackData = gpx.callbackData;
     FILE *log = gpx.log;
     unsigned verbose = gpx.flag.verboseMode;
@@ -925,6 +944,7 @@ static PyObject *gpx_reset_ini(PyObject *self, PyObject *args)
 
     // restore some stuff, plus we're still in pymodule mode
     gpx.callbackHandler = callbackHandler;
+    gpx.resultHandler = resultHandler;
     gpx.callbackData = callbackData;
     gpx.log = log;
     gpx.flag.framingEnabled = 1;

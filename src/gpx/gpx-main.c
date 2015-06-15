@@ -314,7 +314,9 @@ int main(int argc, char * const argv[])
     char *eeprom = NULL;
     double filament_diameter = 0;
     char *buildname = "GPX " GPX_VERSION;
+#ifdef _WIN32
     char *otherdelim = NULL;
+#endif
     char *filename;
     int ini_loaded = 0;
     speed_t baud_rate = B115200;

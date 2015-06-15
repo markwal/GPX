@@ -330,6 +330,7 @@ typedef long speed_t;
 
         int (*callbackHandler)(Gpx *gpx, void *callbackData, char *buffer, size_t length);
         void *callbackData;
+        int (*resultHandler)(Gpx *gpx, void *callbackData, const char *fmt, va_list ap);
 
         // LOGGING
 

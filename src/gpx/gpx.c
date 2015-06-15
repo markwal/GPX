@@ -321,6 +321,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
 
     gpx->callbackHandler = NULL;
     gpx->callbackData = NULL;
+    gpx->resultHandler = NULL;
 
     // LOGGING
 
@@ -2691,6 +2692,21 @@ static char *normalize_comment(char *p) {
     return p;
 }
 
+// send a result to the result handler
+
+static int gcodeResult(Gpx *gpx, const char *fmt, ...)
+{
+    int result = 0;
+    va_list args;
+
+    if (gpx->resultHandler != NULL) {
+        va_start(args, fmt);
+        result = gpx->resultHandler(gpx, gpx->callbackData, fmt, args);
+        va_end(args);
+    }
+    return result;
+}
+
 // MACRO PARSER
 
 /* format
@@ -2992,6 +3008,22 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     // ;@footer
     else if(MACRO_IS("header") && MACRO_IS("footer")) {
         gpx->flag.macrosEnabled = 0;
+    }
+    else if (MACRO_IS("debug")) {
+        if (NAME_IS("pos")) {
+            gcodeResult(gpx, "gpx position X:%0.2f Y:%0.2f Z:%0.2f A:%0.2f B:%0.2f\n",
+                gpx->current.position.x, gpx->current.position.y, gpx->current.position.z,
+                gpx->current.position.a, gpx->current.position.b);
+            char axes_names[] = "XYZAB";
+            char s[sizeof(axes_names)], *p = s;
+            int i;
+            for (i = 0; i < sizeof(axes_names); i++) {
+                if (gpx->axis.positionKnown & (1 << i))
+                    *p++ = axes_names[i];
+            }
+            *p++ = 0;
+            gcodeResult(gpx, "positions known: %s\n", s);
+        }
     }
     return SUCCESS;
 }
