@@ -5390,6 +5390,32 @@ void hexdump(FILE *out, char *p, size_t len)
 }
 #define VERBOSESIO(fn) VERBOSE(fn)
 
+#if defined(_WIN32) || defined(_WIN64)
+// windows has more simultaneous timeout values, so we don't need select
+// for the first byte
+#define readport read
+#else
+size_t readport(int port, char *buffer, size_t bytes)
+{
+    fd_set fds;
+    struct timeval tv;
+    int rval;
+
+    FD_ZERO(&fds);
+    FD_SET(port, &fds);
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+
+    // wait up to one second for the first byte
+    rval = select(port + 1, &fds, NULL, NULL, &tv);
+    if (rval <= 0)
+        return rval;
+
+    // wait up to 1/10th intercharacter (from VTIME)
+    return read(port, buffer, bytes);
+}
+#endif
+
 int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
 {
     int rval = SUCCESS;
@@ -5411,7 +5437,7 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
             VERBOSESIO( fprintf(gpx->log, EOL "port_handler read:" EOL) );
             for(;;) {
                 // read start byte
-                if((bytes = read(sio->port, gpx->buffer.in, 1)) == -1) {
+                if((bytes = readport(sio->port, gpx->buffer.in, 1)) == -1) {
                     return EOSERROR;
                 }
                 else if(bytes != 1) {
@@ -5425,7 +5451,7 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
             size_t payload_length = 0;
             do {
                 // read length
-                if((bytes = read(sio->port, gpx->buffer.in + 1, 1)) == -1) {
+                if((bytes = readport(sio->port, gpx->buffer.in + 1, 1)) == -1) {
                     return EOSERROR;
                 }
                 else if(bytes != 1) {
@@ -5436,7 +5462,7 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                 payload_length = gpx->buffer.in[1];
             } while (gpx->buffer.in[1] == 0xd5);
             // recieve payload
-            if((bytes = read(sio->port, gpx->buffer.in + 2, payload_length + 1)) == -1) {
+            if((bytes = readport(sio->port, gpx->buffer.in + 2, payload_length + 1)) == -1) {
                 return EOSERROR;
             }
             VERBOSESIO( hexdump(gpx->log, gpx->buffer.in + 2, bytes) );
