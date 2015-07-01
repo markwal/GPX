@@ -5386,8 +5386,9 @@ void hexdump(FILE *out, char *p, size_t len)
 {
     while (len--)
         fprintf(out, "%02x ", (unsigned)*p++);
+    fflush(out);
 }
-#define VERBOSESIO(fn)
+#define VERBOSESIO(fn) VERBOSE(fn)
 
 int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
 {

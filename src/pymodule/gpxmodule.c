@@ -676,7 +676,7 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
     gpx_initialize(&gpx, 0);
 
     // open the log file
-    if (logpath != NULL && (gpx.log = fopen(logpath, "w+")) == NULL) {
+    if (logpath != NULL && (gpx.log = fopen(logpath, "a")) == NULL) {
         fprintf(stderr, "Unable to open logfile (%s) for writing\n", logpath);
     }
     if (gpx.log == NULL)
