@@ -33,7 +33,6 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <stdarg.h>
 #include <time.h>
 #include <libgen.h>
 

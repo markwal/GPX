@@ -33,6 +33,7 @@ extern "C" {
 
 #include <limits.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 #define GPX_VERSION "2.1-alpha"
 #define HOST_VERSION 50
