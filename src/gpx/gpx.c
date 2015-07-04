@@ -1254,7 +1254,7 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
     unsigned step_delay = (unsigned)round(microseconds / longestAxis);
 
     gpx->accumulated.time += distance / feedrate * 60;
-    return;
+    return SUCCESS;
 
     begin_frame(gpx);
 
