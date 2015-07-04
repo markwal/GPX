@@ -1204,8 +1204,10 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
     double longestAxis = 0.0;
     assert(direction <= 1);
 
+    fprintf(gpx->log, "Homing to %s. Axes: ", direction == ENDSTOP_IS_MIN ? "minimum" : "maximum");
     // compute the slowest feedrate
     if(axes & X_IS_SET) {
+        fprintf(gpx->log, "X");
         if(gpx->machine.x.home_feedrate < feedrate) {
             feedrate = gpx->machine.x.home_feedrate;
         }
@@ -1217,6 +1219,7 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
         }
     }
     if(axes & Y_IS_SET) {
+        fprintf(gpx->log, "Y");
         if(gpx->machine.y.home_feedrate < feedrate) {
             feedrate = gpx->machine.y.home_feedrate;
         }
@@ -1229,6 +1232,7 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
         }
     }
     if(axes & Z_IS_SET) {
+        fprintf(gpx->log, "Z");
         if(gpx->machine.z.home_feedrate < feedrate) {
             feedrate = gpx->machine.z.home_feedrate;
         }
@@ -1240,6 +1244,7 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
             SHOW( fprintf(gpx->log, "(line %u) Semantic warning: Z axis homing to %s endstop" EOL, gpx->lineNumber, direction ? "maximum" : "minimum") );
         }
     }
+    fprintf(gpx->log, "\n");
 
     // unit vector distance in mm
     double distance = magnitude(axes, &unitVector);
@@ -1249,6 +1254,7 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
     unsigned step_delay = (unsigned)round(microseconds / longestAxis);
 
     gpx->accumulated.time += distance / feedrate * 60;
+    return;
 
     begin_frame(gpx);
 
