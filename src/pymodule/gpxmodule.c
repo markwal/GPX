@@ -727,18 +727,35 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
 
     tio.cur = 0;
     tio_printf(&tio, "start\n");
-    int rval = get_advanced_version_number(&gpx);
-    if (rval >= 0) {
-        tio_printf(&tio, "echo: gcode to x3g translation by GPX");
-        return gpx_write_string("M21");
-    }
-    return gpx_return_translation(rval);
+    return gpx_return_translation(SUCCESS);
 }
 
 static PyObject *PyErr_NotConnected(void)
 {
     PyErr_SetString(PyExc_IOError, "Not connected");
     return NULL;
+}
+
+// def start()
+//  Intended to be called after connect to have the first conversation with the
+//  bot, connect merely opens the port. Separating the two allows for a pause
+//  between the calls at the python level so multithreading works.
+static PyObject *gpx_start(PyObject *self, PyObject *args)
+{
+    if (!connected)
+        return PyErr_NotConnected();
+
+    if (!PyArg_ParseTuple(args, ""))
+        return NULL;
+
+    tio.cur = 0;
+    tio.translation[0] = 0;
+    int rval = get_advanced_version_number(&gpx);
+    if (rval >= 0) {
+        tio_printf(&tio, "echo: gcode to x3g translation by GPX");
+        return gpx_write_string("M21");
+    }
+    return gpx_return_translation(rval);
 }
 
 // def write(data)
@@ -999,6 +1016,7 @@ static PyMethodDef GpxMethods[] = {
     {"reset_ini", gpx_reset_ini, METH_VARARGS, "reset_ini() Reset configuration state to default"},
     {"waiting", gpx_waiting, METH_VARARGS, "waiting() Returns True if the bot reports it is waiting for a temperature, pause or prompt"},
     {"reprap_flavor", gpx_reprap_flavor, METH_VARARGS, "reprap_flavor(boolean) Sets the expected gcode flavor (true = reprap, false = makerbot), returns the previous setting"},
+    {"start", gpx_start, METH_VARARGS, "start() Call after connect and a printer specific pause (2 seconds for most) to start the serial communication"},
     {NULL, NULL, 0, NULL} // sentinel
 };
 
