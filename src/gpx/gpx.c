@@ -3903,10 +3903,10 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 }
                 else {
                     if(endstop_min) {
-                        CALL( home_axes(gpx, endstop_min, ENDSTOP_IS_MAX) );
+                        CALL( home_axes(gpx, endstop_min, ENDSTOP_IS_MIN) );
                     }
                     if(endstop_max) {
-                        CALL( home_axes(gpx, endstop_max, ENDSTOP_IS_MIN) );
+                        CALL( home_axes(gpx, endstop_max, ENDSTOP_IS_MAX) );
                     }
                 }
                 command_emitted++;
