@@ -126,6 +126,7 @@ typedef struct tTio
             unsigned waitForExtruderB:1;
             unsigned waitForButton:1;
             unsigned waitForStart:1;
+            unsigned waitForEmptyQueue:1;
         } waitflag;
     };
     Sttb sttb;
@@ -330,7 +331,8 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
             // 11 - Is ready?
         case 11:
-            tio->waitflag.waitForButton = !tio->sio.response.isReady;
+            if (tio->sio.response.isReady)
+                tio->waitflag.waitForEmptyQueue = tio->waitflag.waitForButton = 0;
             break;
 
             // 14 - Begin capture to file
@@ -796,16 +798,20 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
     else if (tio.waiting) {
         if (gpx.flag.verboseMode && gpx.flag.logMessages)
             fprintf(gpx.log, "tio.waiting = %u\n", tio.waiting);
-        if (tio.waitflag.waitForStart)
-            rval = get_build_statistics(&gpx);
-        if (rval == SUCCESS && tio.waitflag.waitForPlatform)
-            rval = is_build_platform_ready(&gpx, 0);
-        if (rval == SUCCESS && tio.waitflag.waitForExtruderA)
-            rval = is_extruder_ready(&gpx, 0);
-        if (rval == SUCCESS && tio.waitflag.waitForExtruderB)
-            rval = is_extruder_ready(&gpx, 1);
-        if (rval == SUCCESS && tio.waitflag.waitForButton)
+        // if we're waiting for the queue to drain, do that before checking on
+        // anything else
+        if (tio.waitflag.waitForEmptyQueue || tio.waitflag.waitForButton)
             rval = is_ready(&gpx);
+        if (rval == SUCCESS && !tio.waitflag.waitForEmptyQueue) {
+            if (tio.waitflag.waitForStart)
+                rval = get_build_statistics(&gpx);
+            if (rval == SUCCESS && tio.waitflag.waitForPlatform)
+                rval = is_build_platform_ready(&gpx, 0);
+            if (rval == SUCCESS && tio.waitflag.waitForExtruderA)
+                rval = is_extruder_ready(&gpx, 0);
+            if (rval == SUCCESS && tio.waitflag.waitForExtruderB)
+                rval = is_extruder_ready(&gpx, 1);
+        }
         if (gpx.flag.verboseMode && gpx.flag.logMessages)
             fprintf(gpx.log, "tio.waiting = %u and rval = %d\n", tio.waiting, rval);
         if (rval == SUCCESS) {
