@@ -689,9 +689,6 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
     }
 #endif
 
-    gpx.flag.verboseMode = verbose;
-    gpx.flag.logMessages = 1;
-
     // load the config
     if (inipath != NULL)
     {
@@ -702,6 +699,9 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
             fprintf(gpx.log, "(line %u) Configuration syntax error in %s: unrecognized parameters\n", lineno, inipath);
     }
 
+    gpx.flag.verboseMode = verbose;
+    gpx.flag.logMessages = 1;
+
     // open the port
     speed_t speed = speed_from_long(&baudrate);
     if (speed == B0)
@@ -710,7 +710,6 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
         return PyErr_SetFromErrnoWithFilename(PyExc_OSError, port);
     }
 
-    // TODO build_name and framing
     gpx_start_convert(&gpx, "", 0);
 
     gpx.flag.framingEnabled = 1;
@@ -720,7 +719,7 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
 
     tio.sio.in = NULL;
     tio.sio.bytes_out = tio.sio.bytes_in = 0;
-    tio.sio.flag.retryBufferOverflow = 1;
+    tio.sio.flag.retryBufferOverflow = 0;
     connected = 1;
 
     fprintf(gpx.log, "gpx connected to %s at %ld using %s and %s\n", port, baudrate, inipath, logpath);
