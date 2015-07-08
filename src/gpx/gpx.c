@@ -770,7 +770,7 @@ static int get_buffer_size(Gpx *gpx)
 
 // 03 - Clear buffer (same as 07 and 17)
 
-static int clear_buffer(Gpx *gpx)
+int clear_buffer(Gpx *gpx)
 {
     begin_frame(gpx);
 
@@ -781,7 +781,7 @@ static int clear_buffer(Gpx *gpx)
 
 // 07 - Abort immediately
 
-static int abort_immediately(Gpx *gpx)
+int abort_immediately(Gpx *gpx)
 {
     begin_frame(gpx);
 
@@ -1268,7 +1268,7 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
 
 // 133 - delay
 
-static int delay(Gpx *gpx, unsigned milliseconds)
+int delay(Gpx *gpx, unsigned milliseconds)
 {
     begin_frame(gpx);
 
@@ -1325,7 +1325,7 @@ static int wait_for_extruder(Gpx *gpx, unsigned extruder_id, unsigned timeout)
 
 // Action 03 - Set extruder target temperature
 
-static int set_nozzle_temperature(Gpx *gpx, unsigned extruder_id, unsigned temperature)
+int set_nozzle_temperature(Gpx *gpx, unsigned extruder_id, unsigned temperature)
 {
     assert(extruder_id < gpx->machine.extruder_count);
 
@@ -1460,7 +1460,7 @@ static int set_abp(Gpx *gpx, unsigned extruder_id, unsigned state)
 
 // Action 31 - Set build platform target temperature
 
-static int set_build_platform_temperature(Gpx *gpx, unsigned extruder_id, unsigned temperature)
+int set_build_platform_temperature(Gpx *gpx, unsigned extruder_id, unsigned temperature)
 {
     assert(extruder_id < gpx->machine.extruder_count);
 
@@ -5385,7 +5385,7 @@ char buffer_size_query[] = {
 void hexdump(FILE *out, char *p, size_t len)
 {
     while (len--)
-        fprintf(out, "%02x ", (unsigned)*p++);
+        fprintf(out, "%02x ", (unsigned)(unsigned char)*p++);
     fflush(out);
 }
 #define VERBOSESIO(fn) VERBOSE(fn)
@@ -5479,8 +5479,8 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                 goto L_RETRY;
             }
             // check response code
-            rval = gpx->buffer.in[2];
-            switch((unsigned char)gpx->buffer.in[2]) {
+            rval = (int)(unsigned char)gpx->buffer.in[2];
+            switch(rval) {
                     // 0x80 - Generic Packet error, packet discarded (retry)
                 case 0x80:
                     VERBOSE( fprintf(gpx->log, "(retry %u) Generic Packet error: packet discarded" EOL, retry_count) );

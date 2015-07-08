@@ -533,6 +533,7 @@ static PyObject *gpx_return_translation(int rval)
     fflush(gpx.log);
     switch (rval) {
         case SUCCESS:
+        case END_OF_FILE:
             break;
 
         case EOSERROR:
@@ -1008,6 +1009,50 @@ static PyObject *gpx_reprap_flavor(PyObject *self, PyObject *args)
         Py_RETURN_FALSE;
 }
 
+// def cancel(emptyQueue = True)
+static PyObject *gpx_cancel(PyObject *self, PyObject *args)
+{
+    if (!connected)
+        return PyErr_NotConnected();
+
+    int emptyQueue = 1;
+    if (!PyArg_ParseTuple(args, "|i", &emptyQueue))
+        return NULL;
+
+    tio.cur = 0;
+    tio.translation[0] = 0;
+    tio.waiting = 0;
+    tio.sec = 0;
+    int rval = SUCCESS;
+
+    // first, ask if we are SD printing
+    if (!emptyQueue) {
+        // delay 1ms is a queuable command that will fail if SD printing
+        rval = delay(&gpx, 1);
+        if (rval == 0x8A) // SD printing
+            emptyQueue = 1;
+        rval = SUCCESS; // ignore any other response
+    }
+
+    if (emptyQueue) {
+        rval = clear_buffer(&gpx);
+    }
+    else {
+        // otherwise, treat cancel as set all target temps to 0 and expect the
+        // host to stop sending commands
+        rval = set_build_platform_temperature(&gpx, 0, 0);
+        int i = gpx.machine.extruder_count;
+        while (i--) {
+            if (rval != SUCCESS)
+                break;
+            rval = set_nozzle_temperature(&gpx, i, 0);
+        }
+    }
+    if (rval != SUCCESS)
+        return gpx_return_translation(rval);
+    return gpx_write_string("M2"); // end_build
+}
+
 
 // method table describes what is exposed to python
 static PyMethodDef GpxMethods[] = {
@@ -1022,6 +1067,7 @@ static PyMethodDef GpxMethods[] = {
     {"waiting", gpx_waiting, METH_VARARGS, "waiting() Returns True if the bot reports it is waiting for a temperature, pause or prompt"},
     {"reprap_flavor", gpx_reprap_flavor, METH_VARARGS, "reprap_flavor(boolean) Sets the expected gcode flavor (true = reprap, false = makerbot), returns the previous setting"},
     {"start", gpx_start, METH_VARARGS, "start() Call after connect and a printer specific pause (2 seconds for most) to start the serial communication"},
+    {"cancel", gpx_cancel, METH_VARARGS, "cancel(emptyQueue) Clears wait-for-temperature, optionally empties the bot's command queue and ends the build"},
     {NULL, NULL, 0, NULL} // sentinel
 };
 

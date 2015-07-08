@@ -486,6 +486,11 @@ typedef long speed_t;
     int is_ready(Gpx *gpx);
     char *get_sd_status(unsigned int status);
     Machine *gpx_find_machine(const char *machine);
+    int abort_immediately(Gpx *gpx);
+    int set_build_platform_temperature(Gpx *gpx, unsigned extruder_id, unsigned temperature);
+    int set_nozzle_temperature(Gpx *gpx, unsigned extruder_id, unsigned temperature);
+    int delay(Gpx *gpx, unsigned milliseconds);
+    int clear_buffer(Gpx *gpx);
 #ifdef __cplusplus
 }
 #endif
