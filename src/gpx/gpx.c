@@ -1127,7 +1127,7 @@ static int get_build_name(Gpx *gpx)
 
 // 21 - Get extended position
 
-static int get_extended_position(Gpx *gpx)
+int get_extended_position(Gpx *gpx)
 {
     begin_frame(gpx);
 
@@ -5260,12 +5260,10 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             sio->response.position.endstop.bitfield = read_16(gpx);
 
             // set our current position
-            if ((gpx->axis.positionKnown & XYZ_BIT_MASK) != XYZ_BIT_MASK) {
-                gpx->current.position.x = sio->response.position.x / gpx->machine.x.steps_per_mm;
-                gpx->current.position.y = sio->response.position.y / gpx->machine.y.steps_per_mm;
-                gpx->current.position.z = sio->response.position.z / gpx->machine.z.steps_per_mm;
-                gpx->axis.positionKnown |= XYZ_BIT_MASK;
-            }
+            gpx->current.position.x = sio->response.position.x / gpx->machine.x.steps_per_mm;
+            gpx->current.position.y = sio->response.position.y / gpx->machine.y.steps_per_mm;
+            gpx->current.position.z = sio->response.position.z / gpx->machine.z.steps_per_mm;
+            gpx->axis.positionKnown |= XYZ_BIT_MASK;
 
             if(gpx->flag.verboseMode && gpx->flag.logMessages) {
                 fputs("Current position" EOL, gpx->log);

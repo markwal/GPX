@@ -491,6 +491,7 @@ typedef long speed_t;
     int set_nozzle_temperature(Gpx *gpx, unsigned extruder_id, unsigned temperature);
     int delay(Gpx *gpx, unsigned milliseconds);
     int clear_buffer(Gpx *gpx);
+    int get_extended_position(Gpx *gpx);
 #ifdef __cplusplus
 }
 #endif

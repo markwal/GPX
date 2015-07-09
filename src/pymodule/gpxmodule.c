@@ -127,6 +127,7 @@ typedef struct tTio
             unsigned waitForButton:1;
             unsigned waitForStart:1;
             unsigned waitForEmptyQueue:1;
+            unsigned waitForRecallHome:1;
         } waitflag;
     };
     Sttb sttb;
@@ -331,8 +332,14 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
             // 11 - Is ready?
         case 11:
-            if (tio->sio.response.isReady)
+            VERBOSE( fprintf(gpx->log, "is_ready: %d\n", tio->sio.response.isReady) );
+            if (tio->sio.response.isReady) {
                 tio->waitflag.waitForEmptyQueue = tio->waitflag.waitForButton = 0;
+                if (tio->waitflag.waitForRecallHome) {
+                    tio->waitflag.waitForRecallHome = 0;
+                    get_extended_position(gpx);
+                }
+            }
             break;
 
             // 14 - Begin capture to file
@@ -491,6 +498,14 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             tio->translation[0] = 0;
             VERBOSE( fprintf(gpx->log, "waiting for platform\n") );
             tio->waitflag.waitForPlatform = 1;
+            break;
+
+        case 144:
+            tio->cur = 0;
+            tio->translation[0] = 0;
+            VERBOSE( fprintf(gpx->log, "recall home positions, wait for queue\n") );
+            tio->waitflag.waitForEmptyQueue = 1;
+            tio->waitflag.waitForRecallHome = 1;
             break;
 
             // 148, 149 - message to the LCD, may be waiting for a button
