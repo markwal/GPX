@@ -3962,11 +3962,6 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 if((gpx->axis.positionKnown & XYZ_BIT_MASK) == XYZ_BIT_MASK) {
                     gpx->flag.relativeCoordinates = 1;
                 }
-                else if (gpx->flag.sioConnected) {
-                    get_extended_position(gpx);
-                    command_emitted++;
-                    gpx->flag.relativeCoordinates = 1;
-                }
                 else {
                     SHOW( fprintf(gpx->log, "(line %u) Semantic error: G91 switch to relative positioning prior to first absolute move" EOL, gpx->lineNumber) );
                     return ERROR;
@@ -5258,12 +5253,6 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
 
             // uint16: bitfield corresponding to the endstop status:
             sio->response.position.endstop.bitfield = read_16(gpx);
-
-            // set our current position
-            gpx->current.position.x = sio->response.position.x / gpx->machine.x.steps_per_mm;
-            gpx->current.position.y = sio->response.position.y / gpx->machine.y.steps_per_mm;
-            gpx->current.position.z = sio->response.position.z / gpx->machine.z.steps_per_mm;
-            gpx->axis.positionKnown |= XYZ_BIT_MASK;
 
             if(gpx->flag.verboseMode && gpx->flag.logMessages) {
                 fputs("Current position" EOL, gpx->log);

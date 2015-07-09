@@ -117,6 +117,7 @@ typedef struct tTio
     Sio sio;
     struct {
         unsigned listingFiles:1;      // in the middle of an M20 response
+        unsigned getPosWhenReady:1;   // waiting for queue to drain to get position
     } flag;
     union {
         unsigned waiting;
@@ -127,7 +128,6 @@ typedef struct tTio
             unsigned waitForButton:1;
             unsigned waitForStart:1;
             unsigned waitForEmptyQueue:1;
-            unsigned waitForRecallHome:1;
         } waitflag;
     };
     Sttb sttb;
@@ -335,9 +335,9 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             VERBOSE( fprintf(gpx->log, "is_ready: %d\n", tio->sio.response.isReady) );
             if (tio->sio.response.isReady) {
                 tio->waitflag.waitForEmptyQueue = tio->waitflag.waitForButton = 0;
-                if (tio->waitflag.waitForRecallHome) {
-                    tio->waitflag.waitForRecallHome = 0;
+                if (tio->flag.getPosWhenReady) {
                     get_extended_position(gpx);
+                    tio->flag.getPosWhenReady = 0;
                 }
             }
             break;
@@ -405,6 +405,14 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                 (double)tio->sio.response.position.y / gpx->machine.y.steps_per_mm,
                 (double)tio->sio.response.position.z / gpx->machine.z.steps_per_mm,
                 epos);
+
+            // set our current position
+            if (tio->flag.getPosWhenReady) {
+                gpx->current.position.x = tio->sio.response.position.x / gpx->machine.x.steps_per_mm;
+                gpx->current.position.y = tio->sio.response.position.y / gpx->machine.y.steps_per_mm;
+                gpx->current.position.z = tio->sio.response.position.z / gpx->machine.z.steps_per_mm;
+                gpx->axis.positionKnown |= XYZ_BIT_MASK;
+            }
             }
             break;
 
@@ -500,12 +508,18 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             tio->waitflag.waitForPlatform = 1;
             break;
 
+            // 144 - recall home position
         case 144:
+            // fallthrough
+
+            // 131, 132 - home axes
+        case 131:
+        case 132:
+            VERBOSE( fprintf(gpx->log, "homing or recall home positions, wait for queue then ask bot for pos\n") );
             tio->cur = 0;
             tio->translation[0] = 0;
-            VERBOSE( fprintf(gpx->log, "recall home positions, wait for queue\n") );
             tio->waitflag.waitForEmptyQueue = 1;
-            tio->waitflag.waitForRecallHome = 1;
+            tio->flag.getPosWhenReady = 1;
             break;
 
             // 148, 149 - message to the LCD, may be waiting for a button
@@ -769,6 +783,8 @@ static PyObject *gpx_start(PyObject *self, PyObject *args)
     tio.translation[0] = 0;
     int rval = get_advanced_version_number(&gpx);
     if (rval >= 0) {
+        tio.waitflag.waitForEmptyQueue = 1;
+        tio.flag.getPosWhenReady = 1;
         tio_printf(&tio, "echo: gcode to x3g translation by GPX");
         return gpx_write_string("M21");
     }
@@ -1063,6 +1079,8 @@ static PyObject *gpx_cancel(PyObject *self, PyObject *args)
             rval = set_nozzle_temperature(&gpx, i, 0);
         }
     }
+    tio.waitflag.waitForEmptyQueue = 1;
+    tio.flag.getPosWhenReady = 1;
     if (rval != SUCCESS)
         return gpx_return_translation(rval);
     return gpx_write_string("M2"); // end_build
