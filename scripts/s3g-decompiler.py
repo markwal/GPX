@@ -100,6 +100,19 @@ def Format(fmt, args):
             iargs += 1
     return fmt_new.replace('~~', '%%'), tuple(args_new)
 
+toolQueryTable = {
+    0:  ("<H",  "(0) Get version, Host Version %i"),
+    2:  ("",    "(2) Get toolhead temperature"),
+    22: ("",    "(22) Is tool ready?"),
+    25: ("<HB", "(25) Read from EEPROM offset %i, %i bytes"),
+    30: ("",    "(30) Get build platform temperature"),
+    32: ("",    "(32) Get toolhead target temperature"),
+    33: ("",    "(33) Get build platform target temperature"),
+    35: ("",    "(35) Is build platform ready?"),
+    36: ("",    "(36) Get tool status"),
+    37: ("",    "(37) Get PID state"),
+}
+
 toolCommandTable = {
     1: ("", "(1) Initialize firmware to boot state"),
     3: ("<H", "(3) Set target temperature to %i C"),
@@ -139,6 +152,39 @@ def printToolAction(tuple):
     # command - tuple[1]
     # data - tuple[2]
     (parse, disp) = toolCommandTable[tuple[1]]
+    if type(parse) == type(""):
+        packetLen = struct.calcsize(parse)
+        if len(tuple[2]) != packetLen:
+            raise "Error: file appears to be truncated; cannot parse"
+        parsed = struct.unpack(parse,tuple[2])
+    else:
+        parsed = parse()
+    if type(disp) == type(""):
+        print disp % parsed
+
+def parseToolQuery():
+    global s3gFile
+    global byteOffset
+    packetStr = s3gFile.read(3)
+    if len(packetStr) != 3:
+        raise "Error: file appears to be truncated; cannot parse"
+    byteOffset += 3
+    (index,command,payload) = struct.unpack("<BBB",packetStr)
+    contents = s3gFile.read(payload)
+    if len(contents) != payload:
+        raise "Error: file appears to be truncated; cannot parse"
+    byteOffset += payload
+    return (index,command,contents)
+
+def printToolQuery(tuple):
+    print "(10) Tool %i:" % (tuple[0]),
+    # command - tuple[1]
+    # data - tuple[2]
+    try:
+        (parse, disp) = toolQueryTable[tuple[1]]
+    except KeyError:
+        sys.stdout.write("Tool query not recognized %d\n" % tuple[1])
+        return True
     if type(parse) == type(""):
         packetLen = struct.calcsize(parse)
         if len(tuple[2]) != packetLen:
@@ -233,7 +279,13 @@ def parseFramedData():
 # For a refresher on Python struct syntax, see here:
 # http://docs.python.org/library/struct.html
 
-commandTable = {    
+commandTable = {
+    3:   ("", "(3) Clear buffer"),
+    10:  (parseToolQuery, printToolQuery),
+    11:  ("", "(11) Is finished"),
+    21:  ("", "(21) Get extended position"),
+    27:  ("<H", "(27) Get advanced version number, Host Version %i"),
+    18:  ("<B", "(18) Get next filename, restart %i"),
     129: ("<iiiI", "(129) Absolute move to (%i, %i, %i) with DDA %i"),
     130: ("<iii", "(130) Define position as (%i, %i, %i)"),
     131: ("<BIH", "(131) Home minimum on %a, feedrate %i us/step, timeout %i s"),
@@ -284,7 +336,11 @@ def parseNextCommand(showStart):
             sys.stdout.write(str(lineNumber) + ': ')
     byteOffset += 1
     (command) = struct.unpack("<B",commandStr)
-    (parse, disp) = commandTable[command[0]]
+    try:
+        (parse, disp) = commandTable[command[0]]
+    except KeyError:
+        sys.stdout.write("Command not recognized %d\n" % command[0])
+        return True
     if type(parse) == type(""):
         packetLen = struct.calcsize(parse)
         packetData = s3gFile.read(packetLen)
