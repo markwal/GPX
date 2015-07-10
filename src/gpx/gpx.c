@@ -263,7 +263,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     if(firstTime) {
         gpx->sdCardPath = NULL;
         gpx->iniPath = NULL;
-        gpx->buildName = "GPX " GPX_VERSION;
+        gpx->buildName = NULL;
         gpx->selectedFilename = NULL;
 	gpx->preamble = NULL;
 	gpx->nostart = 0;
@@ -517,6 +517,17 @@ static int end_frame(Gpx *gpx)
         return gpx->callbackHandler(gpx, gpx->callbackData, gpx->buffer.out, length);
     }
     return SUCCESS;
+}
+
+// set the build name for start_build
+
+static void set_build_name(Gpx *gpx, char *buildName)
+{
+    if(gpx->buildName)
+        free(gpx->buildName);
+    gpx->buildName = NULL;
+    if(buildName)
+        gpx->buildName = strdup(buildName);
 }
 
 // 5D VECTOR FUNCTIONS
@@ -1990,7 +2001,7 @@ static int start_build(Gpx *gpx, const char * filename)
     // (But the LCD actually has far less room)
     // We'll just truncate at 24
     if (!filename)
-	 filename = "GPX";
+	 filename = "GPX" GPX_VERSION;
     len = strlen(filename);
     if (len > 24) len = 24;
     write_string(gpx, filename, len);
@@ -2713,9 +2724,9 @@ static int gcodeResult(Gpx *gpx, const char *fmt, ...)
  ;@<STRING> <STRING> <FLOAT> <FLOAT>mm <INTEGER>c #<HEX> (<STRING>)
 
  MACRO:= ';' '@' COMMAND COMMENT EOL
- COMMAND:= PRINTER | ENABLE | FILAMENT | EXTRUDER | SLICER | START| PAUSE
+ COMMAND:= PRINTER | ENABLE | FILAMENT | EXTRUDER | SLICER | START | PAUSE | FLAVOR | BUILD
  COMMENT:= S+ '(' [^)]* ')' S+
- PRINTER:= ('printer' | 'machine' | 'slicer') (TYPE | PACKING_DENSITY | DIAMETER | TEMP | RGB)+
+ PRINTER:= ('printer' | 'machine' | 'slicer') (TYPE | PACKING_DENSITY | DIAMETER | TEMP | RGB )+
  TYPE:=  S+ ('c3' | 'c4' | 'cp4' | 'cpp' | 'cxy' | 'cxysz' | 't6' | 't7' | 't7d' | 'r1' | 'r1d' | 'r2' | 'r2h' | 'r2x' | 'z' | 'zd' )
  PACKING_DENSITY:= S+ DIGIT+ ('.' DIGIT+)?
  DIAMETER:= S+ DIGIT+ ('.' DIGIT+)? 'm' 'm'?
@@ -2731,7 +2742,10 @@ static int gcodeResult(Gpx *gpx, const char *fmt, ...)
  START:= 'start' (FILAMENT_ID | TEMPERATURE)
  PAUSE:= 'pause' (ZPOS | FILAMENT_ID | TEMPERATURE)+
  ZPOS:= S+ DIGIT+ ('.' DIGIT+)?
-
+ BUILD:= 'build' BUILD_NAME
+ BUILD_NAME:= S+ ALPHA ALPHA_NUMERIC*
+ FLAVOR:= 'flavor' GCODE_FLAVOR
+ GCODE_FLAVOR:= S+ ('makerbot' | 'reprap')
  */
 
 #define MACRO_IS(token) strcmp(token, macro) == 0
@@ -2993,6 +3007,17 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             else {
                 SHOW( fprintf(gpx->log, "(line %u) Semantic error: @start with undefined filament name '%s', use a @filament macro to define it" EOL, gpx->lineNumber, name ? name : "") );
             }
+        }
+    }
+    // ;@build <NAME>
+    else if(MACRO_IS("build")) {
+        set_build_name(gpx, name);
+    }
+    else if(MACRO_IS("flavor")) {
+        if(NAME_IS("reprap")) gpx->flag.reprapFlavor = 1;
+        else if(NAME_IS("makerbot")) gpx->flag.reprapFlavor = 0;
+        else {
+            SHOW( fprintf(gpx->log, "(line %u) Macro error: unrecognised GCODE flavor '%s'" EOL, gpx->lineNumber, name) );
         }
     }
     // ;@body
@@ -3459,7 +3484,8 @@ void gpx_start_convert(Gpx *gpx, char *buildName, int item_code, ...)
 	      return;
     }
 
-    if(buildName) gpx->buildName = buildName;
+    if(buildName)
+        set_build_name(gpx, buildName);
 
     if(gpx->flag.dittoPrinting && gpx->machine.extruder_count == 1) {
         SHOW( fputs("Configuration error: ditto printing cannot access non-existant second extruder" EOL, gpx->log) );
@@ -4248,7 +4274,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 if(gpx->command.flag & P_IS_SET) {
                     unsigned percent = (unsigned)gpx->command.p;
                     if(percent > 100) percent = 100;
-                    if(program_is_ready()) {
+                    if(program_is_ready() && percent < 100) {
                         start_program();
                         if(!gpx->nostart) {
 			     CALL( start_build(gpx, gpx->buildName) );
