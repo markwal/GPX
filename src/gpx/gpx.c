@@ -4096,7 +4096,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     command_emitted++;
                 }
                 // wait for extruder
-                if(gpx->flag.dittoPrinting) {
+                if(gpx->flag.dittoPrinting || !(gpx->command.flag & T_IS_SET)) {
                     if(gpx->tool[B].nozzle_temperature > 0) {
                         CALL( wait_for_extruder(gpx, B, timeout) );
                     }
