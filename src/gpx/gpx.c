@@ -803,7 +803,7 @@ int abort_immediately(Gpx *gpx)
 
 // 08 - Pause/Resume
 
-static int pause_resume(Gpx *gpx)
+int pause_resume(Gpx *gpx)
 {
     begin_frame(gpx);
 
@@ -1149,7 +1149,7 @@ int get_extended_position(Gpx *gpx)
 
 // 22 - Extended stop
 
-static int extended_stop(Gpx *gpx, unsigned halt_steppers, unsigned clear_queue)
+int extended_stop(Gpx *gpx, unsigned halt_steppers, unsigned clear_queue)
 {
     unsigned flag = 0;
     if(halt_steppers) flag |= 0x1;
@@ -3028,6 +3028,11 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         }
         gpx->flag.macrosEnabled = 1;
     }
+    // ;@clear_cancel
+    else if(MACRO_IS("clear_cancel")) {
+        // allow caller to sync driver with gcode stream
+        gcodeResult(gpx, "@clear_cancel");
+    }
     // ;@header
     // ;@footer
     else if(MACRO_IS("header") && MACRO_IS("footer")) {
@@ -4197,8 +4202,6 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 // the print so that the next M24 will start over 
                 VERBOSE( {if (gpx->command.flag & S_IS_SET && gpx->command.s > 0)
                     fprintf(gpx->log, "Only reset to sd position 0 is supported: M26 S0" EOL);} )
-                CALL( abort_immediately(gpx) );
-                gpx->flag.sd_paused = 0;
                 break;
 
                 // M27 - Report SD print status

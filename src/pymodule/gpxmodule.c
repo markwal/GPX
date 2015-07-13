@@ -118,6 +118,8 @@ typedef struct tTio
     struct {
         unsigned listingFiles:1;      // in the middle of an M20 response
         unsigned getPosWhenReady:1;   // waiting for queue to drain to get position
+        unsigned cancelPending:1;
+        unsigned okPending:1;
     } flag;
     union {
         unsigned waiting;
@@ -128,6 +130,7 @@ typedef struct tTio
             unsigned waitForButton:1;
             unsigned waitForStart:1;
             unsigned waitForEmptyQueue:1;
+            unsigned waitForCancelSync:1;
         } waitflag;
     };
     Sttb sttb;
@@ -182,6 +185,10 @@ static void gpx_cleanup(void)
         sttb_init(&tio.sttb, 10);
     }
     tio.sec = 0;
+    tio.waiting = 0;
+    tio.flag.listingFiles = 0;
+    tio.flag.getPosWhenReady = 0;
+    tio.flag.cancelPending = 0;
 }
 
 // wrap port_handler and translate to the expect gcode response
@@ -275,6 +282,12 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
     unsigned command;
     unsigned extruder;
 
+    if (tio->flag.okPending && (gpx->command.flag & (M_IS_SET | T_IS_SET | G_IS_SET))) {
+        tio->flag.okPending = 0;
+        tio_printf(tio, "ok");
+        // ok means: I'm ready for another command, not necessarily that everything worked
+    }
+
     if (length == 0) {
         // we translated a command that has no translation to x3g, but there
         // still may be something to do to emulate gcode behavior
@@ -307,6 +320,11 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
     command = buffer[COMMAND_OFFSET];
     extruder = buffer[EXTRUDER_ID_OFFSET];
+
+    // throw any queuable command in the bit bucket while we're waiting for the cancel
+    if (tio->flag.cancelPending && command & 0x80)
+        return SUCCESS;
+
     int rval = port_handler(gpx, &tio->sio, buffer, length);
     if (rval != SUCCESS) {
         VERBOSE(fprintf(gpx->log, "port_handler returned: rval = %d\n", rval);)
@@ -522,6 +540,13 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             tio->flag.getPosWhenReady = 1;
             break;
 
+        case 133:
+            VERBOSE( fprintf(gpx->log, "wait for (133) delay\n") );
+            tio->cur = 0;
+            tio->translation[0] = 0;
+            tio->waitflag.waitForEmptyQueue = 1;
+            break;
+
             // 148, 149 - message to the LCD, may be waiting for a button
         case 148:
         case 149:
@@ -538,10 +563,22 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
 static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
 {
-    int rval = 0;
+    int len = 0;
+    if (!strcmp(fmt, "@clear_cancel")) {
+        if (!tio->flag.cancelPending) {
+            // cancel gcode came through before cancel event
+            tio->waitflag.waitForCancelSync = 1;
+        }
+        else {
+            tio->flag.cancelPending = 0;
+            tio->waitflag.waitForEmptyQueue = 1;
+            tio->flag.getPosWhenReady = 1;
+        }
+        return 0;
+    }
     if (tio->cur == 2)
-       rval = tio_printf(tio, "\n"); 
-    return rval + tio_printf(tio, "// echo: ") + tio_vprintf(tio, fmt, ap);
+       len = tio_printf(tio, "\n"); 
+    return len + tio_printf(tio, "// echo: ") + tio_vprintf(tio, fmt, ap);
 }
 
 // return the translation or set the error context and return NULL if failure
@@ -637,9 +674,14 @@ static PyObject *gpx_write_string(const char *s)
     strncpy(gpx.buffer.in, s, sizeof(gpx.buffer.in));
     int rval = gpx_convert_line(&gpx, gpx.buffer.in);
 
+    if (tio.flag.okPending && (gpx.command.flag & (M_IS_SET | T_IS_SET | G_IS_SET))) {
+        tio_printf(&tio, "ok");
+        // ok means: I'm ready for another command, not necessarily that everything worked
+    }
     // if we were waiting, but now we're not, throw an ok on there
-    if (!tio.waiting && waiting)
+    else if (!tio.waiting && waiting)
         tio_printf(&tio, "\nok");
+    tio.flag.okPending = 0;
 
     return gpx_return_translation(rval);
 }
@@ -805,9 +847,10 @@ static PyObject *gpx_write(PyObject *self, PyObject *args)
     tio.cur = 0;
     tio.translation[0] = 0;
     if (!tio.waiting)
-        tio_printf(&tio, "ok"); // ok message received, so error message needs to be \nerror
-
-    return gpx_write_string(line);
+        tio.flag.okPending = 1;
+    PyObject *rval = gpx_write_string(line);
+    tio.flag.okPending = 0;
+    return rval;
 }
 
 // def readnext()
@@ -830,19 +873,21 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
     else if (tio.waiting) {
         if (gpx.flag.verboseMode && gpx.flag.logMessages)
             fprintf(gpx.log, "tio.waiting = %u\n", tio.waiting);
-        // if we're waiting for the queue to drain, do that before checking on
-        // anything else
-        if (tio.waitflag.waitForEmptyQueue || tio.waitflag.waitForButton)
-            rval = is_ready(&gpx);
-        if (rval == SUCCESS && !tio.waitflag.waitForEmptyQueue) {
-            if (tio.waitflag.waitForStart)
-                rval = get_build_statistics(&gpx);
-            if (rval == SUCCESS && tio.waitflag.waitForPlatform)
-                rval = is_build_platform_ready(&gpx, 0);
-            if (rval == SUCCESS && tio.waitflag.waitForExtruderA)
-                rval = is_extruder_ready(&gpx, 0);
-            if (rval == SUCCESS && tio.waitflag.waitForExtruderB)
-                rval = is_extruder_ready(&gpx, 1);
+        if (!tio.waitflag.waitForCancelSync) {
+            // if we're waiting for the queue to drain, do that before checking on
+            // anything else
+            if (tio.waitflag.waitForEmptyQueue || tio.waitflag.waitForButton)
+                rval = is_ready(&gpx);
+            if (rval == SUCCESS && !tio.waitflag.waitForEmptyQueue) {
+                if (tio.waitflag.waitForStart)
+                    rval = get_build_statistics(&gpx);
+                if (rval == SUCCESS && tio.waitflag.waitForPlatform)
+                    rval = is_build_platform_ready(&gpx, 0);
+                if (rval == SUCCESS && tio.waitflag.waitForExtruderA)
+                    rval = is_extruder_ready(&gpx, 0);
+                if (rval == SUCCESS && tio.waitflag.waitForExtruderB)
+                    rval = is_extruder_ready(&gpx, 1);
+            }
         }
         if (gpx.flag.verboseMode && gpx.flag.logMessages)
             fprintf(gpx.log, "tio.waiting = %u and rval = %d\n", tio.waiting, rval);
@@ -1040,15 +1085,24 @@ static PyObject *gpx_reprap_flavor(PyObject *self, PyObject *args)
         Py_RETURN_FALSE;
 }
 
-// def cancel(emptyQueue = True)
-static PyObject *gpx_cancel(PyObject *self, PyObject *args)
+// ----- immediate mode commands ----
+// There isn't a gcode equivalent of these since the gcode "standard" always waits
+// for the buffer to drain. Thus, these entry points are provided to interrupt
+// the queue handling
+
+// def stop(halt_steppers = True, clear_queue = True)
+static PyObject *gpx_stop(PyObject *self, PyObject *args)
 {
     if (!connected)
         return PyErr_NotConnected();
 
-    int emptyQueue = 1;
-    if (!PyArg_ParseTuple(args, "|i", &emptyQueue))
+    int halt_steppers = 1;
+    int clear_queue = 1;
+    if (!PyArg_ParseTuple(args, "|ii", &halt_steppers, &clear_queue))
         return NULL;
+
+    if (!tio.waitflag.waitForCancelSync)
+        tio.flag.cancelPending = 1;
 
     tio.cur = 0;
     tio.translation[0] = 0;
@@ -1057,30 +1111,55 @@ static PyObject *gpx_cancel(PyObject *self, PyObject *args)
     int rval = SUCCESS;
 
     // first, ask if we are SD printing
-    if (!emptyQueue) {
-        // delay 1ms is a queuable command that will fail if SD printing
-        rval = delay(&gpx, 1);
-        if (rval == 0x8A) // SD printing
-            emptyQueue = 1;
-        rval = SUCCESS; // ignore any other response
+    // delay 1ms is a queuable command that will fail if SD printing
+    int sdprinting = 0;
+    tio.sio.flag.retryBufferOverflow = 1;
+    rval = delay(&gpx, 1);
+    tio.sio.flag.retryBufferOverflow = 0;
+    if (rval == 0x8A) // SD printing
+        sdprinting = 1;
+    // ignore any other response
+
+    if (sdprinting && !gpx.flag.sd_paused) {
+        rval = pause_resume(&gpx);
+        if (rval != SUCCESS)
+            return gpx_return_translation(rval);
     }
 
-    if (emptyQueue) {
-        rval = clear_buffer(&gpx);
+    rval = extended_stop(&gpx, halt_steppers, clear_queue);
+
+    if (!tio.flag.cancelPending) {
+        tio.waitflag.waitForEmptyQueue = 1;
+        tio.flag.getPosWhenReady = 1;
     }
-    else {
-        // otherwise, treat cancel as set all target temps to 0 and expect the
-        // host to stop sending commands
-        rval = set_build_platform_temperature(&gpx, 0, 0);
-        int i = gpx.machine.extruder_count;
-        while (i--) {
-            if (rval != SUCCESS)
-                break;
-            rval = set_nozzle_temperature(&gpx, i, 0);
-        }
+    if (rval != SUCCESS)
+        return gpx_return_translation(rval);
+    return gpx_write_string("M2"); // end_build
+}
+
+// def abort()
+static PyObject *gpx_abort(PyObject *self, PyObject *args)
+{
+    if (!connected)
+        return PyErr_NotConnected();
+
+    if (!PyArg_ParseTuple(args, ""))
+        return NULL;
+
+    if (!tio.waitflag.waitForCancelSync)
+        tio.flag.cancelPending = 1;
+
+    tio.cur = 0;
+    tio.translation[0] = 0;
+    tio.waiting = 0;
+    tio.sec = 0;
+
+    int rval = clear_buffer(&gpx);
+
+    if (!tio.flag.cancelPending) {
+        tio.waitflag.waitForEmptyQueue = 1;
+        tio.flag.getPosWhenReady = 1;
     }
-    tio.waitflag.waitForEmptyQueue = 1;
-    tio.flag.getPosWhenReady = 1;
     if (rval != SUCCESS)
         return gpx_return_translation(rval);
     return gpx_write_string("M2"); // end_build
@@ -1100,7 +1179,8 @@ static PyMethodDef GpxMethods[] = {
     {"waiting", gpx_waiting, METH_VARARGS, "waiting() Returns True if the bot reports it is waiting for a temperature, pause or prompt"},
     {"reprap_flavor", gpx_reprap_flavor, METH_VARARGS, "reprap_flavor(boolean) Sets the expected gcode flavor (true = reprap, false = makerbot), returns the previous setting"},
     {"start", gpx_start, METH_VARARGS, "start() Call after connect and a printer specific pause (2 seconds for most) to start the serial communication"},
-    {"cancel", gpx_cancel, METH_VARARGS, "cancel(emptyQueue) Clears wait-for-temperature, optionally empties the bot's command queue and ends the build"},
+    {"stop", gpx_stop, METH_VARARGS, "stop(halt_steppers, clear_queue) Tells the bot to stop to either stop the steppers, clear the queue or both"},
+    {"abort", gpx_abort, METH_VARARGS, "abort() Tells the bot to clear the queue and stop all motors and heaters"},
     {NULL, NULL, 0, NULL} // sentinel
 };
 
@@ -1119,6 +1199,8 @@ PyMODINIT_FUNC initgpx(void)
 
     tio.sio.port = -1;
     tio.flag.listingFiles = 0;
+    tio.flag.getPosWhenReady = 0;
+    tio.flag.cancelPending = 0;
     tio.waiting = 0;
     tio.sec = 0;
     sttb_init(&tio.sttb, 10);

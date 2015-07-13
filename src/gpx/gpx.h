@@ -492,6 +492,8 @@ typedef long speed_t;
     int delay(Gpx *gpx, unsigned milliseconds);
     int clear_buffer(Gpx *gpx);
     int get_extended_position(Gpx *gpx);
+    int pause_resume(Gpx *gpx);
+    int extended_stop(Gpx *gpx, unsigned halt_steppers, unsigned clear_queue);
 #ifdef __cplusplus
 }
 #endif
