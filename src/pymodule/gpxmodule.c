@@ -1124,6 +1124,7 @@ static PyObject *gpx_stop(PyObject *self, PyObject *args)
         rval = pause_resume(&gpx);
         if (rval != SUCCESS)
             return gpx_return_translation(rval);
+        gpx.flag.sd_paused = 1;
     }
 
     rval = extended_stop(&gpx, halt_steppers, clear_queue);
