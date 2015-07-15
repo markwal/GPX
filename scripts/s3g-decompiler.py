@@ -103,6 +103,7 @@ def Format(fmt, args):
 toolQueryTable = {
     0:  ("<H",  "(0) Get version, Host Version %i"),
     2:  ("",    "(2) Get toolhead temperature"),
+    20: ("",    "(20) Unknown tool query"),
     22: ("",    "(22) Is tool ready?"),
     25: ("<HB", "(25) Read from EEPROM offset %i, %i bytes"),
     30: ("",    "(30) Get build platform temperature"),
@@ -165,15 +166,25 @@ def printToolAction(tuple):
 def parseToolQuery():
     global s3gFile
     global byteOffset
-    packetStr = s3gFile.read(3)
-    if len(packetStr) != 3:
+    packetStr = s3gFile.read(2)
+    if len(packetStr) != 2:
         raise "Error: file appears to be truncated; cannot parse"
-    byteOffset += 3
-    (index,command,payload) = struct.unpack("<BBB",packetStr)
-    contents = s3gFile.read(payload)
-    if len(contents) != payload:
-        raise "Error: file appears to be truncated; cannot parse"
-    byteOffset += payload
+    byteOffset += 2
+    (index,command) = struct.unpack("<BB",packetStr)
+    try:
+        (parse, disp) = toolQueryTable[command]
+    except KeyError:
+        sys.stdout.write("Tool query not recognized %d\n" % command)
+        return (index,command,"")
+    if type(parse) == type(""):
+        payloadLen = struct.calcsize(parse)
+        if payloadLen > 0:
+            contents = s3gFile.read(payloadLen)
+            if len(contents) != payload:
+                print "Error: file appears to be truncated; cannot parse"
+            byteOffset += payload
+        else:
+            contents = ""
     return (index,command,contents)
 
 def printToolQuery(tuple):
@@ -188,11 +199,15 @@ def printToolQuery(tuple):
     if type(parse) == type(""):
         packetLen = struct.calcsize(parse)
         if len(tuple[2]) != packetLen:
-            raise "Error: file appears to be truncated; cannot parse"
-        parsed = struct.unpack(parse,tuple[2])
+            sys.stdout.write("Malformed packet: packetLen %d, tuple len %d\n" % (packetLen, len(tuple[2])))
+            parsed = None
+        else:
+            parsed = struct.unpack(parse,tuple[2])
     else:
         parsed = parse()
-    if type(disp) == type(""):
+    if parsed is None:
+        print disp
+    elif type(disp) == type(""):
         print disp % parsed
 
 def parseDisplayMessageAction():
@@ -280,10 +295,15 @@ def parseFramedData():
 # http://docs.python.org/library/struct.html
 
 commandTable = {
+    0:   ("<H", "(0) Get version, Host Version %i"),
+    1:   ("", "(1) Unknown"),
     3:   ("", "(3) Clear buffer"),
+    12:  ("<HB", "(12) Read from EEPROM, offset %i, count %i"),
     10:  (parseToolQuery, printToolQuery),
-    11:  ("", "(11) Is finished"),
+    11:  ("", "(11) Is finished?"),
+    20:  ("", "(20) Get build name"),
     21:  ("", "(21) Get extended position"),
+    22:  ("<B", "(22) Extended stop, bitfield is 0x%02x"),
     27:  ("<H", "(27) Get advanced version number, Host Version %i"),
     18:  ("<B", "(18) Get next filename, restart %i"),
     129: ("<iiiI", "(129) Absolute move to (%i, %i, %i) with DDA %i"),
