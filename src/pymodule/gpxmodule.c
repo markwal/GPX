@@ -339,6 +339,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             // 17 - reset
         case 17:
             tio->waiting = 0;
+            tio->flag.getPosWhenReady = 0;
             break;
 
             // 10 - Extruder (tool) query response
@@ -479,6 +480,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                 case 4:
                     tio_printf(tio, " SD printing cancelled. ");
                     tio->waiting = 0;
+                    tio->flag.getPosWhenReady = 0;
                     // fall through
                 case 2:
                     tio_printf(tio, " Done printing file");
@@ -641,6 +643,7 @@ static PyObject *gpx_return_translation(int rval)
             tio.cur = 0;
             tio_printf(&tio, "Error: Cancel build");
             tio.waiting = 0;
+            tio.flag.getPosWhenReady = 0;
             break;
         case 0x8A:
             tio.cur = 0;
@@ -1107,6 +1110,7 @@ static PyObject *gpx_stop(PyObject *self, PyObject *args)
     tio.cur = 0;
     tio.translation[0] = 0;
     tio.waiting = 0;
+    tio.flag.getPosWhenReady = 0;
     tio.sec = 0;
     int rval = SUCCESS;
 
@@ -1153,6 +1157,7 @@ static PyObject *gpx_abort(PyObject *self, PyObject *args)
     tio.cur = 0;
     tio.translation[0] = 0;
     tio.waiting = 0;
+    tio.flag.getPosWhenReady = 0;
     tio.sec = 0;
 
     int rval = clear_buffer(&gpx);
