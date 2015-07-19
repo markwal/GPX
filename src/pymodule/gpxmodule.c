@@ -571,7 +571,7 @@ static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
 {
     int len = 0;
     if (!strcmp(fmt, "@clear_cancel")) {
-        if (!tio->flag.cancelPending) {
+        if (!tio->flag.cancelPending && gpx->flag.programState == RUNNING_STATE) {
             // cancel gcode came through before cancel event
             VERBOSE( fprintf(gpx->log, "got @clear_cancel, waiting for abort call\n") );
             tio->waitflag.waitForCancelSync = 1;
@@ -838,7 +838,7 @@ static PyObject *gpx_start(PyObject *self, PyObject *args)
     if (rval >= 0) {
         tio.waitflag.waitForEmptyQueue = 1;
         tio.flag.getPosWhenReady = 1;
-        tio_printf(&tio, "echo: gcode to x3g translation by GPX");
+        tio_printf(&tio, "\necho: gcode to x3g translation by GPX");
         return gpx_write_string("M21");
     }
     return gpx_return_translation(rval);
