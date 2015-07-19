@@ -28,6 +28,7 @@
 #ifndef __machine_h__
 #define __machine_h__
 
+#define MACHINE_TYPE_NONE           0
 #define MACHINE_TYPE_CUPCAKE_G3     1  // Cupcake Gen 3 electronics
 #define MACHINE_TYPE_CUPCAKE_G4     2  // Cupcake Gen 4 electronics
 #define MACHINE_TYPE_CUPCAKE_P4     3  // Cupcake Gen 4 + Pololu

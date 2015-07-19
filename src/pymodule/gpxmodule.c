@@ -115,12 +115,16 @@ typedef struct tTio
     char translation[BUFFER_MAX + 1];
     size_t cur;
     Sio sio;
-    struct {
-        unsigned listingFiles:1;      // in the middle of an M20 response
-        unsigned getPosWhenReady:1;   // waiting for queue to drain to get position
-        unsigned cancelPending:1;
-        unsigned okPending:1;
-    } flag;
+    union {
+        unsigned flags;
+        struct {
+            unsigned listingFiles:1;      // in the middle of an M20 response
+            unsigned getPosWhenReady:1;   // waiting for queue to drain to get position
+            unsigned cancelPending:1;
+            unsigned okPending:1;
+            unsigned waitClearedByCancel:1;
+        } flag;
+    };
     union {
         unsigned waiting;
         struct {
@@ -141,6 +145,7 @@ static int connected = 0;
 
 // Some custom python exceptions
 static PyObject *pyerrBufferOverflow;
+static PyObject *pyerrTimeout;
 
 static int tio_vprintf(Tio *tio, const char *fmt, va_list ap)
 {
@@ -186,9 +191,8 @@ static void gpx_cleanup(void)
     }
     tio.sec = 0;
     tio.waiting = 0;
-    tio.flag.listingFiles = 0;
-    tio.flag.getPosWhenReady = 0;
-    tio.flag.cancelPending = 0;
+    tio.flags = 0;
+    gpx_set_machine(&gpx, "r2", 1);
 }
 
 // wrap port_handler and translate to the expect gcode response
@@ -309,7 +313,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     // but other than enumerating all the files again, we don't
                     // have a way to tell the printer to go check if it can be
                     // opened
-                    tio_printf(tio, " File opened:%s Size:%d\nok File selected:%s", gpx->selectedFilename, 0, gpx->selectedFilename);
+                    tio_printf(tio, " File opened:%s Size:%d\nFile selected:%s", gpx->selectedFilename, 0, gpx->selectedFilename);
                     // currently no way to ask Sailfish for the file size, that I can tell :-(
                     break;
                 }
@@ -322,7 +326,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
     extruder = buffer[EXTRUDER_ID_OFFSET];
 
     // throw any queuable command in the bit bucket while we're waiting for the cancel
-    if (tio->flag.cancelPending && command & 0x80)
+    if (tio->flag.cancelPending && (command & 0x80))
         return SUCCESS;
 
     int rval = port_handler(gpx, &tio->sio, buffer, length);
@@ -569,6 +573,7 @@ static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
     if (!strcmp(fmt, "@clear_cancel")) {
         if (!tio->flag.cancelPending) {
             // cancel gcode came through before cancel event
+            VERBOSE( fprintf(gpx->log, "got @clear_cancel, waiting for abort call\n") );
             tio->waitflag.waitForCancelSync = 1;
         }
         else {
@@ -614,6 +619,9 @@ static PyObject *gpx_return_translation(int rval)
         case ESIOFRAME:
         case ESIOCRC:
             PyErr_SetString(PyExc_IOError, "Serial communication error");
+            return NULL;
+        case ESIOTIMEOUT:
+            PyErr_SetString(pyerrTimeout, "Timeout");
             return NULL;
         case 0x80:
             PyErr_SetString(PyExc_IOError, "Generic Packet error");
@@ -902,6 +910,10 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
             tio_printf(&tio, "ok");
         }
     }
+    else if (tio.flag.waitClearedByCancel) {
+        tio.flag.waitClearedByCancel = 0;
+        tio_printf(&tio, "ok");
+    }
     return gpx_return_translation(rval);
 }
 
@@ -1093,6 +1105,28 @@ static PyObject *gpx_reprap_flavor(PyObject *self, PyObject *args)
 // for the buffer to drain. Thus, these entry points are provided to interrupt
 // the queue handling
 
+// helper for gpx_stop and gpx_abort for post abort state
+static PyObject *set_build_aborted_state(Gpx *gpx)
+{
+    int rval = SUCCESS;
+
+    VERBOSE( fprintf(gpx->log, "set_build_aborted_state\n") );
+    if (gpx->flag.programState == RUNNING_STATE) {
+        VERBOSE( fprintf(gpx->log, "currently RUNNING_STATE calling end_build\n") );
+        gpx->flag.programState = READY_STATE;
+
+        // wait for the bot to be back up after the abort
+        int retries = 5;
+        while (retries--) {
+            rval = set_build_progress(gpx, 100);
+            if (rval == SUCCESS || rval != ESIOTIMEOUT)
+                break;
+        }
+        rval = end_build(gpx);
+    }
+    return gpx_return_translation(rval);
+}
+
 // def stop(halt_steppers = True, clear_queue = True)
 static PyObject *gpx_stop(PyObject *self, PyObject *args)
 {
@@ -1104,13 +1138,19 @@ static PyObject *gpx_stop(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "|ii", &halt_steppers, &clear_queue))
         return NULL;
 
-    if (!tio.waitflag.waitForCancelSync)
+    if (gpx.flag.verboseMode) fprintf(gpx.log, "gpx_stop\n");
+    if (!tio.waitflag.waitForCancelSync) {
+        if (gpx.flag.verboseMode) fprintf(gpx.log, "gpx_stop now waiting for @clear_cancel\n");
         tio.flag.cancelPending = 1;
+    }
 
+    if (tio.waiting)
+        tio.flag.waitClearedByCancel = 1;
     tio.cur = 0;
     tio.translation[0] = 0;
     tio.waiting = 0;
     tio.flag.getPosWhenReady = 0;
+    tio.waitflag.waitForCancelSync = 0;
     tio.sec = 0;
     int rval = SUCCESS;
 
@@ -1134,12 +1174,14 @@ static PyObject *gpx_stop(PyObject *self, PyObject *args)
     rval = extended_stop(&gpx, halt_steppers, clear_queue);
 
     if (!tio.flag.cancelPending) {
+        tio.waitflag.waitForCancelSync = 0;
         tio.waitflag.waitForEmptyQueue = 1;
         tio.flag.getPosWhenReady = 1;
     }
     if (rval != SUCCESS)
         return gpx_return_translation(rval);
-    return gpx_write_string("M2"); // end_build
+    gpx.flag.sd_paused = 0;
+    return set_build_aborted_state(&gpx);
 }
 
 // def abort()
@@ -1151,24 +1193,41 @@ static PyObject *gpx_abort(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, ""))
         return NULL;
 
-    if (!tio.waitflag.waitForCancelSync)
+    if (gpx.flag.verboseMode) fprintf(gpx.log, "gpx_abort\n");
+    if (!tio.waitflag.waitForCancelSync) {
+        if (gpx.flag.verboseMode) fprintf(gpx.log, "gpx_abort now waiting for @clear_cancel\n");
         tio.flag.cancelPending = 1;
+    }
 
+    if (tio.waiting)
+        tio.flag.waitClearedByCancel = 1;
     tio.cur = 0;
     tio.translation[0] = 0;
     tio.waiting = 0;
     tio.flag.getPosWhenReady = 0;
+    tio.waitflag.waitForCancelSync = 0;
     tio.sec = 0;
 
-    int rval = clear_buffer(&gpx);
+    int rval = abort_immediately(&gpx);
+
+    // ESIOTIMEOUT is only returned if the write succeeded, but no bytes returned
+    // I think this can happen if the bot resets immediately and doesn't respond
+    // via the serial port before hand
+    // let's eat it
+    if (rval == ESIOTIMEOUT)
+        rval = SUCCESS;
 
     if (!tio.flag.cancelPending) {
+        tio.waitflag.waitForCancelSync = 0;
         tio.waitflag.waitForEmptyQueue = 1;
         tio.flag.getPosWhenReady = 1;
     }
-    if (rval != SUCCESS)
+    if (rval != SUCCESS) {
+        if (gpx.flag.verboseMode) fprintf(gpx.log, "abort_immediately rval = %d\n", rval);
         return gpx_return_translation(rval);
-    return gpx_write_string("M2"); // end_build
+    }
+    gpx.flag.sd_paused = 0;
+    return set_build_aborted_state(&gpx);
 }
 
 
@@ -1203,10 +1262,12 @@ PyMODINIT_FUNC initgpx(void)
     Py_INCREF(pyerrBufferOverflow);
     PyModule_AddObject(m, "BufferOverflow", pyerrBufferOverflow);
 
+    pyerrTimeout = PyErr_NewException("gpx.Timeout", NULL, NULL);
+    Py_INCREF(pyerrTimeout);
+    PyModule_AddObject(m, "Timeout", pyerrTimeout);
+
     tio.sio.port = -1;
-    tio.flag.listingFiles = 0;
-    tio.flag.getPosWhenReady = 0;
-    tio.flag.cancelPending = 0;
+    tio.flags = 0;
     tio.waiting = 0;
     tio.sec = 0;
     sttb_init(&tio.sttb, 10);

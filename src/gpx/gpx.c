@@ -104,14 +104,15 @@ static int ini_parse(Gpx* gpx, const char* filename,
                      int (*handler)(Gpx*, const char*, const char*, char*));
 int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* value);
 
-int gpx_set_machine(Gpx *gpx, const char *machine_type)
+int gpx_set_machine(Gpx *gpx, const char *machine_type, int init)
 {
     Machine *machine = gpx_find_machine(machine_type);
     if (machine == NULL)
         return ERROR;
 
-    // only load/clobber the on-board machine definition if the one specified is different
-    if (gpx->machine.id != machine->id) {
+    // only load/clobber the on-board machine definition if the one specified is differenti
+    // or if we're initializing
+    if (init || gpx->machine.id != machine->id) {
         memcpy(&gpx->machine, machine, sizeof(Machine));
         VERBOSE( fprintf(gpx->log, "Loading machine definition: %s" EOL, machine->desc) );
         if (gpx->iniPath != NULL) {
@@ -125,8 +126,8 @@ int gpx_set_machine(Gpx *gpx, const char *machine_type)
                     VERBOSE( fprintf(gpx->log, "Using custom machine definition from: %s" EOL, machineIni) );
                     ini_parse(gpx, machineIni, gpx_set_property);
                 }
-                else
-                    VERBOSE( fprintf(gpx->log, "errno = %d\n", errno) );
+                else if (errno != ENOENT)
+                    VERBOSE( fprintf(gpx->log, "Unable to load custom machine definition errno = %d\n", errno) );
             }
         }
     }
@@ -158,7 +159,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     // we default to using pipes
 
     // initialise machine
-    if(firstTime) gpx->machine = replicator_2;
+    if(firstTime) gpx_set_machine(gpx, "r2", 1);
 
     // initialise command
     gpx->command.x = 0.0;
@@ -1928,7 +1929,7 @@ static int display_message(Gpx *gpx, char *message, unsigned vPos, unsigned hPos
 
 // 150 - Set Build Percentage
 
-static int set_build_progress(Gpx *gpx, unsigned percent)
+int set_build_progress(Gpx *gpx, unsigned percent)
 {
     if(percent > 100) percent = 100;
 
@@ -2011,7 +2012,7 @@ static int start_build(Gpx *gpx, const char * filename)
 
 // 154 - Build end notification
 
-static int end_build(Gpx *gpx)
+int end_build(Gpx *gpx)
 {
     begin_frame(gpx);
 
@@ -2813,7 +2814,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     // ;@printer <TYPE> <PACKING_DENSITY> <DIAMETER>mm <HBP-TEMP>c #<LED-COLOUR>
     if(MACRO_IS("machine") || MACRO_IS("printer") || MACRO_IS("slicer")) {
         if(name) {
-            if(gpx_set_machine(gpx, name)) {
+            if(gpx_set_machine(gpx, name, 0)) {
                 SHOW( fprintf(gpx->log, "(line %u) Semantic error: @%s macro with unrecognised type '%s'" EOL, gpx->lineNumber, macro, name) );
             }
             gpx->override[A].packing_density = gpx->machine.nominal_packing_density;
@@ -3320,7 +3321,7 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         }
         else if(PROPERTY_IS("machine_type")) {
             // only load/clobber the on-board machine definition if the one specified is different
-            if(gpx_set_machine(gpx, value)) {
+            if(gpx_set_machine(gpx, value, 0)) {
                 SHOW( fprintf(gpx->log, "(line %u) Configuration error: unrecognised machine type '%s'" EOL, gpx->lineNumber, value) );
                 return gpx->lineNumber;
             }
@@ -4101,7 +4102,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     command_emitted++;
                 }
                 // wait for extruder
-                if(gpx->flag.dittoPrinting || !(gpx->command.flag & T_IS_SET)) {
+                if(gpx->flag.dittoPrinting || (gpx->command.m == 116 && !(gpx->command.flag & T_IS_SET))) {
                     if(gpx->tool[B].nozzle_temperature > 0) {
                         CALL( wait_for_extruder(gpx, B, timeout) );
                     }
@@ -5458,6 +5459,8 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                 }
                 else if(bytes != 1) {
                     VERBOSESIO( fprintf(gpx->log, EOL "want 1 bytes = %u" EOL, (unsigned)bytes) );
+                    if(bytes == 0)
+                        return ESIOTIMEOUT;
                     return ESIOREAD;
                 }
                 VERBOSESIO( hexdump(gpx->log, gpx->buffer.in, bytes) );

@@ -48,6 +48,7 @@ extern "C" {
 #define ESIOCRC -5
 // EOSERROR means error code is in errno
 #define EOSERROR -6
+#define ESIOTIMEOUT -7
 
 // Item codes for passing control options
 #define ITEM_FRAMING_ENABLE 1
@@ -446,7 +447,7 @@ typedef long speed_t;
     } Sio;
 
     void gpx_initialize(Gpx *gpx, int firstTime);
-    int gpx_set_machine(Gpx *gpx, const char *machine);
+    int gpx_set_machine(Gpx *gpx, const char *machine, int init);
 
     int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* value);
     int gpx_load_config(Gpx *gpx, const char *filename);
@@ -494,6 +495,8 @@ typedef long speed_t;
     int get_extended_position(Gpx *gpx);
     int pause_resume(Gpx *gpx);
     int extended_stop(Gpx *gpx, unsigned halt_steppers, unsigned clear_queue);
+    int set_build_progress(Gpx *gpx, unsigned percent);
+    int end_build(Gpx *gpx);
 #ifdef __cplusplus
 }
 #endif
