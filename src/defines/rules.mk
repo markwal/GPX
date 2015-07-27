@@ -4,6 +4,8 @@ EXE_TARGET_OBJS = $(foreach objs, \
 
 LINK_TARGETS = $(addprefix $(OBJDIR)/, $(EXE_TARGETS))
 
+GPX_VERSION = $(shell git describe --tags --dirty)
+
 all:: $(LINK_TARGETS)
 
 # Pull in auto-generated dependency information
@@ -18,8 +20,8 @@ $(LINK_TARGETS):: $(EXE_TARGET_OBJS)
 
 $(OBJDIR)/%$(OBJ):: %.c
 	@test -d $(OBJDIR) || $(MKDIR) $(OBJDIR)
-	$(CC) -g $(CC_FLAGS) $($(notdir $(addsuffix _DEFS, $(basename ${@})))) $(INCDIR) -c -o $@ $<
-	$(CC) $(CC_FLAGS) $($(notdir $(addsuffix _DEFS, $(basename ${@})))) \
+	$(CC) -g -DGPX_VERSION=\"$(GPX_VERSION)\" $(CC_FLAGS) $($(notdir $(addsuffix _DEFS, $(basename ${@})))) $(INCDIR) -c -o $@ $<
+	$(CC) -DGPX_VERSION=\"$(GPX_VERSION)\" $(CC_FLAGS) $($(notdir $(addsuffix _DEFS, $(basename ${@})))) \
 		$(INCDIR) -MM -MF $(OBJDIR)/$*$(DEP) -MT $(OBJDIR)/$*$(OBJ) $(CC_FLAGS) $<
 
 clean::
