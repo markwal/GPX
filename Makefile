@@ -27,7 +27,9 @@ include $(SRCDIR)/defines/defines.mk
 SUBDIRS = gpx utils
 DIR_TARGETS = $(addprefix $(SRCDIR)/, $(SUBDIRS))
 
-.PHONY: all clean test machines
+.PHONY: first all clean test machines
+
+first: all
 
 all:
 	for dir in $(DIR_TARGETS); do \
