@@ -1686,7 +1686,6 @@ static int recall_home_positions(Gpx *gpx)
 static int set_pot_value(Gpx *gpx, unsigned axis, unsigned value)
 {
     assert(axis <= 4);
-    assert(value <= 127);
 
     begin_frame(gpx);
 
@@ -1695,7 +1694,7 @@ static int set_pot_value(Gpx *gpx, unsigned axis, unsigned value)
     // uint8: axis value (valid range 0-4) which axis pot to set
     write_8(gpx, axis);
 
-    // uint8: value (valid range 0-127), values over max will be capped at max
+    // uint8: value (valid range 0-255)
     write_8(gpx, value);
 
     return end_frame(gpx);
