@@ -126,7 +126,8 @@ static void usage(int err)
     fputs("GPX " GPX_VERSION EOL, fp);
     fputs("Copyright (c) 2013 WHPThomas, All rights reserved." EOL, fp);
 
-    fputs("Additional changes Copyright (c) 2014, 2015 DNewman, All rights reserved." EOL, fp);
+    fputs("Additional changes Copyright (c) 2014, 2015 DNewman, MWalker" EOL, fp);
+	fputs("All rights reserved." EOL, fp);
 
     if (err) {
         fputs(EOL "For usage information: gpx -?" EOL, fp);

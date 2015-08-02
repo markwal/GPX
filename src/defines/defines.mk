@@ -79,7 +79,7 @@ endif
 
 # Build directories
 
-VERSION = 2.1
+VERSION = 2.2
 SHAREDIR = $(SRCDIR)/shared
 PLANNERDIR = $(SRCDIR)/planner
 UTILSDIR = $(SRCDIR)/utils

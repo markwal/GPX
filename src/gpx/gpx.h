@@ -34,7 +34,7 @@ extern "C" {
 #include <limits.h>
 #include <stdio.h>
 
-#define GPX_VERSION "2.1-alpha"
+#define GPX_VERSION "2.2"
 #define HOST_VERSION 50
 
 #define END_OF_FILE 1
