@@ -1752,7 +1752,6 @@ static int recall_home_positions(Gpx *gpx)
 static int set_pot_value(Gpx *gpx, unsigned axis, unsigned value)
 {
     assert(axis <= 4);
-    assert(value <= 127);
 
     begin_frame(gpx);
 
@@ -1761,7 +1760,7 @@ static int set_pot_value(Gpx *gpx, unsigned axis, unsigned value)
     // uint8: axis value (valid range 0-4) which axis pot to set
     write_8(gpx, axis);
 
-    // uint8: value (valid range 0-127), values over max will be capped at max
+    // uint8: value (valid range 0-255)
     write_8(gpx, value);
 
     return end_frame(gpx);
@@ -4018,23 +4017,23 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 // G130 - Set given axes potentiometer Value
             case 130:
                 if(gpx->command.flag & X_IS_SET) {
-                    CALL( set_pot_value(gpx, 0, gpx->command.x < 0 ? 0 : gpx->command.x > 127 ? 127 : (unsigned)gpx->command.x) );
+                    CALL( set_pot_value(gpx, 0, gpx->command.x < 0 ? 0 : gpx->command.x > 255 ? 255 : (unsigned)gpx->command.x) );
                 }
 
                 if(gpx->command.flag & Y_IS_SET) {
-                    CALL( set_pot_value(gpx, 1, gpx->command.y < 0 ? 0 : gpx->command.y > 127 ? 127 : (unsigned)gpx->command.y) );
+                    CALL( set_pot_value(gpx, 1, gpx->command.y < 0 ? 0 : gpx->command.y > 255 ? 255 : (unsigned)gpx->command.y) );
                 }
 
                 if(gpx->command.flag & Z_IS_SET) {
-                    CALL( set_pot_value(gpx, 2, gpx->command.z < 0 ? 0 : gpx->command.z > 127 ? 127 : (unsigned)gpx->command.z) );
+                    CALL( set_pot_value(gpx, 2, gpx->command.z < 0 ? 0 : gpx->command.z > 255 ? 255 : (unsigned)gpx->command.z) );
                 }
 
                 if(gpx->command.flag & A_IS_SET) {
-                    CALL( set_pot_value(gpx, 3, gpx->command.a < 0 ? 0 : gpx->command.a > 127 ? 127 : (unsigned)gpx->command.a) );
+                    CALL( set_pot_value(gpx, 3, gpx->command.a < 0 ? 0 : gpx->command.a > 255 ? 255 : (unsigned)gpx->command.a) );
                 }
 
                 if(gpx->command.flag & B_IS_SET) {
-                    CALL( set_pot_value(gpx, 4, gpx->command.b < 0 ? 0 : gpx->command.b > 127 ? 127 : (unsigned)gpx->command.b) );
+                    CALL( set_pot_value(gpx, 4, gpx->command.b < 0 ? 0 : gpx->command.b > 255 ? 255 : (unsigned)gpx->command.b) );
                 }
                 break;
 

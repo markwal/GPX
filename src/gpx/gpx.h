@@ -77,9 +77,13 @@ extern "C" {
 
 #define MAX_TIMEOUT 0xFFFF
 
+#if !defined(SPEED_T_DEFINED)
 #if defined(_WIN32) || defined(_WIN64)
 typedef long speed_t;
+#define SPEED_T_DEFINED
 #endif
+#endif
+
 #ifdef _WIN32
 #   define PATH_DELIM '\\'
 #   define EOL "\r\n"
