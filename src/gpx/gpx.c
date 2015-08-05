@@ -3053,6 +3053,26 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             *p++ = 0;
             gcodeResult(gpx, "positions known: %s\n", s);
         }
+        else if (NAME_IS("axes")) {
+            gcodeResult(gpx, "steps_per_mm, max_feedrate, max_acceleration, max_speed_change, home_feedrate, length, endstop\n");
+            Axis *a = &gpx->machine.x;
+            char *s = "X";
+            gcodeResult(gpx, "%s: %.10g, %g, %g, %g, %g, %g, %u\n", s, a->steps_per_mm, a->max_feedrate, a->max_accel, a->max_speed_change, a->home_feedrate, a->length, a->endstop);
+            a = &gpx->machine.y;
+            s = "Y";
+            gcodeResult(gpx, "%s: %.10g, %g, %g, %g, %g, %g, %u\n", s, a->steps_per_mm, a->max_feedrate, a->max_accel, a->max_speed_change, a->home_feedrate, a->length, a->endstop);
+            a = &gpx->machine.z;
+            s = "Z";
+            gcodeResult(gpx, "%s: %.10g, %g, %g, %g, %g, %g, %u\n", s, a->steps_per_mm, a->max_feedrate, a->max_accel, a->max_speed_change, a->home_feedrate, a->length, a->endstop);
+
+            gcodeResult(gpx, "steps_per_mm, max_feedrate, max_acceleration, max_speed_change, motor_steps, has_heated_build_platform\n");
+            Extruder *e = &gpx->machine.a;
+            s = "A";
+            gcodeResult(gpx, "%s: %.10g, %g, %g, %g, %g, %u\n", s, e->steps_per_mm, e->max_feedrate, e->max_accel, e->max_speed_change, e->motor_steps, e->has_heated_build_platform);
+            e = &gpx->machine.b;
+            s = "B";
+            gcodeResult(gpx, "%s: %.10g, %g, %g, %g, %g, %u\n", s, e->steps_per_mm, e->max_feedrate, e->max_accel, e->max_speed_change, e->motor_steps, e->has_heated_build_platform);
+        }
     }
     return SUCCESS;
 }
