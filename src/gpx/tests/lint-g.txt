@@ -122,4 +122,5 @@ Command count: (Command ID) Command description
 121: (150) Set build percentage 100%, reserved 0
 122: (154) End build notification, options 0x00
 123: (149) Display message, options 0x02, position (0, 0), timeout 0 s, message "after the end"
+124: (8) Pause
 EOF

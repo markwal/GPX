@@ -286,3 +286,5 @@ T0
 M70 (M73 - end build)
 M73 P100 (end build progress)
 M70 (after the end)
+
+M1 (pause)

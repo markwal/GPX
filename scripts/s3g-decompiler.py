@@ -298,6 +298,7 @@ commandTable = {
     0:   ("<H", "(0) Get version, Host Version %i"),
     1:   ("", "(1) Unknown"),
     3:   ("", "(3) Clear buffer"),
+	8:   ("", "(8) Pause"),
     12:  ("<HB", "(12) Read from EEPROM, offset %i, count %i"),
     10:  (parseToolQuery, printToolQuery),
     11:  ("", "(11) Is finished?"),
@@ -363,11 +364,14 @@ def parseNextCommand(showStart):
         return True
     if type(parse) == type(""):
         packetLen = struct.calcsize(parse)
-        packetData = s3gFile.read(packetLen)
-        if len(packetData) != packetLen:
-            raise "Error: file appears to be truncated; cannot parse"
-        byteOffset += packetLen
-        parsed = struct.unpack(parse,packetData)
+        if packetLen > 0:
+            packetData = s3gFile.read(packetLen)
+            if len(packetData) != packetLen:
+                raise "Error: file appears to be truncated; cannot parse"
+            byteOffset += packetLen
+            parsed = struct.unpack(parse,packetData)
+        else:
+            parsed = ""
     else:
         parsed = parse()
     if type(disp) == type(""):
