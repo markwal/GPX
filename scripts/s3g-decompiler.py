@@ -233,7 +233,8 @@ def parseFramedData():
 # For a refresher on Python struct syntax, see here:
 # http://docs.python.org/library/struct.html
 
-commandTable = {    
+commandTable = {  
+      8: ("", "(8) Pause"),
     129: ("<iiiI", "(129) Absolute move to (%i, %i, %i) with DDA %i"),
     130: ("<iii", "(130) Define position as (%i, %i, %i)"),
     131: ("<BIH", "(131) Home minimum on %a, feedrate %i us/step, timeout %i s"),
@@ -287,11 +288,14 @@ def parseNextCommand(showStart):
     (parse, disp) = commandTable[command[0]]
     if type(parse) == type(""):
         packetLen = struct.calcsize(parse)
-        packetData = s3gFile.read(packetLen)
-        if len(packetData) != packetLen:
-            raise "Error: file appears to be truncated; cannot parse"
-        byteOffset += packetLen
-        parsed = struct.unpack(parse,packetData)
+        if packetLen > 0:
+            packetData = s3gFile.read(packetLen)
+            if len(packetData) != packetLen:
+                raise "Error: file appears to be truncated; cannot parse"
+            byteOffset += packetLen
+            parsed = struct.unpack(parse,packetData)
+        else:
+            parsed = ""
     else:
         parsed = parse()
     if type(disp) == type(""):

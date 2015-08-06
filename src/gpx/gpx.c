@@ -3909,12 +3909,15 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
     }
     else if(gpx->command.flag & M_IS_SET) {
         switch(gpx->command.m) {
-                // M0 - Program stop
+                // M0 - Marlin pause
             case 0:
-                break;
-                // M1 - Program pause
+				break;
+
+                // M1 - ANSI pause, Marlin pause
             case 1:
-                break;
+				pause_resume(gpx);
+				break;
+
                 // M2 - Program end
             case 2:
                 if(program_is_running()) {
