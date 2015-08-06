@@ -233,7 +233,7 @@ def parseFramedData():
 # For a refresher on Python struct syntax, see here:
 # http://docs.python.org/library/struct.html
 
-commandTable = {  
+commandTable = {
       8: ("", "(8) Pause"),
     129: ("<iiiI", "(129) Absolute move to (%i, %i, %i) with DDA %i"),
     130: ("<iii", "(130) Define position as (%i, %i, %i)"),
