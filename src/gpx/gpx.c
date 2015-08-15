@@ -3358,7 +3358,7 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         }
         else if(PROPERTY_IS("build_platform_temperature")) {
             if(gpx->machine.a.has_heated_build_platform) gpx->override[A].build_platform_temperature = atoi(value);
-            else if(gpx->machine.b.has_heated_build_platform) gpx->override[B].build_platform_temperature = atoi(value);
+            if(gpx->machine.b.has_heated_build_platform) gpx->override[B].build_platform_temperature = atoi(value);
         }
         else if(PROPERTY_IS("sd_card_path")) {
             gpx->sdCardPath = strdup(value);
