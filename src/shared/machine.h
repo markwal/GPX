@@ -48,6 +48,10 @@
 #define MACHINE_TYPE_CLONE_R1      17  // Clone R1 Single w/HBP
 #define MACHINE_TYPE_CLONE_R1D     18  // Clone R1 Dual w/HBP
 
+// endstop flags
+#define ENDSTOP_IS_MIN 0
+#define ENDSTOP_IS_MAX 1
+
 typedef struct {
      double max_feedrate;	// mm/minute
      double max_accel;		// mm/s^2

@@ -29,7 +29,6 @@
 #define __std_machines_h__
 
 #include "machine.h"
-#include "gpx.h"
 
 static Machine cupcake_G3 = {
      "c3", "Cupcake Gen3 XYZ, Mk5/6 + Gen4 Extruder", 0, 0,

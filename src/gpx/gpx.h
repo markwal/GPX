@@ -167,11 +167,6 @@ typedef long speed_t;
         char *arg;
     } Command, *PtrCommand;
 
-// endstop flags
-
-#define ENDSTOP_IS_MIN 0
-#define ENDSTOP_IS_MAX 1
-
 // tool id
 
 #define MAX_TOOL_ID 1
