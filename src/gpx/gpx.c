@@ -3563,7 +3563,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
     char *digits;
     char *p = gcode_line; // current parser location
     while(isspace(*p)) p++;
-    VERBOSE( fprintf(gpx->log, "gcode_line: %s\n", gcode_line) );
+    VERBOSE( if (gpx->flag.sioConnected) fprintf(gpx->log, "gcode_line: %s\n", gcode_line); )
     // check for line number
     if(*p == 'n' || *p == 'N') {
         digits = p;

@@ -55,7 +55,7 @@ else ifeq ($(findstring MINGW32,$(UNAME_OS)), MINGW32)
 
 CC = gcc
 CC_FLAGS = -DHAS_NANOSLEEP
-LD_FLAGS =
+LD_FLAGS = -static -static-libgcc
 PLATFORM = win32
 EXE = .exe
 OBJ = .o
@@ -66,7 +66,7 @@ else ifeq ($(findstring CYGWIN,$(UNAME_OS)), CYGWIN)
 
 CC = gcc
 CC_FLAGS = -DHAS_NANOSLEEP
-LD_FLAGS =
+LD_FLAGS = -static -static-libgcc
 PLATFORM = win32
 EXE = .exe
 OBJ = .o
