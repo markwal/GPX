@@ -5501,7 +5501,7 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                 }
                 VERBOSESIO( hexdump(gpx->log, gpx->buffer.in, bytes) );
                 payload_length = gpx->buffer.in[1];
-            } while (gpx->buffer.in[1] == 0xd5);
+            } while ((unsigned char)gpx->buffer.in[1] == 0xd5);
             // recieve payload
             if((bytes = readport(sio->port, gpx->buffer.in + 2, payload_length + 1)) == -1) {
                 return EOSERROR;
