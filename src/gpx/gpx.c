@@ -3366,6 +3366,16 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         else if(PROPERTY_IS("verbose")) {
             gpx->flag.verboseMode = atoi(value);
         }
+		else if(PROPERTY_IS("machine_description") ||
+				PROPERTY_IS("nozzle_diameter") ||
+				PROPERTY_IS("toolhead_offset_x") ||
+				PROPERTY_IS("toolhead_offset_y") ||
+				PROPERTY_IS("toolhead_offset_z") ||
+				PROPERTY_IS("jkn_k") ||
+				PROPERTY_IS("jkn_k2") ||
+				PROPERTY_IS("nozzle_diameter") ||
+				PROPERTY_IS("extruder_count") ||
+				PROPERTY_IS("timeout")) { }
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("x")) {
@@ -3373,6 +3383,9 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         else if(PROPERTY_IS("home_feedrate")) gpx->machine.x.home_feedrate = strtod(value, NULL);
         else if(PROPERTY_IS("steps_per_mm")) gpx->machine.x.steps_per_mm = strtod(value, NULL);
         else if(PROPERTY_IS("endstop")) gpx->machine.x.endstop = atoi(value);
+		else if(PROPERTY_IS("max_acceleration") ||
+				PROPERTY_IS("max_speed_change") ||
+				PROPERTY_IS("length")) { }
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("y")) {
@@ -3380,6 +3393,9 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         else if(PROPERTY_IS("home_feedrate")) gpx->machine.y.home_feedrate = strtod(value, NULL);
         else if(PROPERTY_IS("steps_per_mm")) gpx->machine.y.steps_per_mm = strtod(value, NULL);
         else if(PROPERTY_IS("endstop")) gpx->machine.y.endstop = atoi(value);
+		else if(PROPERTY_IS("max_acceleration") ||
+				PROPERTY_IS("max_speed_change") ||
+				PROPERTY_IS("length")) { }
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("z")) {
@@ -3387,6 +3403,9 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         else if(PROPERTY_IS("home_feedrate")) gpx->machine.z.home_feedrate = strtod(value, NULL);
         else if(PROPERTY_IS("steps_per_mm")) gpx->machine.z.steps_per_mm = strtod(value, NULL);
         else if(PROPERTY_IS("endstop")) gpx->machine.z.endstop = atoi(value);
+		else if(PROPERTY_IS("max_acceleration") ||
+				PROPERTY_IS("max_speed_change") ||
+				PROPERTY_IS("length")) { }
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("a")) {
@@ -3394,6 +3413,8 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         else if(PROPERTY_IS("steps_per_mm")) gpx->machine.a.steps_per_mm = strtod(value, NULL);
         else if(PROPERTY_IS("motor_steps")) gpx->machine.a.motor_steps = strtod(value, NULL);
         else if(PROPERTY_IS("has_heated_build_platform")) gpx->machine.a.has_heated_build_platform = atoi(value);
+		else if(PROPERTY_IS("max_acceleration") ||
+				PROPERTY_IS("max_speed_change")) { }
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("right")) {
@@ -3410,6 +3431,8 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         else if(PROPERTY_IS("steps_per_mm")) gpx->machine.b.steps_per_mm = strtod(value, NULL);
         else if(PROPERTY_IS("motor_steps")) gpx->machine.b.motor_steps = strtod(value, NULL);
         else if(PROPERTY_IS("has_heated_build_platform")) gpx->machine.b.has_heated_build_platform = atoi(value);
+		else if(PROPERTY_IS("max_acceleration") ||
+				PROPERTY_IS("max_speed_change")) { }
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("left")) {
