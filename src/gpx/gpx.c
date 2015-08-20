@@ -3292,13 +3292,13 @@ int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* 
 loop:
      // Find the next token.  We could use strtok(_r) but it's not on all systems
      ptr = strchr(tmp, ',');
-     if (ptr)
+     if(ptr)
 	  *ptr = '\0';
      if((iret = gpx_set_property_inner(gpx, tmp, property, value)))
 	  goto done;
 
      // Advance to the next section
-     tmp = ptr + 1;
+     tmp = ptr ? ptr + 1 : tmpend;
 
      // If there's more left, then repeat
      if(tmp < tmpend)
