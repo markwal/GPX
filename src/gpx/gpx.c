@@ -237,6 +237,11 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->tool[i].nozzle_temperature = 0;
         gpx->tool[i].build_platform_temperature = 0;
 
+        gpx->tool[i].retract_distance = 1.3;
+        gpx->tool[i].unretract_distance = 1.3;
+        gpx->tool[i].retract_feedrate = 25*60;
+        gpx->tool[i].unretract_feedrate = 25*60;
+
         gpx->override[i].actual_filament_diameter = 0;
         gpx->override[i].filament_scale = 1.0;
         gpx->override[i].packing_density = 1.0;
@@ -3424,6 +3429,10 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         else if(PROPERTY_IS("build_platform_temperature")) gpx->override[A].build_platform_temperature = atoi(value);
         else if(PROPERTY_IS("actual_filament_diameter")) gpx->override[A].actual_filament_diameter = strtod(value, NULL);
         else if(PROPERTY_IS("packing_density")) gpx->override[A].packing_density = strtod(value, NULL);
+        else if(PROPERTY_IS("retract_distance")) gpx->tool[A].retract_distance = strtod(value, NULL);
+        else if(PROPERTY_IS("unretract_distance")) gpx->tool[A].unretract_distance = strtod(value, NULL);
+        else if(PROPERTY_IS("retract_feedrate")) gpx->tool[A].retract_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("unretract_feedrate")) gpx->tool[A].unretract_feedrate = strtod(value, NULL);
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("b")) {
@@ -3442,6 +3451,10 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         else if(PROPERTY_IS("build_platform_temperature")) gpx->override[B].build_platform_temperature = atoi(value);
         else if(PROPERTY_IS("actual_filament_diameter")) gpx->override[B].actual_filament_diameter = strtod(value, NULL);
         else if(PROPERTY_IS("packing_density")) gpx->override[B].packing_density = strtod(value, NULL);
+        else if(PROPERTY_IS("retract_distance")) gpx->tool[B].retract_distance = strtod(value, NULL);
+        else if(PROPERTY_IS("unretract_distance")) gpx->tool[B].unretract_distance = strtod(value, NULL);
+        else if(PROPERTY_IS("retract_feedrate")) gpx->tool[B].retract_feedrate = strtod(value, NULL);
+        else if(PROPERTY_IS("unretract_feedrate")) gpx->tool[B].unretract_feedrate = strtod(value, NULL);
         else goto SECTION_ERROR;
     }
     else if(SECTION_IS("machine")) {
@@ -3890,9 +3903,11 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 }
                 break;
 
-                // G10 - Create Coordinate System Offset from the Absolute one
+                // G10 - RepRapPro: Create Coordinate System Offset from the Absolute one (Tool Offset)
+                // G10 - Marlin/Repetier/Smoothie: Retract
             case 10:
                 if(gpx->command.flag & P_IS_SET && gpx->command.p >= 1.0 && gpx->command.p <= 6.0) {
+                    // presence of P parameter indicates RepRapPro style
                     i = (int)gpx->command.p;
                     if(gpx->command.flag & X_IS_SET) gpx->offset[i].x = gpx->command.x;
                     if(gpx->command.flag & Y_IS_SET) gpx->offset[i].y = gpx->command.y;
@@ -3924,8 +3939,58 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                         }
                     }
                 }
+                else if(gpx->command.flag & P_IS_SET) {
+                    SHOW( fprintf(gpx->log, "(line %u) Syntax error: G10 is missing coordinate system, use Pn where n is 1-6" EOL, gpx->lineNumber) );
+                }
+                else if(!(gpx->command.flag & AXES_BIT_MASK)) {
+                    gpx->command.flag |= (gpx->current.extruder == 0 ? A_IS_SET : B_IS_SET);
+                    if(gpx->flag.dittoPrinting)
+                        gpx->command.flag |= (A_IS_SET | B_IS_SET);
+                    double feedrate = 0.0;
+                    if(gpx->command.flag & A_IS_SET) {
+                        gpx->command.a = -gpx->tool[A].retract_distance + ((gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) ? 0 : gpx->current.position.a);
+                        feedrate = gpx->tool[A].retract_feedrate;
+                    } else if(gpx->command.flag & B_IS_SET) {
+                        gpx->command.b = -gpx->tool[B].retract_distance + ((gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) ? 0 : gpx->current.position.b);
+                        feedrate = gpx->tool[B].retract_feedrate;
+                    }
+                    if(gpx->command.flag & F_IS_SET) {
+                        feedrate = gpx->command.f;
+                    }
+                    CALL( calculate_target_position(gpx) );
+                    CALL( queue_ext_point(gpx, feedrate) );
+                    // don't update current position
+                    command_emitted++;
+                }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax error: G10 is missing coordiante system, use Pn where n is 1-6" EOL, gpx->lineNumber) );
+                    SHOW( fprintf(gpx->log, "(line %u) Syntax error: G10 for retraction doesn't accept axes parameters." EOL, gpx->lineNumber) );
+                }
+                break;
+
+                // G11 - Unretract
+            case 11:
+                if(!(gpx->command.flag & AXES_BIT_MASK)) {
+                    gpx->command.flag |= (gpx->current.extruder == 0 ? A_IS_SET : B_IS_SET);
+                    if(gpx->flag.dittoPrinting)
+                        gpx->command.flag |= (A_IS_SET | B_IS_SET);
+                    double feedrate = 0.0;
+                    if(gpx->command.flag & A_IS_SET) {
+                        gpx->command.a = gpx->tool[A].unretract_distance + ((gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) ? 0 : gpx->current.position.a);
+                        feedrate = gpx->tool[A].unretract_feedrate;
+                    } else if(gpx->command.flag & B_IS_SET) {
+                        gpx->command.b = gpx->tool[B].unretract_distance + ((gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) ? 0 : gpx->current.position.b);
+                        feedrate = gpx->tool[B].unretract_feedrate;
+                    }
+                    if(gpx->command.flag & F_IS_SET) {
+                        feedrate = gpx->command.f;
+                    }
+                    CALL( calculate_target_position(gpx) );
+                    CALL( queue_ext_point(gpx, feedrate) );
+                    // don't update current position
+                    command_emitted++;
+                }
+                else {
+                    SHOW( fprintf(gpx->log, "(line %u) Syntax error: G11 doesn't accept axes parameters." EOL, gpx->lineNumber) );
                 }
                 break;
 

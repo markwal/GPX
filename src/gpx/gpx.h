@@ -187,6 +187,10 @@ typedef long speed_t;
 #endif
         unsigned nozzle_temperature;
         unsigned build_platform_temperature;
+        double retract_distance;
+        double unretract_distance;
+        double retract_feedrate;
+        double unretract_feedrate;
     } Tool;
 
     typedef struct tOverride {
