@@ -635,6 +635,11 @@ int main(int argc, char * const argv[])
 		goto done;
             }
         }
+#ifdef _WIN32
+        else {
+            setmode(fileno(stdout), O_BINARY)
+        }
+#endif
     }
     // open the input filename if one is provided
     else if(argc > 0) {
