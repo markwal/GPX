@@ -637,7 +637,7 @@ int main(int argc, char * const argv[])
         }
 #ifdef _WIN32
         else {
-            setmode(fileno(stdout), O_BINARY)
+            setmode(fileno(stdout), O_BINARY);
         }
 #endif
     }
