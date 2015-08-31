@@ -290,6 +290,7 @@ typedef long speed_t;
             unsigned buildProgress:1;   // override build percent
             unsigned verboseMode:1;     // verbose output
             unsigned logMessages:1;     // enable stderr message logging
+            unsigned verboseSioMode:1;  // extra verbose for serial packets back and forth
             unsigned rewrite5D:1;       // calculate 5D E values rather than scaling them
             unsigned M106AlwaysValve:1; // force M106 to reprap flavor even in makerbot mode
 

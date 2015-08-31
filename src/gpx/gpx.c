@@ -43,6 +43,7 @@
 
 #define SHOW(FN) if(gpx->flag.logMessages) {FN;}
 #define VERBOSE(FN) if(gpx->flag.verboseMode && gpx->flag.logMessages) {FN;}
+#define VERBOSESIO(FN) if(gpx->flag.verboseSioMode) {FN;}
 #define CALL(FN) if((rval = FN) != SUCCESS) return rval
 
 // Machine definitions
@@ -5450,7 +5451,6 @@ void hexdump(FILE *out, char *p, size_t len)
         fprintf(out, "%02x ", (unsigned)(unsigned char)*p++);
     fflush(out);
 }
-#define VERBOSESIO(fn) VERBOSE(fn)
 
 #if defined(_WIN32) || defined(_WIN64)
 // windows has more simultaneous timeout values, so we don't need select

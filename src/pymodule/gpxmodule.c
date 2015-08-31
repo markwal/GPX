@@ -784,7 +784,7 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
             fprintf(gpx.log, "(line %u) Configuration syntax error in %s: unrecognized parameters\n", lineno, inipath);
     }
 
-    gpx.flag.verboseMode = verbose;
+    gpx.flag.verboseSioMode = gpx.flag.verboseMode = verbose;
     gpx.flag.logMessages = 1;
 
     // open the port
