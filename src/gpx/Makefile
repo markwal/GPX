@@ -15,7 +15,7 @@ ifeq ($(PLATFORM), win64)
 SIO_SRCS = winsio.c
 endif
 
-gpx_SRCS = gpx.c gpx-main.c config.c opt.c $(EXTRA_SRCS) $(SIO_SRCS)
+gpx_SRCS = gpx.c gpx-main.c config.c opt.c vector.c $(EXTRA_SRCS) $(SIO_SRCS)
 gpx_OBJS = $(notdir $(gpx_SRCS:.c=$(OBJ)))
 gpx_LIBS = m
 

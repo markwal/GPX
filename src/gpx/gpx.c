@@ -742,7 +742,7 @@ static Point5d delta_steps(Gpx *gpx,Point5d deltaMM)
 #define COMMAND_OFFSET 2
 #define EXTRUDER_ID_OFFSET 3
 #define QUERY_COMMAND_OFFSET 4
-#define EEPROM_LENGTH_OFFSET 8
+#define EEPROM_LENGTH_OFFSET 5
 
 // 00 - Get version
 
@@ -2372,6 +2372,96 @@ static int add_command_at(Gpx *gpx, double z, char *filament_id, unsigned nozzle
     return SUCCESS;
 }
 
+// EEPROM MACRO FUNCTIONS
+
+// find an existing EEPROM mapping
+static int find_eeprom_mapping(Gpx *gpx, char *name)
+{
+    if(gpx->eepromMappingVector == NULL)
+        return -1;
+
+    int iem;
+    EepromMapping *pem = vector_get(gpx->eepromMappingVector, 0);
+    for(iem = 0; iem < gpx->eepromMappingVector->c; iem++, pem++) {
+        if(strcmp(name, pem->name) == 0)
+            return iem;
+    }
+    return -1;
+}
+
+// add an eeprom mapping
+static int add_eeprom_mapping(Gpx *gpx, char *name, unsigned address, int len)
+{
+    if(gpx->eepromMappingVector == NULL) {
+        gpx->eepromMappingVector = vector_create(sizeof(EepromMapping), 10, 10);
+        if(gpx->eepromMappingVector == NULL)
+            return -1;
+    }
+
+    int iem = find_eeprom_mapping(gpx, name);
+    if(iem >= 0) {
+        // update the existing
+        EepromMapping *pem = vector_get(gpx->eepromMappingVector, iem);
+        pem->address = address;
+        pem->len = len;
+        return iem;
+    }
+
+    EepromMapping em;
+    em.name = strdup(name);
+    if(em.name == NULL)
+        return -1;
+    em.address = address;
+    em.len = len;
+
+    return vector_append(gpx->eepromMappingVector, &em);
+}
+
+// read an eeprom value from a defined mapping
+static int read_eeprom_name(Gpx *gpx, char *name)
+{
+    int rval = SUCCESS;
+
+    if (!gpx->flag.sioConnected) {
+        SHOW( fprintf(gpx->log, "(line %u) Error: eeprom read without serial connection\n", gpx->lineNumber); )
+    }
+
+    int iem = find_eeprom_mapping(gpx, name);
+    if(iem < 0) {
+        SHOW( fprintf(gpx->log, "(line %u) Error: eeprom mapping '%s' not defined\n", gpx->lineNumber, name); )
+        return;
+    }
+
+    gpx->iem = iem;
+    EepromMapping *pem = vector_get(gpx->eepromMappingVector, iem);
+    if (pem == NULL) {
+        SHOW( fprintf(gpx->log, "(line %u) Unexpected failure: Unable to retrieve eeprom mapping '%s'\n", gpx->lineNumber, name); )
+        return;
+    }
+
+    switch (pem->len) {
+        case 1:
+        case 2:
+        case 4:
+            CALL( read_eeprom(gpx, pem->address, pem->len) );
+            break;
+        case -4:
+            CALL( read_eeprom(gpx, pem->address, 4) );
+            break;
+        default:
+            SHOW( fprintf(gpx->log, "(line %u) Error: eeprom length %i not yet supported.\n", gpx->lineNumber, pem->len); )
+            break;
+    }
+    return SUCCESS;
+}
+
+// write an eeprom value via a defined mapping
+static void write_eeprom_name(Gpx *gpx, char *name, void *value)
+{
+}
+
+// DISPLAY TAG
+
 static int display_tag(Gpx *gpx) {
     int rval;
     CALL( display_message(gpx, "GPX " GPX_VERSION, 0, 0, 2, 0) );
@@ -2767,7 +2857,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         while(isspace(*p)) p++;
         if(isalpha(*p)) {
             name = p;
-            while(*p && isalnum(*p)) p++;
+            while(*p && (isalnum(*p) || *p == '_')) p++;
             if(*p) *p++ = 0;
         }
         else if(isdigit(*p)) {
@@ -3014,6 +3104,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     else if(MACRO_IS("build")) {
         set_build_name(gpx, name);
     }
+    // ;@flavor <FLAVOR>
     else if(MACRO_IS("flavor")) {
         if(NAME_IS("reprap")) gpx->flag.reprapFlavor = 1;
         else if(NAME_IS("makerbot")) gpx->flag.reprapFlavor = 0;
@@ -3037,9 +3128,50 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     // ;@header
     // ;@footer
     else if(MACRO_IS("header") && MACRO_IS("footer")) {
+        // REVIEW can't be both header and footer at the same time, so I don't
+        // think this can ever be executed, what was it supposed to be for?
         gpx->flag.macrosEnabled = 0;
     }
+    // ;@eeprom <NAME> #<HEX> <LEN>
+    // Add eeprom mapping of <NAME> to <HEX> address with length LEN (0=string, 1=byte, 2=16-bit, 4=32-bit, -4=32-bit float)
+    else if(MACRO_IS("eeprom")) {
+        if(name) {
+            int len = (int)z;
+            if (len == 0 || len == 1 || len == 2 || len == 4 || len == -4) {
+                add_eeprom_mapping(gpx, name, LED, len);
+            }
+            else {
+                SHOW( fprintf(gpx->log, "(line %u) Error: @eeprom macro expects length of 0,1,2,4 or -4" EOL, gpx->lineNumber) );
+            }
+        }
+        else {
+            SHOW( fprintf(gpx->log, "(line %u) Semantic error: @eeprom macro with missing name" EOL, gpx->lineNumber) );
+        }
+    }
+    // ;@eread <NAME>
+    // Read eeprom setting <NAME> defined by earlier @eeprom macro
+    else if(MACRO_IS("eread")) {
+        if(name) {
+            read_eeprom_name(gpx, name);
+        }
+        else {
+            SHOW( fprintf(gpx->log, "(line %u) Semantic error: @eread macro with missing name" EOL, gpx->lineNumber) );
+        }
+    }
+    // ;@ewrite <NAME> <VALUE>
+    // Write eeprom setting <NAME> defined by earlier @eeprom macro
+    else if(MACRO_IS("ewrite")) {
+        if(name) {
+            // write_eeprom_name(gpx, name, &z);
+        }
+        else {
+            SHOW( fprintf(gpx->log, "(line %u) Error: @ewrite macro with missing name" EOL, gpx->lineNumber) );
+        }
+    }
+    // ;@debug <COMMAND>
     else if (MACRO_IS("debug")) {
+        // ;@debug pos
+        // Output current position
         if (NAME_IS("pos")) {
             gcodeResult(gpx, "gpx position X:%0.2f Y:%0.2f Z:%0.2f A:%0.2f B:%0.2f\n",
                 gpx->current.position.x, gpx->current.position.y, gpx->current.position.z,
@@ -3054,6 +3186,8 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             *p++ = 0;
             gcodeResult(gpx, "positions known: %s\n", s);
         }
+        // @debug axes
+        // Output current machine settings for each axxes
         else if (NAME_IS("axes")) {
             gcodeResult(gpx, "steps_per_mm, max_feedrate, max_acceleration, max_speed_change, home_feedrate, length, endstop\n");
             Axis *a = &gpx->machine.x;
@@ -3587,7 +3721,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
     char *digits;
     char *p = gcode_line; // current parser location
     while(isspace(*p)) p++;
-    VERBOSE( if (gpx->flag.sioConnected) fprintf(gpx->log, "gcode_line: %s\n", gcode_line); )
+    VERBOSESIO( if (gpx->flag.sioConnected) fprintf(gpx->log, "gcode_line: %s", gcode_line); )
     // check for line number
     if(*p == 'n' || *p == 'N') {
         digits = p;
@@ -5221,6 +5355,13 @@ static void read_extruder_query_response(Gpx *gpx, Sio *sio, unsigned command, c
     }
 }
 
+void hexdump(FILE *out, char *p, size_t len)
+{
+    while (len--)
+        fprintf(out, "%02x ", (unsigned)(unsigned char)*p++);
+    fflush(out);
+}
+
 static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buffer)
 {
     gpx->buffer.ptr = gpx->buffer.in + 3;
@@ -5259,6 +5400,32 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             // N bytes: Data read from the EEPROM
             sio->response.eeprom.length = buffer[EEPROM_LENGTH_OFFSET];
             read_bytes(gpx, sio->response.eeprom.buffer, sio->response.eeprom.length);
+            gpx->buffer.ptr = sio->response.eeprom.buffer;
+            if (gpx->eepromMappingVector != NULL) {
+                EepromMapping *pem = vector_get(gpx->eepromMappingVector, gpx->iem);
+                switch (pem->len) {
+                    case 1: {
+                        unsigned char b = read_8(gpx);
+                        VERBOSE( fprintf(gpx->log, "EEPROM byte %s @ 0x%x is 0x%x\n", pem->name, pem->address, (unsigned)b); )
+                        break;
+                    }
+                    case 2: {
+                        unsigned short u = read_16(gpx);
+                        VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is 0x%x\n", pem->name, pem->address, u); )
+                        break;
+                    }
+                    case 4: {
+                        unsigned long ul = read_32(gpx);
+                        VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is 0x%lx\n", pem->name, pem->address, ul); )
+                        break;
+                    }
+                    case -4: {
+                        float n = read_32(gpx);
+                        VERBOSE( fprintf(gpx->log, "EEPROM float %s @ 0x%x is %g\n", pem->name, pem->address, n); )
+                        break;
+                    }
+                }
+            }
             break;
 
             // 13 - Write to EEPROM
@@ -5444,13 +5611,6 @@ char buffer_size_query[] = {
     2,      // query command
     0       // crc
 };
-
-void hexdump(FILE *out, char *p, size_t len)
-{
-    while (len--)
-        fprintf(out, "%02x ", (unsigned)(unsigned char)*p++);
-    fflush(out);
-}
 
 #if defined(_WIN32) || defined(_WIN64)
 // windows has more simultaneous timeout values, so we don't need select

@@ -400,7 +400,7 @@ int main(int argc, char * const argv[])
     // error message should they be attempted when the code
     // is compiled without serial I/O support.
 
-    while ((c = getopt(argc, argv, "CFN:b:c:de:gf:ilm:n:pqrstvwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CFN:b:c:de:gf:ilm:n:pqrstuvwx:y:z:?")) != -1) {
         switch (c) {
 	    case 'C':
 		 // Write config data to a temp file
@@ -516,6 +516,9 @@ int main(int argc, char * const argv[])
                 break;
             case 't':
                 truncate_filename = 1;
+                break;
+            case 'u':
+                gpx.flag.verboseSioMode = 1;
                 break;
             case 'v':
                 gpx.flag.verboseMode = 1;

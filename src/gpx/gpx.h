@@ -34,6 +34,7 @@ extern "C" {
 #include <limits.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include "vector.h"
 
 #define HOST_VERSION 50
 
@@ -216,6 +217,12 @@ typedef long speed_t;
 
 #define COMMAND_AT_MAX 128
 
+    typedef struct tEepromMapping {
+        char *name;
+        unsigned address;
+        int len;
+    } EepromMapping;
+
 #define BUFFER_MAX 1023
 
     // GPX CONTEXT
@@ -272,6 +279,10 @@ typedef long speed_t;
         int commandAtIndex;
         int commandAtLength;
         double commandAtZ;
+
+        // vector (dynamic array) of eeprom mappings defined by @eeprom macro
+        vector *eepromMappingVector;
+        int iem;
 
 	const char *preamble;
 	int nostart, noend;
