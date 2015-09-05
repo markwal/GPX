@@ -3168,9 +3168,9 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         // think this can ever be executed, what was it supposed to be for?
         gpx->flag.macrosEnabled = 0;
     }
-    // ;@load_eeprom_map
+    // ;@loadmap
     // Load the appropriate built-in eeprom map for the firmware flavor and version
-    else if(MACRO_IS("loadeeprommap")) {
+    else if(MACRO_IS("loadmap")) {
         if (name) {
             // FUTURE <NAME> parameter to allow run-time loading of non-built-in maps
             SHOW( fprintf(gpx->log, "(line %u) Error: custom eeprommap's not supported by this version of gpx" EOL, gpx->lineNumber) );
