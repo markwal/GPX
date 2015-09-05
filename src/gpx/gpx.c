@@ -54,6 +54,7 @@
 
 #include "std_machines.h"
 #include "classic_machines.h"
+#include "std_eeprommaps.h"
 
 #undef MACHINE_ARRAY
 
@@ -270,7 +271,15 @@ void gpx_initialize(Gpx *gpx, int firstTime)
 	gpx->preamble = NULL;
 	gpx->nostart = 0;
 	gpx->noend = 0;
+        gpx->eepromMappingVector = NULL;
     }
+
+    if (gpx->eepromMappingVector != NULL) {
+        free(gpx->eepromMappingVector);
+        gpx->eepromMappingVector = NULL;
+        gpx->iem = 0;
+    }
+    gpx->eepromMap = NULL;
 
     gpx->flag.relativeCoordinates = 0;
     gpx->flag.extruderIsRelative = 0;
@@ -323,6 +332,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     gpx->callbackHandler = NULL;
     gpx->callbackData = NULL;
     gpx->resultHandler = NULL;
+    gpx->sio = NULL;
 
     // LOGGING
 
@@ -2374,6 +2384,32 @@ static int add_command_at(Gpx *gpx, double z, char *filament_id, unsigned nozzle
 
 // EEPROM MACRO FUNCTIONS
 
+// load a built-in eeprom map based on the firmware variant and version
+static int load_eeprom_map(Gpx *gpx)
+{
+    int rval = SUCCESS;
+    
+    if (!gpx->flag.sioConnected || gpx->sio == NULL) {
+        SHOW( fprintf(gpx->log, "(line %u) Serial not connected: can't detect which eeprom map without asking the bot" EOL, gpx->lineNumber) );
+        return ERROR;
+    }
+    CALL( get_advanced_version_number(gpx) );
+
+    int i;
+    EepromMap *pem = eeprom_maps;
+    for(i = 0; i < eeprom_map_count; i++, pem++) {
+        if(gpx->sio->response.firmware.variant == pem->variant &&
+                gpx->sio->response.firmware.version >= pem->versionMin &&
+                gpx->sio->response.firmware.version <= pem->versionMax) {
+            gpx->eepromMap = pem;
+            return SUCCESS;
+        }
+    }
+    SHOW( fprintf(gpx->log, "(line %u) Unable to find a matching eeprom map for firmware variant = %u, version = %u" EOL, gpx->lineNumber,
+                (unsigned)gpx->sio->response.firmware.variant,
+                gpx->sio->response.firmware.version) );
+}
+
 // find an existing EEPROM mapping
 static int find_eeprom_mapping(Gpx *gpx, char *name)
 {
@@ -3132,8 +3168,19 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         // think this can ever be executed, what was it supposed to be for?
         gpx->flag.macrosEnabled = 0;
     }
+    // ;@load_eeprom_map
+    // Load the appropriate built-in eeprom map for the firmware flavor and version
+    else if(MACRO_IS("loadeeprommap")) {
+        if (name) {
+            // FUTURE <NAME> parameter to allow run-time loading of non-built-in maps
+            SHOW( fprintf(gpx->log, "(line %u) Error: custom eeprommap's not supported by this version of gpx" EOL, gpx->lineNumber) );
+        }
+        else {
+            load_eeprom_map(gpx);
+        }
+    }
     // ;@eeprom <NAME> #<HEX> <LEN>
-    // Add eeprom mapping of <NAME> to <HEX> address with length LEN (0=string, 1=byte, 2=16-bit, 4=32-bit, -4=32-bit float)
+    // Add a single eeprom mapping of <NAME> to <HEX> address with length LEN (0=string, 1=byte, 2=16-bit, 4=32-bit, -4=32-bit float)
     else if(MACRO_IS("eeprom")) {
         if(name) {
             int len = (int)z;
@@ -5831,6 +5878,7 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
         gpx->flag.sioConnected = 1;
         gpx->callbackHandler = (int (*)(Gpx*, void*, char*, size_t))port_handler;;
         gpx->callbackData = &sio;
+        gpx->sio = &sio;
     }
 
     if(item_code) {
@@ -5901,6 +5949,7 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
         gpx->flag.framingEnabled = 1;
         gpx->callbackHandler = (int (*)(Gpx*, void*, char*, size_t))port_handler;;
         gpx->callbackData = &sio;
+        gpx->sio = &sio;
         gpx->flag.sioConnected = 1;
     }
     gpx->flag.logMessages = logMessages;;
@@ -5984,25 +6033,31 @@ static int eeprom_set_property(Gpx *gpx, const char* section, const char* proper
 {
     int rval;
     unsigned int address = (unsigned int)strtol(property, NULL, 0);
+
+    if (gpx->sio == NULL) {
+        SHOW( fprintf(gpx->log, "(line %u) Error: eeprom_set_property only supported when connected via serial" EOL, gpx->lineNumber) );
+        return ERROR;
+    }
+
     if(SECTION_IS("byte")) {
         unsigned char b = (unsigned char)strtol(value, NULL, 0);
-        CALL( write_eeprom_8(gpx, (Sio *)gpx->callbackData, address, b) );
+        CALL( write_eeprom_8(gpx, gpx->sio, address, b) );
     }
     else if(SECTION_IS("integer")) {
         unsigned int i = (unsigned int)strtol(value, NULL, 0);
-        CALL( write_eeprom_32(gpx, (Sio *)gpx->callbackData, address, i) );
+        CALL( write_eeprom_32(gpx, gpx->sio, address, i) );
     }
     else if(SECTION_IS("hex") || SECTION_IS("hexadecimal")) {
         unsigned int h = (unsigned int)strtol(value, NULL, 16);
         unsigned length = (unsigned)strlen(value) / 2;
         if(length > 4) length = 4;
-        gpx->buffer.ptr = ((Sio *)gpx->callbackData)->response.eeprom.buffer;
+        gpx->buffer.ptr = gpx->sio->response.eeprom.buffer;
         write_32(gpx, h);
-        CALL( write_eeprom(gpx, address, ((Sio *)gpx->callbackData)->response.eeprom.buffer, length) );
+        CALL( write_eeprom(gpx, address, gpx->sio->response.eeprom.buffer, length) );
     }
     else if(SECTION_IS("float")) {
         float f = strtof(value, NULL);
-        CALL( write_eeprom_float(gpx, (Sio *)gpx->callbackData, address, f) );
+        CALL( write_eeprom_float(gpx, gpx->sio, address, f) );
     }
     else if(SECTION_IS("string")) {
         unsigned length = (unsigned)strlen(value);

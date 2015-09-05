@@ -180,6 +180,7 @@ typedef long speed_t;
 #define ENDED_STATE 2
 
 #include "machine.h"
+#include "eeprominfo.h"
 
     typedef struct tTool {
         unsigned motor_enabled;
@@ -228,6 +229,7 @@ typedef long speed_t;
     // GPX CONTEXT
 
     typedef struct tGpx Gpx;
+    typedef struct tSio Sio;
 
     struct tGpx {
 
@@ -283,6 +285,9 @@ typedef long speed_t;
         // vector (dynamic array) of eeprom mappings defined by @eeprom macro
         vector *eepromMappingVector;
         int iem;
+
+        // builtin eeprom map
+        EepromMap *eepromMap;
 
 	const char *preamble;
 	int nostart, noend;
@@ -343,13 +348,14 @@ typedef long speed_t;
         int (*callbackHandler)(Gpx *gpx, void *callbackData, char *buffer, size_t length);
         void *callbackData;
         int (*resultHandler)(Gpx *gpx, void *callbackData, const char *fmt, va_list ap);
+        struct tSio *sio;
 
         // LOGGING
 
         FILE *log;
     };
 
-    typedef struct tSio {
+    struct tSio {
         FILE *in;
         int port;
         unsigned bytes_out;
@@ -454,7 +460,7 @@ typedef long speed_t;
 
         } response;
 
-    } Sio;
+    };
 
     void gpx_initialize(Gpx *gpx, int firstTime);
     int gpx_set_machine(Gpx *gpx, const char *machine, int init);
