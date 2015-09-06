@@ -284,7 +284,6 @@ typedef long speed_t;
 
         // vector (dynamic array) of eeprom mappings defined by @eeprom macro
         vector *eepromMappingVector;
-        int iem;
 
         // builtin eeprom map
         EepromMap *eepromMap;

@@ -277,7 +277,6 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     if (gpx->eepromMappingVector != NULL) {
         free(gpx->eepromMappingVector);
         gpx->eepromMappingVector = NULL;
-        gpx->iem = 0;
     }
     gpx->eepromMap = NULL;
 
@@ -2422,7 +2421,7 @@ static int write_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short 
     int rval;
     gpx->buffer.ptr = sio->response.eeprom.buffer;
     write_16(gpx, value);
-    CALL( write_eeprom(gpx, address, sio->response.eeprom.buffer, 1) );
+    CALL( write_eeprom(gpx, address, sio->response.eeprom.buffer, 2) );
     return SUCCESS;
 }
 
@@ -2432,6 +2431,24 @@ static int read_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short *
     CALL( read_eeprom(gpx, address, 2) );
     gpx->buffer.ptr = sio->response.eeprom.buffer;
     *value = read_16(gpx);
+    return SUCCESS;
+}
+
+static int write_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float value)
+{
+    int rval;
+    gpx->buffer.ptr = sio->response.eeprom.buffer;
+    write_fixed_16(gpx, value);
+    CALL( write_eeprom(gpx, address, sio->response.eeprom.buffer, 2) );
+    return SUCCESS;
+}
+
+static int read_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float *value)
+{
+    int rval;
+    CALL( read_eeprom(gpx, address, 2) );
+    gpx->buffer.ptr = sio->response.eeprom.buffer;
+    *value = read_fixed_16(gpx);
     return SUCCESS;
 }
 
@@ -2532,28 +2549,52 @@ static int read_builtin_eeprom_mapping(Gpx *gpx, int ie)
         case et_bitfield:
         case et_boolean:
         case et_byte: {
-            unsigned char ch;
-            CALL( read_eeprom_8(gpx, gpx->sio, pe->address, &ch) );
+            unsigned char b;
+            CALL( read_eeprom_8(gpx, gpx->sio, pe->address, &b) );
+            VERBOSE( fprintf(gpx->log, "EEPROM byte %s @ 0x%x is %u (0x%x)\n", pe->id, pe->address, (unsigned)b, (unsigned)b) );
             break;
         }
 
         case et_ushort: {
             unsigned short us;
             CALL( read_eeprom_16(gpx, gpx->sio, pe->address, &us) );
+            VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is %u (0x%x)\n", pe->id, pe->address, us, us) );
+            break;
+        }
+
+        case et_fixed: {
+            float n;
+            CALL( read_eeprom_fixed_16(gpx, gpx->sio, pe->address, &n) );
+            VERBOSE( fprintf(gpx->log, "EEPROM float %s @ 0x%x is %g\n", pe->id, pe->address, n) );
             break;
         }
 
         case et_long:
-        case et_ulong:
-        case et_fixed:
-        case et_float: {
+        case et_ulong: {
             unsigned long ul;
             CALL( read_eeprom_32(gpx, gpx->sio, pe->address, &ul) );
+            if (pe->et == et_long) {
+                VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is %d (0x%lx)\n", pe->id, pe->address, ul, ul) );
+            }
+            else {
+                VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is %u (0x%lx)\n", pe->id, pe->address, ul, ul) );
+            }
+            break;
+        }
+
+        case et_float: {
+            float n;
+            CALL( read_eeprom_float(gpx, gpx->sio, pe->address, &n) );
+            VERBOSE( fprintf(gpx->log, "EEPROM float %s @ 0x%x is %g\n", pe->id, pe->address, n); )
             break;
         }
 
         case et_string:
-            SHOW( fprintf(gpx->log, "(line %u) Error: eeprom read string not yet implemented.\n", gpx->lineNumber) );
+            // TODO assumes that all eeprom strings are 16 bytes long
+            // Today there is only one et_string in the eeprom which is 16 bytes
+            memset(gpx->sio->response.eeprom.buffer, 0, sizeof(gpx->sio->response.eeprom.buffer));
+            CALL( read_eeprom(gpx, pe->address, 16) );
+            VERBOSE( fprintf(gpx->log, "EEPROM string %s @ 0x%x is %s\n", pe->id, pe->address, gpx->sio->response.eeprom.buffer) );
             break;
     }
     return SUCCESS;
@@ -2607,7 +2648,7 @@ static int read_eeprom_name(Gpx *gpx, char *name)
 {
     int rval = SUCCESS;
 
-    if (!gpx->flag.sioConnected) {
+    if (!gpx->flag.sioConnected || gpx->sio == NULL) {
         SHOW( fprintf(gpx->log, "(line %u) Error: eeprom read without serial connection\n", gpx->lineNumber) );
     }
 
@@ -2621,7 +2662,6 @@ static int read_eeprom_name(Gpx *gpx, char *name)
         return;
     }
 
-    gpx->iem = iem;
     EepromMapping *pem = vector_get(gpx->eepromMappingVector, iem);
     if (pem == NULL) {
         SHOW( fprintf(gpx->log, "(line %u) Unexpected failure: Unable to retrieve eeprom mapping '%s'\n", gpx->lineNumber, name); )
@@ -2629,14 +2669,30 @@ static int read_eeprom_name(Gpx *gpx, char *name)
     }
 
     switch (pem->len) {
-        case 1:
-        case 2:
-        case 4:
-            CALL( read_eeprom(gpx, pem->address, pem->len) );
+        case 1: {
+            unsigned char b;
+            CALL( read_eeprom_8(gpx, gpx->sio, pem->address, &b) );
+            VERBOSE( fprintf(gpx->log, "EEPROM byte %s @ 0x%x is 0x%x\n", pem->name, pem->address, (unsigned)b) );
             break;
-        case -4:
-            CALL( read_eeprom(gpx, pem->address, 4) );
+        }
+        case 2: {
+            unsigned short us;
+            CALL( read_eeprom_16(gpx, gpx->sio, pem->address, &us) );
+            VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is 0x%x\n", pem->name, pem->address, us) );
             break;
+        }
+        case 4: {
+            unsigned long ul;
+            CALL( read_eeprom_32(gpx, gpx->sio, pem->address, &ul) );
+            VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is 0x%lx\n", pem->name, pem->address, ul); )
+            break;
+        }
+        case -4: {
+            float n;
+            CALL( read_eeprom_float(gpx, gpx->sio, pem->address, &n) );
+            VERBOSE( fprintf(gpx->log, "EEPROM float %s @ 0x%x is %g\n", pem->name, pem->address, n); )
+            break;
+        }
         default:
             SHOW( fprintf(gpx->log, "(line %u) Error: eeprom length %i not yet supported.\n", gpx->lineNumber, pem->len); )
             break;
@@ -5600,32 +5656,6 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             // N bytes: Data read from the EEPROM
             sio->response.eeprom.length = buffer[EEPROM_LENGTH_OFFSET];
             read_bytes(gpx, sio->response.eeprom.buffer, sio->response.eeprom.length);
-            gpx->buffer.ptr = sio->response.eeprom.buffer;
-            if (gpx->eepromMappingVector != NULL) {
-                EepromMapping *pem = vector_get(gpx->eepromMappingVector, gpx->iem);
-                switch (pem->len) {
-                    case 1: {
-                        unsigned char b = read_8(gpx);
-                        VERBOSE( fprintf(gpx->log, "EEPROM byte %s @ 0x%x is 0x%x\n", pem->name, pem->address, (unsigned)b); )
-                        break;
-                    }
-                    case 2: {
-                        unsigned short u = read_16(gpx);
-                        VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is 0x%x\n", pem->name, pem->address, u); )
-                        break;
-                    }
-                    case 4: {
-                        unsigned long ul = read_32(gpx);
-                        VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is 0x%lx\n", pem->name, pem->address, ul); )
-                        break;
-                    }
-                    case -4: {
-                        float n = read_32(gpx);
-                        VERBOSE( fprintf(gpx->log, "EEPROM float %s @ 0x%x is %g\n", pem->name, pem->address, n); )
-                        break;
-                    }
-                }
-            }
             break;
 
             // 13 - Write to EEPROM
