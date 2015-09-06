@@ -37,8 +37,8 @@ typedef struct tEepromEntry {
     const char *unit;
     unsigned address;
     EepromType et;
-    int min_value;
-    int max_value;
+    int minValue;
+    int maxValue;
     const char *tooltip;
 } EepromEntry;
 
@@ -46,7 +46,8 @@ typedef struct tEepromMap {
     unsigned short versionMin;
     unsigned short versionMax;
     unsigned char variant;
-    EepromEntry *eeprom_entries;
+    EepromEntry *eepromEntries;
+    int eepromEntryCount;
 } EepromMap;
 
 #endif // __eeprominfo_h__
