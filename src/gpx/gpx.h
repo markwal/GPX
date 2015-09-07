@@ -218,12 +218,6 @@ typedef long speed_t;
 
 #define COMMAND_AT_MAX 128
 
-    typedef struct tEepromMapping {
-        char *name;
-        unsigned address;
-        int len;
-    } EepromMapping;
-
 #define BUFFER_MAX 1023
 
     // GPX CONTEXT

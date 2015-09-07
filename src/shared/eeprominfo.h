@@ -29,25 +29,26 @@
 #ifndef __eeprominfo_h__
 #define __eeprominfo_h__
 
-typedef enum { et_bitfield, et_boolean, et_byte, et_ushort, et_long, et_ulong, et_fixed, et_float, et_string } EepromType;
+typedef enum { et_null, et_bitfield, et_boolean, et_byte, et_ushort, et_long, et_ulong, et_fixed, et_float, et_string } EepromType;
 
-typedef struct tEepromEntry {
+typedef struct tEepromMapping {
     const char *id;
     const char *label;
     const char *unit;
     unsigned address;
     EepromType et;
+    int len;
     int minValue;
     int maxValue;
     const char *tooltip;
-} EepromEntry;
+} EepromMapping;
 
 typedef struct tEepromMap {
     unsigned short versionMin;
     unsigned short versionMax;
     unsigned char variant;
-    EepromEntry *eepromEntries;
-    int eepromEntryCount;
+    EepromMapping *eepromMappings;
+    int eepromMappingCount;
 } EepromMap;
 
 #endif // __eeprominfo_h__

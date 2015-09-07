@@ -2515,89 +2515,36 @@ static int load_eeprom_map(Gpx *gpx)
     return ERROR;
 }
 
+// send a result to the result handler
+static int gcodeResult(Gpx *gpx, const char *fmt, ...)
+{
+    int result = 0;
+    va_list args;
+
+    va_start(args, fmt);
+    if (gpx->resultHandler != NULL) {
+        result = gpx->resultHandler(gpx, gpx->callbackData, fmt, args);
+    }
+    else {
+        result = vfprintf(gpx->log, fmt, args);
+    }
+    va_end(args);
+    return result;
+}
+
 // find an eeprom mapping entry from the builtin mapping table
 static int find_builtin_eeprom_mapping(Gpx *gpx, char *name)
 {
     if(gpx->eepromMap == NULL)
         return -1;
 
-    int ie;
-    EepromEntry *pe = gpx->eepromMap->eepromEntries;
-    for(ie = 0; ie < gpx->eepromMap->eepromEntryCount; ie++, pe++) {
-        if(strcmp(name, pe->id) == 0)
-            return ie;
+    int iem;
+    EepromMapping *pem = gpx->eepromMap->eepromMappings;
+    for(iem = 0; iem < gpx->eepromMap->eepromMappingCount; iem++, pem++) {
+        if(strcmp(name, pem->id) == 0)
+            return iem;
     }
     return -1;
-}
-
-static int read_builtin_eeprom_mapping(Gpx *gpx, int ie)
-{
-    int rval = SUCCESS;
-
-    if (gpx->eepromMap == NULL) {
-        SHOW( fprintf(gpx->log, "(line %u) Unexpected error: read_builtin_eeprom_mapping called with NULL map" EOL, gpx->lineNumber) );
-        return ERROR;
-    }
-    // FUTURE should just implement Assert so stuff like this can be more DRY
-    if (ie < 0 || ie >= gpx->eepromMap->eepromEntryCount) {
-        SHOW( fprintf(gpx->log, "(line %u) Unexpected error: read_builtin_eeprom_mapping called with out of range index" EOL, gpx->lineNumber) );
-        return ERROR;
-    }
-
-    EepromEntry *pe = &gpx->eepromMap->eepromEntries[ie];
-    switch (pe->et) {
-        case et_bitfield:
-        case et_boolean:
-        case et_byte: {
-            unsigned char b;
-            CALL( read_eeprom_8(gpx, gpx->sio, pe->address, &b) );
-            VERBOSE( fprintf(gpx->log, "EEPROM byte %s @ 0x%x is %u (0x%x)\n", pe->id, pe->address, (unsigned)b, (unsigned)b) );
-            break;
-        }
-
-        case et_ushort: {
-            unsigned short us;
-            CALL( read_eeprom_16(gpx, gpx->sio, pe->address, &us) );
-            VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is %u (0x%x)\n", pe->id, pe->address, us, us) );
-            break;
-        }
-
-        case et_fixed: {
-            float n;
-            CALL( read_eeprom_fixed_16(gpx, gpx->sio, pe->address, &n) );
-            VERBOSE( fprintf(gpx->log, "EEPROM float %s @ 0x%x is %g\n", pe->id, pe->address, n) );
-            break;
-        }
-
-        case et_long:
-        case et_ulong: {
-            unsigned long ul;
-            CALL( read_eeprom_32(gpx, gpx->sio, pe->address, &ul) );
-            if (pe->et == et_long) {
-                VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is %d (0x%lx)\n", pe->id, pe->address, ul, ul) );
-            }
-            else {
-                VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is %u (0x%lx)\n", pe->id, pe->address, ul, ul) );
-            }
-            break;
-        }
-
-        case et_float: {
-            float n;
-            CALL( read_eeprom_float(gpx, gpx->sio, pe->address, &n) );
-            VERBOSE( fprintf(gpx->log, "EEPROM float %s @ 0x%x is %g\n", pe->id, pe->address, n); )
-            break;
-        }
-
-        case et_string:
-            // TODO assumes that all eeprom strings are 16 bytes long
-            // Today there is only one et_string in the eeprom which is 16 bytes
-            memset(gpx->sio->response.eeprom.buffer, 0, sizeof(gpx->sio->response.eeprom.buffer));
-            CALL( read_eeprom(gpx, pe->address, 16) );
-            VERBOSE( fprintf(gpx->log, "EEPROM string %s @ 0x%x is %s\n", pe->id, pe->address, gpx->sio->response.eeprom.buffer) );
-            break;
-    }
-    return SUCCESS;
 }
 
 // find an existing EEPROM mapping
@@ -2609,14 +2556,19 @@ static int find_eeprom_mapping(Gpx *gpx, char *name)
     int iem;
     EepromMapping *pem = vector_get(gpx->eepromMappingVector, 0);
     for(iem = 0; iem < gpx->eepromMappingVector->c; iem++, pem++) {
-        if(strcmp(name, pem->name) == 0)
+        if(strcmp(name, pem->id) == 0)
             return iem;
     }
     return -1;
 }
 
+static void init_eeprom_mapping(EepromMapping *pem)
+{
+    memset(pem, 0, sizeof(*pem));
+}
+
 // add an eeprom mapping
-static int add_eeprom_mapping(Gpx *gpx, char *name, unsigned address, int len)
+static int add_eeprom_mapping(Gpx *gpx, char *name, EepromType et, unsigned address, int len)
 {
     if(gpx->eepromMappingVector == NULL) {
         gpx->eepromMappingVector = vector_create(sizeof(EepromMapping), 10, 10);
@@ -2629,15 +2581,18 @@ static int add_eeprom_mapping(Gpx *gpx, char *name, unsigned address, int len)
         // update the existing
         EepromMapping *pem = vector_get(gpx->eepromMappingVector, iem);
         pem->address = address;
+        pem->et = et;
         pem->len = len;
         return iem;
     }
 
     EepromMapping em;
-    em.name = strdup(name);
-    if(em.name == NULL)
+    init_eeprom_mapping(&em);
+    em.id = strdup(name);
+    if(em.id == NULL)
         return -1;
     em.address = address;
+    em.et = et;
     em.len = len;
 
     return vector_append(gpx->eepromMappingVector, &em);
@@ -2650,51 +2605,78 @@ static int read_eeprom_name(Gpx *gpx, char *name)
 
     if (!gpx->flag.sioConnected || gpx->sio == NULL) {
         SHOW( fprintf(gpx->log, "(line %u) Error: eeprom read without serial connection\n", gpx->lineNumber) );
+        return ERROR;
     }
 
+    EepromMapping *pem = NULL;
     int iem = find_eeprom_mapping(gpx, name);
-    if(iem < 0) {
-        int ie = find_builtin_eeprom_mapping(gpx, name);
-        if (ie >= 0)
-            return read_builtin_eeprom_mapping(gpx, ie);
-
+    if(iem >= 0) {
+        pem = vector_get(gpx->eepromMappingVector, iem);
+    }
+    else if((iem = find_builtin_eeprom_mapping(gpx, name)) >= 0) {
+        if (gpx->eepromMap == NULL) {
+            SHOW( fprintf(gpx->log, "(line %u) Unexpected error: find_builtin_eeprom_mapping returned an invalid index %d.\n", gpx->lineNumber, iem) );
+            return ERROR;
+        }
+        pem = &gpx->eepromMap->eepromMappings[iem];
+    }
+    if(pem == NULL) {
         SHOW( fprintf(gpx->log, "(line %u) Error: eeprom mapping '%s' not defined\n", gpx->lineNumber, name) );
         return;
     }
 
-    EepromMapping *pem = vector_get(gpx->eepromMappingVector, iem);
-    if (pem == NULL) {
-        SHOW( fprintf(gpx->log, "(line %u) Unexpected failure: Unable to retrieve eeprom mapping '%s'\n", gpx->lineNumber, name); )
-        return;
-    }
-
-    switch (pem->len) {
-        case 1: {
+    const char *unit = pem->unit != NULL ? pem->unit : "";
+    switch (pem->et) {
+        case et_bitfield:
+        case et_boolean:
+        case et_byte: {
             unsigned char b;
             CALL( read_eeprom_8(gpx, gpx->sio, pem->address, &b) );
-            VERBOSE( fprintf(gpx->log, "EEPROM byte %s @ 0x%x is 0x%x\n", pem->name, pem->address, (unsigned)b) );
+            gcodeResult(gpx, "//echo: EEPROM byte %s @ 0x%x is %u %s (0x%x)\n", pem->id, pem->address, (unsigned)b, unit, (unsigned)b);
             break;
         }
-        case 2: {
+
+        case et_ushort: {
             unsigned short us;
             CALL( read_eeprom_16(gpx, gpx->sio, pem->address, &us) );
-            VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is 0x%x\n", pem->name, pem->address, us) );
+            gcodeResult(gpx, "//echo: EEPROM value %s @ 0x%x is %u %s (0x%x)\n", pem->id, pem->address, us, unit, us);
             break;
         }
-        case 4: {
+
+        case et_fixed: {
+            float n;
+            CALL( read_eeprom_fixed_16(gpx, gpx->sio, pem->address, &n) );
+            gcodeResult(gpx, "//echo: EEPROM float %s @ 0x%x is %g %s\n", pem->id, pem->address, n, unit);
+            break;
+        }
+
+        case et_long:
+        case et_ulong: {
             unsigned long ul;
             CALL( read_eeprom_32(gpx, gpx->sio, pem->address, &ul) );
-            VERBOSE( fprintf(gpx->log, "EEPROM value %s @ 0x%x is 0x%lx\n", pem->name, pem->address, ul); )
+            if (pem->et == et_long) {
+                gcodeResult(gpx, "//echo: EEPROM value %s @ 0x%x is %d %s (0x%lx)\n", pem->id, pem->address, ul, unit, ul);
+            }
+            else {
+                gcodeResult(gpx, "//echo: EEPROM value %s @ 0x%x is %u %s (0x%lx)\n", pem->id, pem->address, ul, unit, ul);
+            }
             break;
         }
-        case -4: {
+
+        case et_float: {
             float n;
             CALL( read_eeprom_float(gpx, gpx->sio, pem->address, &n) );
-            VERBOSE( fprintf(gpx->log, "EEPROM float %s @ 0x%x is %g\n", pem->name, pem->address, n); )
+            gcodeResult(gpx, "//echo: EEPROM float %s @ 0x%x is %g %s\n", pem->id, pem->address, unit, n);
             break;
         }
-        default:
-            SHOW( fprintf(gpx->log, "(line %u) Error: eeprom length %i not yet supported.\n", gpx->lineNumber, pem->len); )
+
+        case et_string:
+            memset(gpx->sio->response.eeprom.buffer, 0, sizeof(gpx->sio->response.eeprom.buffer));
+            int len = pem->len;
+            if(len > sizeof(gpx->sio->response.eeprom.buffer))
+                len = sizeof(gpx->sio->response.eeprom.buffer);
+            CALL( read_eeprom(gpx, pem->address, len) );
+            gcodeResult(gpx, "//echo: EEPROM string %s @ 0x%x is %s\n", pem->id, pem->address, gpx->sio->response.eeprom.buffer);
             break;
     }
     return SUCCESS;
@@ -2969,6 +2951,22 @@ static int do_tool_change(Gpx *gpx, int timeout) {
     return SUCCESS;
 }
 
+// FUTURE allow long names for types? like 'bitfield'
+EepromType eepromTypeFromTypeName(char *type_name)
+{
+    if(strlen(type_name) != 1)
+        return et_null;
+    switch(type_name[0]) {
+        case 'B': return et_byte;
+        case 'H': return et_ushort;
+        case 'i': return et_long;
+        case 'I': return et_ulong;
+        case 'f': return et_fixed;
+        case 's': return et_string;
+    }
+    return et_null;
+}
+
 // PARSER PRE-PROCESSOR
 
 // return the length of the given file in bytes
@@ -3038,21 +3036,6 @@ static char *normalize_comment(char *p) {
     return p;
 }
 
-// send a result to the result handler
-
-static int gcodeResult(Gpx *gpx, const char *fmt, ...)
-{
-    int result = 0;
-    va_list args;
-
-    if (gpx->resultHandler != NULL) {
-        va_start(args, fmt);
-        result = gpx->resultHandler(gpx, gpx->callbackData, fmt, args);
-        va_end(args);
-    }
-    return result;
-}
-
 // MACRO PARSER
 
 /* format
@@ -3091,6 +3074,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
 {
     int rval;
     char *name = NULL;
+    char *type_name = NULL;
     double z = 0.0;
     double diameter = 0.0;
     unsigned nozzle_temperature = 0;
@@ -3101,7 +3085,10 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         // trim any leading white space
         while(isspace(*p)) p++;
         if(isalpha(*p)) {
-            name = p;
+            if (name == NULL || !MACRO_IS("eeprom"))
+                name = p;
+            else
+                type_name = p;
             while(*p && (isalnum(*p) || *p == '_')) p++;
             if(*p) *p++ = 0;
         }
@@ -3389,19 +3376,23 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         }
     }
     // ;@eeprom <NAME> #<HEX> <LEN>
-    // Add a single eeprom mapping of <NAME> to <HEX> address with length LEN (0=string, 1=byte, 2=16-bit, 4=32-bit, -4=32-bit float)
+    // Add a single eeprom mapping of <NAME> to <HEX> address of type <TYPENAME> with length <LEN>
+    // <LEN> only applies to et_string
     else if(MACRO_IS("eeprom")) {
-        if(name) {
-            int len = (int)z;
-            if (len == 0 || len == 1 || len == 2 || len == 4 || len == -4) {
-                add_eeprom_mapping(gpx, name, LED, len);
+        if(name && type_name) {
+            EepromType et = eepromTypeFromTypeName(type_name);
+            if(et == et_null) {
+                SHOW( fprintf(gpx->log, "(line %u) Error: @eeprom macro unknown type name %s\n", gpx->lineNumber, type_name) );
             }
             else {
-                SHOW( fprintf(gpx->log, "(line %u) Error: @eeprom macro expects length of 0,1,2,4 or -4" EOL, gpx->lineNumber) );
+                int len = 0;
+                if(et == et_string)
+                    len = (int)z;
+                add_eeprom_mapping(gpx, name, et, LED, len);
             }
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Semantic error: @eeprom macro with missing name" EOL, gpx->lineNumber) );
+            SHOW( fprintf(gpx->log, "(line %u) Semantic error: @eeprom macro with missing name or typename" EOL, gpx->lineNumber) );
         }
     }
     // ;@eread <NAME>
@@ -3418,7 +3409,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     // Write eeprom setting <NAME> defined by earlier @eeprom macro
     else if(MACRO_IS("ewrite")) {
         if(name) {
-            // write_eeprom_name(gpx, name, &z);
+            write_eeprom_name(gpx, name, &z);
         }
         else {
             SHOW( fprintf(gpx->log, "(line %u) Error: @ewrite macro with missing name" EOL, gpx->lineNumber) );
