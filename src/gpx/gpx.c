@@ -2488,13 +2488,30 @@ static int read_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float *value)
     return SUCCESS;
 }
 
+// send a result to the result handler
+static int gcodeResult(Gpx *gpx, const char *fmt, ...)
+{
+    int result = 0;
+    va_list args;
+
+    va_start(args, fmt);
+    if (gpx->resultHandler != NULL) {
+        result = gpx->resultHandler(gpx, gpx->callbackData, fmt, args);
+    }
+    else if (gpx->flag.logMessages) {
+        result = vfprintf(gpx->log, fmt, args);
+    }
+    va_end(args);
+    return result;
+}
+
 // load a built-in eeprom map based on the firmware variant and version
 static int load_eeprom_map(Gpx *gpx)
 {
     int rval = SUCCESS;
     
     if (!gpx->flag.sioConnected || gpx->sio == NULL) {
-        SHOW( fprintf(gpx->log, "(line %u) Serial not connected: can't detect which eeprom map without asking the bot" EOL, gpx->lineNumber) );
+        gcodeResult(gpx, "(line %u) Serial not connected: can't detect which eeprom map without asking the bot" EOL, gpx->lineNumber);
         return ERROR;
     }
     CALL( get_advanced_version_number(gpx) );
@@ -2509,27 +2526,10 @@ static int load_eeprom_map(Gpx *gpx)
             return SUCCESS;
         }
     }
-    SHOW( fprintf(gpx->log, "(line %u) Unable to find a matching eeprom map for firmware variant = %u, version = %u" EOL, gpx->lineNumber,
-                (unsigned)gpx->sio->response.firmware.variant,
-                gpx->sio->response.firmware.version) );
+    gcodeResult(gpx, "(line %u) Unable to find a matching eeprom map for firmware variant = %u, version = %u" EOL, gpx->lineNumber,
+            (unsigned)gpx->sio->response.firmware.variant,
+            gpx->sio->response.firmware.version);
     return ERROR;
-}
-
-// send a result to the result handler
-static int gcodeResult(Gpx *gpx, const char *fmt, ...)
-{
-    int result = 0;
-    va_list args;
-
-    va_start(args, fmt);
-    if (gpx->resultHandler != NULL) {
-        result = gpx->resultHandler(gpx, gpx->callbackData, fmt, args);
-    }
-    else {
-        result = vfprintf(gpx->log, fmt, args);
-    }
-    va_end(args);
-    return result;
 }
 
 // find an eeprom mapping entry from the builtin mapping table
@@ -2598,14 +2598,11 @@ static int add_eeprom_mapping(Gpx *gpx, char *name, EepromType et, unsigned addr
     return vector_append(gpx->eepromMappingVector, &em);
 }
 
-// read an eeprom value from a defined mapping
-static int read_eeprom_name(Gpx *gpx, char *name)
+static EepromMapping *find_any_eeprom_mapping(Gpx *gpx, char *name)
 {
-    int rval = SUCCESS;
-
     if (!gpx->flag.sioConnected || gpx->sio == NULL) {
-        SHOW( fprintf(gpx->log, "(line %u) Error: eeprom read without serial connection\n", gpx->lineNumber) );
-        return ERROR;
+        gcodeResult(gpx, "(line %u) Error: eeprom operation without serial connection\n", gpx->lineNumber);
+        return NULL;
     }
 
     EepromMapping *pem = NULL;
@@ -2615,38 +2612,48 @@ static int read_eeprom_name(Gpx *gpx, char *name)
     }
     else if((iem = find_builtin_eeprom_mapping(gpx, name)) >= 0) {
         if (gpx->eepromMap == NULL) {
-            SHOW( fprintf(gpx->log, "(line %u) Unexpected error: find_builtin_eeprom_mapping returned an invalid index %d.\n", gpx->lineNumber, iem) );
-            return ERROR;
+            gcodeResult(gpx, "(line %u) Unexpected error: find_builtin_eeprom_mapping returned an invalid index %d.\n", gpx->lineNumber, iem);
+            return NULL;
         }
         pem = &gpx->eepromMap->eepromMappings[iem];
     }
     if(pem == NULL) {
-        SHOW( fprintf(gpx->log, "(line %u) Error: eeprom mapping '%s' not defined\n", gpx->lineNumber, name) );
-        return;
+        gcodeResult(gpx, "(line %u) Error: eeprom mapping '%s' not defined\n", gpx->lineNumber, name);
     }
+    return pem;
+}
+
+// read an eeprom value from a defined mapping
+static int read_eeprom_name(Gpx *gpx, char *name)
+{
+    int rval = SUCCESS;
+
+    EepromMapping *pem = find_any_eeprom_mapping(gpx, name);
+    if(pem == NULL)
+        return ERROR;
 
     const char *unit = pem->unit != NULL ? pem->unit : "";
-    switch (pem->et) {
+    switch(pem->et) {
         case et_bitfield:
         case et_boolean:
         case et_byte: {
             unsigned char b;
             CALL( read_eeprom_8(gpx, gpx->sio, pem->address, &b) );
-            gcodeResult(gpx, "//echo: EEPROM byte %s @ 0x%x is %u %s (0x%x)\n", pem->id, pem->address, (unsigned)b, unit, (unsigned)b);
+            gcodeResult(gpx, "EEPROM byte %s @ 0x%x is %u %s (0x%x)\n", pem->id, pem->address, (unsigned)b, unit, (unsigned)b);
             break;
         }
 
         case et_ushort: {
             unsigned short us;
             CALL( read_eeprom_16(gpx, gpx->sio, pem->address, &us) );
-            gcodeResult(gpx, "//echo: EEPROM value %s @ 0x%x is %u %s (0x%x)\n", pem->id, pem->address, us, unit, us);
+            gcodeResult(gpx, "EEPROM value %s @ 0x%x is %u %s (0x%x)\n", pem->id, pem->address, us, unit, us);
             break;
         }
 
         case et_fixed: {
             float n;
             CALL( read_eeprom_fixed_16(gpx, gpx->sio, pem->address, &n) );
-            gcodeResult(gpx, "//echo: EEPROM float %s @ 0x%x is %g %s\n", pem->id, pem->address, n, unit);
+            gcodeResult(gpx, "EEPROM float %s @ 0x%x is %g %s\n", pem->id, pem->address, n, unit);
             break;
         }
 
@@ -2654,11 +2661,11 @@ static int read_eeprom_name(Gpx *gpx, char *name)
         case et_ulong: {
             unsigned long ul;
             CALL( read_eeprom_32(gpx, gpx->sio, pem->address, &ul) );
-            if (pem->et == et_long) {
-                gcodeResult(gpx, "//echo: EEPROM value %s @ 0x%x is %d %s (0x%lx)\n", pem->id, pem->address, ul, unit, ul);
+            if(pem->et == et_long) {
+                gcodeResult(gpx, "EEPROM value %s @ 0x%x is %d %s (0x%lx)\n", pem->id, pem->address, ul, unit, ul);
             }
             else {
-                gcodeResult(gpx, "//echo: EEPROM value %s @ 0x%x is %u %s (0x%lx)\n", pem->id, pem->address, ul, unit, ul);
+                gcodeResult(gpx, "EEPROM value %s @ 0x%x is %u %s (0x%lx)\n", pem->id, pem->address, ul, unit, ul);
             }
             break;
         }
@@ -2666,7 +2673,7 @@ static int read_eeprom_name(Gpx *gpx, char *name)
         case et_float: {
             float n;
             CALL( read_eeprom_float(gpx, gpx->sio, pem->address, &n) );
-            gcodeResult(gpx, "//echo: EEPROM float %s @ 0x%x is %g %s\n", pem->id, pem->address, unit, n);
+            gcodeResult(gpx, "EEPROM float %s @ 0x%x is %g %s\n", pem->id, pem->address, unit, n);
             break;
         }
 
@@ -2676,15 +2683,94 @@ static int read_eeprom_name(Gpx *gpx, char *name)
             if(len > sizeof(gpx->sio->response.eeprom.buffer))
                 len = sizeof(gpx->sio->response.eeprom.buffer);
             CALL( read_eeprom(gpx, pem->address, len) );
-            gcodeResult(gpx, "//echo: EEPROM string %s @ 0x%x is %s\n", pem->id, pem->address, gpx->sio->response.eeprom.buffer);
+            gcodeResult(gpx, "EEPROM string %s @ 0x%x is %s\n", pem->id, pem->address, gpx->sio->response.eeprom.buffer);
+            break;
+
+        default:
+            gcodeResult(gpx, "(line %u) Error: type of %s not supported by @eread\n", gpx->lineNumber, pem->id);
             break;
     }
     return SUCCESS;
 }
 
 // write an eeprom value via a defined mapping
-static void write_eeprom_name(Gpx *gpx, char *name, void *value)
+static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned long hex, float value)
 {
+    int rval = SUCCESS;
+
+    EepromMapping *pem = find_any_eeprom_mapping(gpx, name);
+    if(pem == NULL)
+        return ERROR;
+
+    if((string_value != NULL) + (hex != 0) + (value != 0.0) > 1) {
+        gcodeResult(gpx, "(line %u) Error: only one value expected for @ewrite macro\n", gpx->lineNumber);
+        return ERROR;
+    }
+    if(pem->et != et_string) {
+        if (string_value != NULL) {
+            gcodeResult(gpx, "(line %u) Error: string value unexpected for eeprom setting %s\n", gpx->lineNumber, pem->id);
+            return ERROR;
+        }
+
+        if (value != 0.0)
+            hex = (unsigned long)value;
+
+    }
+
+    switch(pem->et) {
+        case et_bitfield:
+        case et_boolean:
+        case et_byte: {
+            if (hex > 255) {
+                gcodeResult(gpx, "(line %u) Error: parameter out of range for eeprom setting %s\n", gpx->lineNumber, pem->id);
+                return ERROR;
+            }
+            unsigned char b = (unsigned char)hex;
+            CALL( write_eeprom_8(gpx, gpx->sio, pem->address, b) );
+            break;
+        }
+
+        case et_ushort: {
+            if (hex > 65535) {
+                gcodeResult(gpx, "(line %u) Error: parameter out of range for eeprom setting %s\n", gpx->lineNumber, pem->id);
+                return ERROR;
+            }
+            unsigned short us = (unsigned short)hex;
+            CALL( write_eeprom_16(gpx, gpx->sio, pem->address, us) );
+            break;
+        }
+
+        case et_fixed: {
+            if(value == 0.0)
+                value = (float)hex;
+            CALL( write_eeprom_fixed_16(gpx, gpx->sio, pem->address, value) );
+            break;
+        }
+
+        case et_long:
+        case et_ulong:
+            CALL( write_eeprom_32(gpx, gpx->sio, pem->address, hex) );
+            break;
+
+        case et_float:
+            gcodeResult(gpx, "(line %u) Error: writing float type to eeprom not yet supported.\n", gpx->lineNumber);
+            break;
+
+        case et_string:
+            if(pem->len <= 0) {
+                gcodeResult(gpx, "(line %u) Error: can't write a string to zero length eeprom mapping\n", gpx->lineNumber);
+                break;
+            }
+            if(strlen(string_value) >= pem->len)
+                string_value[pem->len - 1] = 0;
+            CALL( write_eeprom(gpx, pem->address, string_value, strlen(string_value)) );
+            break;
+
+        default:
+            gcodeResult(gpx, "(line %u) Error: type of %s not supported by @ewrite\n", gpx->lineNumber, pem->id);
+            break;
+    }
+    return SUCCESS;
 }
 
 // DISPLAY TAG
@@ -3074,7 +3160,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
 {
     int rval;
     char *name = NULL;
-    char *type_name = NULL;
+    char *string_param = NULL;
     double z = 0.0;
     double diameter = 0.0;
     unsigned nozzle_temperature = 0;
@@ -3085,10 +3171,10 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         // trim any leading white space
         while(isspace(*p)) p++;
         if(isalpha(*p)) {
-            if (name == NULL || !MACRO_IS("eeprom"))
+            if (name == NULL || !MACRO_IS("eeprom") || !MACRO_IS("ewrite"))
                 name = p;
             else
-                type_name = p;
+                string_param = p;
             while(*p && (isalnum(*p) || *p == '_')) p++;
             if(*p) *p++ = 0;
         }
@@ -3379,10 +3465,10 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     // Add a single eeprom mapping of <NAME> to <HEX> address of type <TYPENAME> with length <LEN>
     // <LEN> only applies to et_string
     else if(MACRO_IS("eeprom")) {
-        if(name && type_name) {
-            EepromType et = eepromTypeFromTypeName(type_name);
+        if(name && string_param) {
+            EepromType et = eepromTypeFromTypeName(string_param);
             if(et == et_null) {
-                SHOW( fprintf(gpx->log, "(line %u) Error: @eeprom macro unknown type name %s\n", gpx->lineNumber, type_name) );
+                SHOW( fprintf(gpx->log, "(line %u) Error: @eeprom macro unknown type name %s\n", gpx->lineNumber, string_param) );
             }
             else {
                 int len = 0;
@@ -3409,7 +3495,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     // Write eeprom setting <NAME> defined by earlier @eeprom macro
     else if(MACRO_IS("ewrite")) {
         if(name) {
-            write_eeprom_name(gpx, name, &z);
+            write_eeprom_name(gpx, name, string_param, LED, z);
         }
         else {
             SHOW( fprintf(gpx->log, "(line %u) Error: @ewrite macro with missing name" EOL, gpx->lineNumber) );

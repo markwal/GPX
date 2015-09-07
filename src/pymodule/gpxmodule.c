@@ -799,6 +799,7 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
 
     gpx.flag.framingEnabled = 1;
     gpx.flag.sioConnected = 1;
+    gpx.sio = &tio.sio;
     gpx_register_callback(&gpx, (int (*)(Gpx*, void*, char*, size_t))translate_handler, &tio);
     gpx.resultHandler = (int (*)(Gpx*, void*, const char*, va_list))translate_result;
 
@@ -1063,6 +1064,7 @@ static PyObject *gpx_reset_ini(PyObject *self, PyObject *args)
     gpx.log = log;
     gpx.flag.framingEnabled = 1;
     gpx.flag.sioConnected = 1;
+    gpx.sio = &tio.sio;
     gpx.flag.verboseMode = verbose;
     gpx.flag.logMessages = 1;
 
