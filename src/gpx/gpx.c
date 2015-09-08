@@ -58,6 +58,23 @@
 
 #undef MACHINE_ARRAY
 
+// send a result to the result handler or log it if there isn't one
+static int gcodeResult(Gpx *gpx, const char *fmt, ...)
+{
+    int result = 0;
+    va_list args;
+
+    va_start(args, fmt);
+    if (gpx->resultHandler != NULL) {
+        result = gpx->resultHandler(gpx, gpx->callbackData, fmt, args);
+    }
+    else if (gpx->flag.logMessages) {
+        result = vfprintf(gpx->log, fmt, args);
+    }
+    va_end(args);
+    return result;
+}
+
 void gpx_list_machines(FILE *fp)
 {
      Machine **ptr = machines;
@@ -1250,7 +1267,7 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
         longestAxis = gpx->machine.x.steps_per_mm;
         // confirm machine compatibility
         if(direction != gpx->machine.x.endstop) {
-            SHOW( fprintf(gpx->log, "(line %u) Semantic warning: X axis homing to %s endstop" EOL, gpx->lineNumber, direction ? "maximum" : "minimum") );
+            gcodeResult(gpx, "(line %u) Semantic warning: X axis homing to %s endstop" EOL, gpx->lineNumber, direction ? "maximum" : "minimum");
         }
     }
     if(axes & Y_IS_SET) {
@@ -1262,7 +1279,7 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
             longestAxis = gpx->machine.y.steps_per_mm;
         }
         if(direction != gpx->machine.y.endstop) {
-            SHOW( fprintf(gpx->log, "(line %u) Semantic warning: Y axis homing to %s endstop" EOL, gpx->lineNumber, direction ? "maximum" : "minimum") );
+            gcodeResult(gpx, "(line %u) Semantic warning: Y axis homing to %s endstop" EOL, gpx->lineNumber, direction ? "maximum" : "minimum");
         }
     }
     if(axes & Z_IS_SET) {
@@ -1274,7 +1291,7 @@ static int home_axes(Gpx *gpx, unsigned axes, unsigned direction)
             longestAxis = gpx->machine.z.steps_per_mm;
         }
         if(direction != gpx->machine.z.endstop) {
-            SHOW( fprintf(gpx->log, "(line %u) Semantic warning: Z axis homing to %s endstop" EOL, gpx->lineNumber, direction ? "maximum" : "minimum") );
+            gcodeResult(gpx, "(line %u) Semantic warning: Z axis homing to %s endstop" EOL, gpx->lineNumber, direction ? "maximum" : "minimum");
         }
     }
 
@@ -1456,7 +1473,7 @@ static int set_valve(Gpx *gpx, unsigned extruder_id, unsigned state)
         return end_frame(gpx);
     }
     else if(gpx->flag.logMessages) {
-        SHOW( fprintf(gpx->log, "(line %u) Semantic warning: ignoring M126/M127 with Gen 4 extruder electronics" EOL, gpx->lineNumber) );
+        gcodeResult(gpx, "(line %u) Semantic warning: ignoring M126/M127 with Gen 4 extruder electronics" EOL, gpx->lineNumber);
     }
     return SUCCESS;
 }
@@ -1490,7 +1507,7 @@ static int set_abp(Gpx *gpx, unsigned extruder_id, unsigned state)
         return end_frame(gpx);
     }
     else if(gpx->flag.logMessages) {
-	 SHOW( fprintf(gpx->log, "(line %u) Semantic warning: command to toggle the Automated Build Platform's conveyor (ABP); not supported on non-Gen 3 and Gen 4 electronics" EOL, gpx->lineNumber) );
+	 gcodeResult(gpx, "(line %u) Semantic warning: command to toggle the Automated Build Platform's conveyor (ABP); not supported on non-Gen 3 and Gen 4 electronics" EOL, gpx->lineNumber);
     }
     return SUCCESS;
 }
@@ -2336,7 +2353,7 @@ static int add_filament(Gpx *gpx, char *filament_id, double diameter, unsigned t
             gpx->filament[index].LED = LED;
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Buffer overflow: too many @filament definitions (maximum = %i)" EOL, gpx->lineNumber, FILAMENT_MAX - 1) );
+            gcodeResult(gpx, "(line %u) Buffer overflow: too many @filament definitions (maximum = %i)" EOL, gpx->lineNumber, FILAMENT_MAX - 1);
             index = 0;
         }
     }
@@ -2350,7 +2367,7 @@ static int add_command_at(Gpx *gpx, double z, char *filament_id, unsigned nozzle
     int rval;
     int index = filament_id ? find_filament(gpx, filament_id) : 0;
     if(index < 0) {
-        SHOW( fprintf(gpx->log, "(line %u) Semantic error: @pause macro with undefined filament name '%s', use a @filament macro to define it" EOL, gpx->lineNumber, filament_id) );
+        gcodeResult(gpx, "(line %u) Semantic error: @pause macro with undefined filament name '%s', use a @filament macro to define it" EOL, gpx->lineNumber, filament_id);
         index = 0;
     }
     // insert command
@@ -2391,7 +2408,7 @@ static int add_command_at(Gpx *gpx, double z, char *filament_id, unsigned nozzle
         }
     }
     else {
-        SHOW( fprintf(gpx->log, "(line %u) Buffer overflow: too many @pause definitions (maximum = %i)" EOL, gpx->lineNumber, COMMAND_AT_MAX) );
+        gcodeResult(gpx, "(line %u) Buffer overflow: too many @pause definitions (maximum = %i)" EOL, gpx->lineNumber, COMMAND_AT_MAX);
     }
     return SUCCESS;
 }
@@ -2488,21 +2505,18 @@ static int read_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float *value)
     return SUCCESS;
 }
 
-// send a result to the result handler
-static int gcodeResult(Gpx *gpx, const char *fmt, ...)
+const char *get_firmware_variant(unsigned int variant_id)
 {
-    int result = 0;
-    va_list args;
-
-    va_start(args, fmt);
-    if (gpx->resultHandler != NULL) {
-        result = gpx->resultHandler(gpx, gpx->callbackData, fmt, args);
+    const char *variant = "Unknown";
+    switch(variant_id) {
+        case 0x01:
+            variant = "Makerbot";
+            break;
+        case 0x80:
+            variant = "Sailfish";
+            break;
     }
-    else if (gpx->flag.logMessages) {
-        result = vfprintf(gpx->log, fmt, args);
-    }
-    va_end(args);
-    return result;
+    return variant;
 }
 
 // load a built-in eeprom map based on the firmware variant and version
@@ -2523,11 +2537,12 @@ static int load_eeprom_map(Gpx *gpx)
                 gpx->sio->response.firmware.version >= pem->versionMin &&
                 gpx->sio->response.firmware.version <= pem->versionMax) {
             gpx->eepromMap = pem;
+            gcodeResult(gpx, "EEPROM map loaded for firmware %s version %d.\n", get_firmware_variant(pem->variant), gpx->sio->response.firmware.version);
             return SUCCESS;
         }
     }
-    gcodeResult(gpx, "(line %u) Unable to find a matching eeprom map for firmware variant = %u, version = %u" EOL, gpx->lineNumber,
-            (unsigned)gpx->sio->response.firmware.variant,
+    gcodeResult(gpx, "(line %u) Unable to find a matching eeprom map for firmware %s version = %u\n",
+            gpx->lineNumber, get_firmware_variant(gpx->sio->response.firmware.variant),
             gpx->sio->response.firmware.version);
     return ERROR;
 }
@@ -2727,6 +2742,7 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
             }
             unsigned char b = (unsigned char)hex;
             CALL( write_eeprom_8(gpx, gpx->sio, pem->address, b) );
+            gcodeResult(gpx, "EEPROM wrote 8-bits, %u to address 0x%x\n", (unsigned)b, pem->address);
             break;
         }
 
@@ -2737,6 +2753,7 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
             }
             unsigned short us = (unsigned short)hex;
             CALL( write_eeprom_16(gpx, gpx->sio, pem->address, us) );
+            gcodeResult(gpx, "EEPROM wrote 16-bits, %u to address 0x%x\n", us, pem->address);
             break;
         }
 
@@ -2744,12 +2761,14 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
             if(value == 0.0)
                 value = (float)hex;
             CALL( write_eeprom_fixed_16(gpx, gpx->sio, pem->address, value) );
+            gcodeResult(gpx, "EEPROM wrote fixed point 16-bits, %f to address 0x%x\n", value, pem->address);
             break;
         }
 
         case et_long:
         case et_ulong:
             CALL( write_eeprom_32(gpx, gpx->sio, pem->address, hex) );
+            gcodeResult(gpx, "EEPROM wrote 32-bits, %lu to address 0x%x\n", hex, pem->address);
             break;
 
         case et_float:
@@ -2763,7 +2782,8 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
             }
             if(strlen(string_value) >= pem->len)
                 string_value[pem->len - 1] = 0;
-            CALL( write_eeprom(gpx, pem->address, string_value, strlen(string_value)) );
+            CALL( write_eeprom(gpx, pem->address, string_value, strlen(string_value) + 1) );
+            gcodeResult(gpx, "EEPROM wrote %d bytes to address 0x%x\n", strlen(string_value) + 1, pem->address);
             break;
 
         default:
@@ -3171,7 +3191,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         // trim any leading white space
         while(isspace(*p)) p++;
         if(isalpha(*p)) {
-            if (name == NULL || !MACRO_IS("eeprom") || !MACRO_IS("ewrite"))
+            if (name == NULL || (!MACRO_IS("eeprom") && !MACRO_IS("ewrite")))
                 name = p;
             else
                 string_param = p;
@@ -3198,6 +3218,11 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             }
             if(*p) *p++ = 0;
         }
+        else if(*p == '"') {
+            string_param = ++p;
+            while(*p && *p != '"') p++;
+            if(*p) *p++ = 0;
+        }
         else if(*p == '#') {
             char *t = ++p;
             while(*p && !isspace(*p)) p++;
@@ -3215,7 +3240,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             }
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Syntax error: unrecognised macro parameter" EOL, gpx->lineNumber) );
+            gcodeResult(gpx, "(line %u) Syntax error: unrecognised macro parameter" EOL, gpx->lineNumber);
             break;
         }
     }
@@ -3223,7 +3248,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     if(MACRO_IS("machine") || MACRO_IS("printer") || MACRO_IS("slicer")) {
         if(name) {
             if(gpx_set_machine(gpx, name, 0)) {
-                SHOW( fprintf(gpx->log, "(line %u) Semantic error: @%s macro with unrecognised type '%s'" EOL, gpx->lineNumber, macro, name) );
+                gcodeResult(gpx, "(line %u) Semantic error: @%s macro with unrecognised type '%s'" EOL, gpx->lineNumber, macro, name);
             }
             gpx->override[A].packing_density = gpx->machine.nominal_packing_density;
             gpx->override[B].packing_density = gpx->machine.nominal_packing_density;
@@ -3236,7 +3261,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             if(gpx->machine.a.has_heated_build_platform) gpx->override[A].build_platform_temperature = build_platform_temperature;
             else if(gpx->machine.b.has_heated_build_platform) gpx->override[B].build_platform_temperature = build_platform_temperature;
             else {
-                SHOW( fprintf(gpx->log, "(line %u) Semantic warning: @%s macro cannot override non-existant heated build platform" EOL, gpx->lineNumber, macro) );
+                gcodeResult(gpx, "(line %u) Semantic warning: @%s macro cannot override non-existant heated build platform" EOL, gpx->lineNumber, macro);
             }
         }
         if(LED) {
@@ -3249,7 +3274,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         if(name) {
             if(NAME_IS("ditto")) {
                 if(gpx->machine.extruder_count == 1) {
-                    SHOW( fprintf(gpx->log, "(line %u) Semantic warning: ditto printing cannot access non-existant second extruder" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Semantic warning: ditto printing cannot access non-existant second extruder" EOL, gpx->lineNumber);
                     gpx->flag.dittoPrinting = 0;
                 }
                 else {
@@ -3258,11 +3283,11 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             }
             else if(NAME_IS("progress")) gpx->flag.buildProgress = 1;
             else {
-                SHOW( fprintf(gpx->log, "(line %u) Semantic error: @enable macro with unrecognised parameter '%s'" EOL, gpx->lineNumber, name) );
+                gcodeResult(gpx, "(line %u) Semantic error: @enable macro with unrecognised parameter '%s'" EOL, gpx->lineNumber, name);
             }
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Syntax error: @enable macro with missing parameter" EOL, gpx->lineNumber) );
+            gcodeResult(gpx, "(line %u) Syntax error: @enable macro with missing parameter" EOL, gpx->lineNumber);
         }
     }
     // ;@filament <NAME> <DIAMETER>mm <TEMP>c #<LED-COLOUR>
@@ -3271,7 +3296,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             add_filament(gpx, name, diameter, nozzle_temperature, LED);
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Semantic error: @filament macro with missing name" EOL, gpx->lineNumber) );
+            gcodeResult(gpx, "(line %u) Semantic error: @filament macro with missing name" EOL, gpx->lineNumber);
         }
     }
     // ;@right <NAME> <PACKING_DENSITY> <DIAMETER>mm <TEMP>c
@@ -3311,7 +3336,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             CALL( add_command_at(gpx, diameter, name, 0, 0) );
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Semantic error: @pause macro with missing zPos" EOL, gpx->lineNumber) );
+            gcodeResult(gpx, "(line %u) Semantic error: @pause macro with missing zPos" EOL, gpx->lineNumber);
         }
     }
     // ;@temp <ZPOS> <TEMP>c
@@ -3325,11 +3350,11 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
                 CALL( add_command_at(gpx, diameter, NULL, nozzle_temperature, build_platform_temperature) );
             }
             else {
-                SHOW( fprintf(gpx->log, "(line %u) Semantic error: @%s macro with missing zPos" EOL, gpx->lineNumber, macro) );
+                gcodeResult(gpx, "(line %u) Semantic error: @%s macro with missing zPos" EOL, gpx->lineNumber, macro);
             }
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Semantic error: @%s macro with missing temperature" EOL, gpx->lineNumber, macro) );
+            gcodeResult(gpx, "(line %u) Semantic error: @%s macro with missing temperature" EOL, gpx->lineNumber, macro);
         }
     }
     // ;@start <NAME> <TEMP>c
@@ -3414,7 +3439,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
                 VERBOSE( fputs(EOL, gpx->log) );
             }
             else {
-                SHOW( fprintf(gpx->log, "(line %u) Semantic error: @start with undefined filament name '%s', use a @filament macro to define it" EOL, gpx->lineNumber, name ? name : "") );
+                gcodeResult(gpx, "(line %u) Semantic error: @start with undefined filament name '%s', use a @filament macro to define it" EOL, gpx->lineNumber, name ? name : "");
             }
         }
     }
@@ -3427,7 +3452,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         if(NAME_IS("reprap")) gpx->flag.reprapFlavor = 1;
         else if(NAME_IS("makerbot")) gpx->flag.reprapFlavor = 0;
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Macro error: unrecognised GCODE flavor '%s'" EOL, gpx->lineNumber, name) );
+            gcodeResult(gpx, "(line %u) Macro error: unrecognised GCODE flavor '%s'" EOL, gpx->lineNumber, name);
         }
     }
     // ;@body
@@ -3450,12 +3475,12 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         // think this can ever be executed, what was it supposed to be for?
         gpx->flag.macrosEnabled = 0;
     }
-    // ;@loadmap
+    // ;@load_eeprom_map
     // Load the appropriate built-in eeprom map for the firmware flavor and version
-    else if(MACRO_IS("loadmap")) {
+    else if(MACRO_IS("load_eeprom_map")) {
         if (name) {
             // FUTURE <NAME> parameter to allow run-time loading of non-built-in maps
-            SHOW( fprintf(gpx->log, "(line %u) Error: custom eeprommap's not supported by this version of gpx" EOL, gpx->lineNumber) );
+            gcodeResult(gpx, "(line %u) Error: custom eeprommap's not supported by this version of gpx" EOL, gpx->lineNumber);
         }
         else {
             load_eeprom_map(gpx);
@@ -3468,7 +3493,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         if(name && string_param) {
             EepromType et = eepromTypeFromTypeName(string_param);
             if(et == et_null) {
-                SHOW( fprintf(gpx->log, "(line %u) Error: @eeprom macro unknown type name %s\n", gpx->lineNumber, string_param) );
+                gcodeResult(gpx, "(line %u) Error: @eeprom macro unknown type name %s\n", gpx->lineNumber, string_param);
             }
             else {
                 int len = 0;
@@ -3478,7 +3503,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             }
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Semantic error: @eeprom macro with missing name or typename" EOL, gpx->lineNumber) );
+            gcodeResult(gpx, "(line %u) Semantic error: @eeprom macro with missing name or typename" EOL, gpx->lineNumber);
         }
     }
     // ;@eread <NAME>
@@ -3488,7 +3513,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             read_eeprom_name(gpx, name);
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Semantic error: @eread macro with missing name" EOL, gpx->lineNumber) );
+            gcodeResult(gpx, "(line %u) Semantic error: @eread macro with missing name" EOL, gpx->lineNumber);
         }
     }
     // ;@ewrite <NAME> <VALUE>
@@ -3498,7 +3523,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             write_eeprom_name(gpx, name, string_param, LED, z);
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Error: @ewrite macro with missing name" EOL, gpx->lineNumber) );
+            gcodeResult(gpx, "(line %u) Error: @ewrite macro with missing name" EOL, gpx->lineNumber);
         }
     }
     // ;@debug <COMMAND>
@@ -3809,7 +3834,7 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         else if(PROPERTY_IS("machine_type")) {
             // only load/clobber the on-board machine definition if the one specified is different
             if(gpx_set_machine(gpx, value, 0)) {
-                SHOW( fprintf(gpx->log, "(line %u) Configuration error: unrecognised machine type '%s'" EOL, gpx->lineNumber, value) );
+                gcodeResult(gpx, "(line %u) Configuration error: unrecognised machine type '%s'" EOL, gpx->lineNumber, value);
                 return gpx->lineNumber;
             }
             gpx->override[A].packing_density = gpx->machine.nominal_packing_density;
@@ -3820,7 +3845,7 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
             if(VALUE_IS("reprap")) gpx->flag.reprapFlavor = 1;
             else if(VALUE_IS("makerbot")) gpx->flag.reprapFlavor = 0;
             else {
-                SHOW( fprintf(gpx->log, "(line %u) Configuration error: unrecognised GCODE flavor '%s'" EOL, gpx->lineNumber, value) );
+                gcodeResult(gpx, "(line %u) Configuration error: unrecognised GCODE flavor '%s'" EOL, gpx->lineNumber, value);
                 return gpx->lineNumber;
             }
         }
@@ -3925,13 +3950,13 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         else goto SECTION_ERROR;
     }
     else {
-        SHOW( fprintf(gpx->log, "(line %u) Configuration error: unrecognised section [%s]" EOL, gpx->lineNumber, section) );
+        gcodeResult(gpx, "(line %u) Configuration error: unrecognised section [%s]" EOL, gpx->lineNumber, section);
         return gpx->lineNumber;
     }
     return SUCCESS;
 
 SECTION_ERROR:
-    SHOW( fprintf(gpx->log, "(line %u) Configuration error: [%s] section contains unrecognised property %s = %s" EOL, gpx->lineNumber, section, property, value) );
+    gcodeResult(gpx, "(line %u) Configuration error: [%s] section contains unrecognised property %s = %s" EOL, gpx->lineNumber, section, property, value);
     return gpx->lineNumber;
 }
 
@@ -4060,7 +4085,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
         digits = p;
         p = normalize_word(p);
         if(*p == 0) {
-            SHOW( fprintf(gpx->log, "(line %u) Syntax error: line number command word 'N' is missing digits" EOL, gpx->lineNumber) );
+            gcodeResult(gpx, "(line %u) Syntax error: line number command word 'N' is missing digits" EOL, gpx->lineNumber);
             next_line = gpx->lineNumber + 1;
         }
         else {
@@ -4175,9 +4200,18 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->command.t = atoi(digits);
                     gpx->command.flag |= T_IS_SET;
                     break;
+                    // Nnnn      Line number
+                case 'n':
+                case 'N':
+                    // this line's number was already stripped off, so this should
+                    // be a parameter to an M110 which GPX does not currently implement
+                    // so we'll silently ignore
+                    if ((gpx->command.flag & M_IS_SET) && gpx->command.m == 110)
+                        break;
+                    // fallthrough
 
                 default:
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax warning: unrecognised command word '%c'" EOL, gpx->lineNumber, c) );
+                    gcodeResult(gpx, "(line %u) Syntax warning: unrecognised command word '%c'" EOL, gpx->lineNumber, c);
             }
         }
         else if(*p == ';') {
@@ -4221,7 +4255,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             char *e = strchr(p + 1, ')');
             // check for nested comment
             if(s && e && s < e) {
-                SHOW( fprintf(gpx->log, "(line %u) Syntax warning: nested comment detected" EOL, gpx->lineNumber) );
+                gcodeResult(gpx, "(line %u) Syntax warning: nested comment detected" EOL, gpx->lineNumber);
                 e = strrchr(p + 1, ')');
             }
             if(e) {
@@ -4231,7 +4265,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 p = e + 1;
             }
             else {
-                SHOW( fprintf(gpx->log, "(line %u) Syntax warning: comment is missing closing ')'" EOL, gpx->lineNumber) );
+                gcodeResult(gpx, "(line %u) Syntax warning: comment is missing closing ')'" EOL, gpx->lineNumber);
                 gpx->command.comment = normalize_comment(p + 1);
                 gpx->command.flag |= COMMENT_IS_SET;
                 *p = 0;
@@ -4247,7 +4281,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             break;
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Syntax error: unrecognised gcode '%s'" EOL, gpx->lineNumber, p) );
+            gcodeResult(gpx, "(line %u) Syntax error: unrecognised gcode '%s'" EOL, gpx->lineNumber, p);
             break;
         }
     }
@@ -4262,7 +4296,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             gpx->target.extruder = tool_id;
         }
         else {
-            SHOW( fprintf(gpx->log, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, gpx->lineNumber, tool_id) );
+            gcodeResult(gpx, "(line %u) Semantic warning: T%u cannot select non-existant extruder" EOL, gpx->lineNumber, tool_id);
         }
     }
 
@@ -4354,7 +4388,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax error: G4 is missing delay parameter, use Pn where n is milliseconds" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Syntax error: G4 is missing delay parameter, use Pn where n is milliseconds" EOL, gpx->lineNumber);
                 }
                 break;
 
@@ -4393,7 +4427,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     }
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax error: G10 is missing coordiante system, use Pn where n is 1-6" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Syntax error: G10 is missing coordiante system, use Pn where n is 1-6" EOL, gpx->lineNumber);
                 }
                 break;
 
@@ -4505,7 +4539,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->flag.relativeCoordinates = 1;
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Semantic error: G91 switch to relative positioning prior to first absolute move" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Semantic error: G91 switch to relative positioning prior to first absolute move" EOL, gpx->lineNumber);
                     return ERROR;
                 }
                 break;
@@ -4569,7 +4603,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 gpx->excess.b = 0;
                 break;
             default:
-                SHOW( fprintf(gpx->log, "(line %u) Syntax warning: unsupported gcode command 'G%u'" EOL, gpx->lineNumber, gpx->command.g) );
+                gcodeResult(gpx, "(line %u) Syntax warning: unsupported gcode command 'G%u'" EOL, gpx->lineNumber, gpx->command.g);
         }
     }
     else if(gpx->command.flag & M_IS_SET) {
@@ -4756,7 +4790,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     command_emitted++;
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax error: M70 is missing message text, use (text) where text is message" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Syntax error: M70 is missing message text, use (text) where text is message" EOL, gpx->lineNumber);
                 }
                 break;
 
@@ -4782,7 +4816,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     command_emitted++;
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax warning: M72 is missing song number, use Pn where n is 0-2" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Syntax warning: M72 is missing song number, use Pn where n is 0-2" EOL, gpx->lineNumber);
                 }
                 break;
 
@@ -4828,7 +4862,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     }
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax warning: M73 is missing build percentage, use Pn where n is 0-100" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Syntax warning: M73 is missing build percentage, use Pn where n is 0-100" EOL, gpx->lineNumber);
                 }
                 break;
 
@@ -4904,7 +4938,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     }
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax error: M104 is missing temperature, use Sn where n is 0-280" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Syntax error: M104 is missing temperature, use Sn where n is 0-280" EOL, gpx->lineNumber);
                 }
                 break;
 
@@ -5011,7 +5045,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     }
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax error: M108 is missing motor RPM, use Rn where n is 0-5" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Syntax error: M108 is missing motor RPM, use Rn where n is 0-5" EOL, gpx->lineNumber);
                 }
 #endif
                 break;
@@ -5090,7 +5124,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                         }
                     }
                     else {
-                        SHOW( fprintf(gpx->log, "(line %u) Syntax error: M109 is missing temperature, use Sn where n is 0-280" EOL, gpx->lineNumber) );
+                        gcodeResult(gpx, "(line %u) Syntax error: M109 is missing temperature, use Sn where n is 0-280" EOL, gpx->lineNumber);
                     }
                     break;
                 }
@@ -5115,15 +5149,15 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                             gpx->tool[tool_id].build_platform_temperature = temperature;
                         }
                         else {
-                            SHOW( fprintf(gpx->log, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, gpx->lineNumber, gpx->command.m, tool_id) );
+                            gcodeResult(gpx, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, gpx->lineNumber, gpx->command.m, tool_id);
                         }
                     }
                     else {
-                        SHOW( fprintf(gpx->log, "(line %u) Syntax error: M%u is missing temperature, use Sn where n is 0-120" EOL, gpx->lineNumber, gpx->command.m) );
+                        gcodeResult(gpx, "(line %u) Syntax error: M%u is missing temperature, use Sn where n is 0-120" EOL, gpx->lineNumber, gpx->command.m);
                     }
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, gpx->lineNumber, gpx->command.m) );
+                    gcodeResult(gpx, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, gpx->lineNumber, gpx->command.m);
                 }
                 break;
 
@@ -5175,7 +5209,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     command_emitted++;
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax error: M131 is missing axes, use X Y Z A B" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Syntax error: M131 is missing axes, use X Y Z A B" EOL, gpx->lineNumber);
                 }
                 break;
 
@@ -5190,7 +5224,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->excess.b = 0;
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax error: M132 is missing axes, use X Y Z A B" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Syntax error: M132 is missing axes, use X Y Z A B" EOL, gpx->lineNumber);
                 }
                 break;
 
@@ -5251,7 +5285,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                             gpx->tool[tool_id].build_platform_temperature = temperature;
                         }
                         else {
-                            SHOW( fprintf(gpx->log, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, gpx->lineNumber, gpx->command.m, tool_id) );
+                            gcodeResult(gpx, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, gpx->lineNumber, gpx->command.m, tool_id);
                         }
                     }
 
@@ -5266,11 +5300,11 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                         command_emitted++;
                     }
                     else {
-                        SHOW( fprintf(gpx->log, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, gpx->lineNumber, gpx->command.m, tool_id) );
+                        gcodeResult(gpx, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform T%u" EOL, gpx->lineNumber, gpx->command.m, tool_id);
                     }
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, gpx->lineNumber, gpx->command.m) );
+                    gcodeResult(gpx, "(line %u) Semantic warning: M%u cannot select non-existant heated build platform" EOL, gpx->lineNumber, gpx->command.m);
                 }
                 break;
             }
@@ -5345,7 +5379,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     CALL( pause_at_zpos(gpx, z) );
                 }
                 else {
-                    SHOW( fprintf(gpx->log, "(line %u) Syntax warning: M322 is missing Z axis" EOL, gpx->lineNumber) );
+                    gcodeResult(gpx, "(line %u) Syntax warning: M322 is missing Z axis" EOL, gpx->lineNumber);
                 }
                 command_emitted++;
                 break;
@@ -5370,7 +5404,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 // M502 - Revert to default "factory settings"
                 // M503 - Print/log current settings
             default:
-                SHOW( fprintf(gpx->log, "(line %u) Syntax warning: unsupported mcode command 'M%u'" EOL, gpx->lineNumber, gpx->command.m) );
+                gcodeResult(gpx, "(line %u) Syntax warning: unsupported mcode command 'M%u'" EOL, gpx->lineNumber, gpx->command.m);
         }
     }
     // X,Y,Z,A,B,E,F
@@ -5492,7 +5526,7 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
             }
             if(strlen(gpx->buffer.in) == BUFFER_MAX - 1) {
                 overflow = 1;
-                SHOW( fprintf(gpx->log, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX) );
+                gcodeResult(gpx, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX);
             }
 
             rval = gpx_convert_line(gpx, gpx->buffer.in);
@@ -5895,16 +5929,8 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             read_16(gpx);
 
             if(gpx->flag.verboseMode && gpx->flag.logMessages) {
-                char *varient = "Unknown";
-                switch(sio->response.firmware.variant) {
-                    case 0x01:
-                        varient = "Makerbot";
-                        break;
-                    case 0x80:
-                        varient = "Sailfish";
-                        break;
-                }
-                fprintf(gpx->log, "%s firmware v%u.%u" EOL, varient, sio->response.firmware.version / 100, sio->response.firmware.version % 100);
+                fprintf(gpx->log, "%s firmware v%u.%u" EOL, get_firmware_variant(sio->response.firmware.variant),
+                        sio->response.firmware.version / 100, sio->response.firmware.version % 100);
             }
             break;
     }
@@ -6169,7 +6195,7 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
             }
             if(strlen(gpx->buffer.in) == BUFFER_MAX - 1) {
                 overflow = 1;
-                SHOW( fprintf(gpx->log, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX) );
+                gcodeResult(gpx, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX);
             }
 
             rval = gpx_convert_line(gpx, gpx->buffer.in);
@@ -6241,7 +6267,7 @@ static int eeprom_set_property(Gpx *gpx, const char* section, const char* proper
     unsigned int address = (unsigned int)strtol(property, NULL, 0);
 
     if (gpx->sio == NULL) {
-        SHOW( fprintf(gpx->log, "(line %u) Error: eeprom_set_property only supported when connected via serial" EOL, gpx->lineNumber) );
+        gcodeResult(gpx, "(line %u) Error: eeprom_set_property only supported when connected via serial" EOL, gpx->lineNumber);
         return ERROR;
     }
 
@@ -6270,7 +6296,7 @@ static int eeprom_set_property(Gpx *gpx, const char* section, const char* proper
         CALL( write_eeprom(gpx, address, value, length) );
     }
     else {
-        SHOW( fprintf(gpx->log, "(line %u) Configuration error: unrecognised section [%s]" EOL, gpx->lineNumber, section) );
+        gcodeResult(gpx, "(line %u) Configuration error: unrecognised section [%s]" EOL, gpx->lineNumber, section);
         return gpx->lineNumber;
     }
     return SUCCESS;

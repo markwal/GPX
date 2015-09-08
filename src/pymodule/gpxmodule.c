@@ -583,7 +583,7 @@ static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
         }
         return 0;
     }
-    if (tio->cur == 2)
+    if (tio->cur > 0 && tio->translation[tio->cur - 1] != '\n') 
        len = tio_printf(tio, "\n"); 
     return len + tio_printf(tio, "// echo: ") + tio_vprintf(tio, fmt, ap);
 }
@@ -673,6 +673,8 @@ static PyObject *gpx_return_translation(int rval)
             return NULL;
     }
 
+    if (tio.cur > 0 && tio.translation[tio.cur - 1] == '\n')
+        tio.translation[tio.cur - 1] = 0;
     fflush(gpx.log);
     return Py_BuildValue("s", tio.translation);
 }
