@@ -3962,6 +3962,7 @@ SECTION_ERROR:
 
 int gpx_load_config(Gpx *gpx, const char *filename)
 {
+    VERBOSE( fprintf(gpx->log, "Loading config: %s\n", filename) );
     if (gpx->iniPath != NULL) {
         free(gpx->iniPath);
         gpx->iniPath = NULL;
@@ -3971,7 +3972,11 @@ int gpx_load_config(Gpx *gpx, const char *filename)
         gpx->iniPath = strdup(dirname(t));
         free(t);
     }
-    return ini_parse(gpx, filename, gpx_set_property);
+
+    int rval = ini_parse(gpx, filename, gpx_set_property);
+    if (rval == 0)
+        SHOW( fprintf(gpx->log, "Loaded config: %s\n", filename) );
+    return rval;
 }
 
 void gpx_register_callback(Gpx *gpx, int (*callbackHandler)(Gpx*, void*, char*, size_t), void *callbackData)

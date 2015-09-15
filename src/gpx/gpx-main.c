@@ -301,6 +301,54 @@ void sio_open(const char *filename, speed_t baud_rate)
 
 #endif // SERIAL_SUPPORT
 
+int gpx_find_ini(Gpx *gpx, char *argv0)
+{
+    char fbuf[1024];
+    char *home;
+    int i;
+
+#if defined(_WIN32) || defined(_WIN64)
+    // if present, read the %appdata%/local/GpxUi/gpx.ini
+    home = getenv("LOCALAPPDATA");
+    if(home && home[0]) {
+        snprintf(fbuf, sizeof(fbuf), "%s/GpxUi/gpx.ini", home);
+        if(!access(fbuf, R_OK)) {
+            i = gpx_load_config(gpx, fbuf);
+            if(i >= 0)
+                return i;
+        }
+    }
+#endif
+
+    home = getenv("HOME");
+    if(home && home[0]) {
+        snprintf(fbuf, sizeof(fbuf), "%s/.gpx.ini", home);
+        if (!access(fbuf, R_OK)) {
+            i = gpx_load_config(gpx, fbuf);
+            if(i >= 0)
+                return i;
+        }
+    }
+
+    // if present, read the gpx.ini file from the program directory
+    // TODO this doesn't really work on Windows because argv0 doesn't necessarily
+    // have the full path
+    // check for .exe extension
+    const char *dot = strrchr(argv0, '.');
+    size_t len = 0;
+    if(dot && !strcasecmp(dot, ".exe")) {
+        len = dot - argv0;
+    } else {
+        len = strlen(argv0);
+    }
+
+    if(len + 5 > sizeof(fbuf))
+        return -1;
+    memcpy(fbuf, argv0, len);
+    strcpy(fbuf + len, ".ini");
+    return gpx_load_config(gpx, fbuf);
+}
+
 // GPX program entry point
 
 int main(int argc, char * const argv[])
@@ -319,7 +367,6 @@ int main(int argc, char * const argv[])
     char *otherdelim = NULL;
 #endif
     char *filename;
-    int ini_loaded = 0;
     speed_t baud_rate = B115200;
     int make_temp_config = 0;
 
@@ -337,60 +384,11 @@ int main(int argc, char * const argv[])
     gpx_initialize(&gpx, 1);
 
     // READ GPX.INI
-
-    // if present, read the ~/.gpx.ini
-    {
-        const char *home = getenv("HOME");
-	if (home && home[0]) {
-	     char fbuf[1024];
-	     snprintf(fbuf, sizeof(fbuf), "%s/.gpx.ini", home);
-	     if (!access(fbuf, R_OK))
-	     {
-		  i = gpx_load_config(&gpx, fbuf);
-		  if(i == 0) {
-		       ini_loaded = -1;
-		       if(gpx.flag.verboseMode) fprintf(stderr, "Loaded config: %s" EOL, fbuf);
-		  }
-		  else if (i > 0) {
-		       fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, fbuf);
-		       usage(1);
-		       goto done;
-		  }
-	     }
-	}
-    }
-
-    // if present, read the gpx.ini file from the program directory
-    if(!ini_loaded) {
-	char *appname;
-        // check for .exe extension
-        const char *dot = strrchr(argv[0], '.');
-        if(dot && !strcasecmp(dot,".exe")) {
-            long l = dot - argv[0];
-            memcpy(gpx.buffer.out, argv[0], l);
-            appname = gpx.buffer.out + l;
-        }
-        // or just append .ini if no extension is present
-        else {
-            size_t sl = strlen(argv[0]);
-            memcpy(gpx.buffer.out, argv[0], sl);
-            appname = gpx.buffer.out + sl;
-        }
-        *appname++ = '.';
-        *appname++ = 'i';
-        *appname++ = 'n';
-        *appname++ = 'i';
-        *appname++ = '\0';
-        appname = gpx.buffer.out;
-        i = gpx_load_config(&gpx, appname);
-        if(i == 0) {
-            if(gpx.flag.verboseMode) fprintf(stderr, "Loaded config: %s" EOL, appname);
-        }
-        else if (i > 0) {
-	    fprintf(stderr, "(line %u) Configuration syntax error in %s: unrecognised paremeters" EOL, i, appname);
-            usage(1);
-	    goto done;
-        }
+    i = gpx_find_ini(&gpx, argv[0]);
+    if (i > 0) {
+        fprintf(stderr, "(line %u) Configuration syntax error: unrecognised paremeters" EOL, i);
+        usage(1);
+        goto done;
     }
 
     // READ COMMAND LINE
@@ -581,7 +579,6 @@ int main(int argc, char * const argv[])
     // READ CONFIGURATION
 
     if(config) {
-        if(gpx.flag.verboseMode) fprintf(gpx.log, "Loading custom config: %s" EOL, config);
         i = gpx_load_config(&gpx, config);
         if (i < 0) {
             fprintf(stderr, "Command line error: cannot load configuration file '%s'" EOL, config);
