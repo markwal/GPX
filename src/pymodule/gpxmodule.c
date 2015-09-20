@@ -286,7 +286,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
     unsigned command;
     unsigned extruder;
 
-    if (tio->flag.okPending && (gpx->command.flag & (M_IS_SET | T_IS_SET | G_IS_SET))) {
+    if (tio->flag.okPending) {
         tio->flag.okPending = 0;
         tio_printf(tio, "ok");
         // ok means: I'm ready for another command, not necessarily that everything worked
@@ -583,6 +583,11 @@ static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
         }
         return 0;
     }
+    if (tio->flag.okPending) {
+        tio->flag.okPending = 0;
+        tio_printf(tio, "ok");
+        // ok means: I'm ready for another command, not necessarily that everything worked
+    }
     if (tio->cur > 0 && tio->translation[tio->cur - 1] != '\n') 
        len = tio_printf(tio, "\n"); 
     return len + tio_printf(tio, "// echo: ") + tio_vprintf(tio, fmt, ap);
@@ -860,8 +865,7 @@ static PyObject *gpx_write(PyObject *self, PyObject *args)
 
     tio.cur = 0;
     tio.translation[0] = 0;
-    if (!tio.waiting)
-        tio.flag.okPending = 1;
+    tio.flag.okPending = !tio.waiting;
     PyObject *rval = gpx_write_string(line);
     tio.flag.okPending = 0;
     return rval;
