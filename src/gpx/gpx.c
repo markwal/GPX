@@ -435,6 +435,7 @@ static float read_fixed_16(Gpx *gpx)
     unsigned char b[2];
     b[0] = *gpx->buffer.ptr++;
     b[1] = *gpx->buffer.ptr++;
+    gcodeResult(gpx, "(line %u) read_fixed_16 %u, %u" EOL, gpx->lineNumber, (unsigned)b[0], (unsigned)b[1]);
     return ((float)b[0]) + ((float)b[1])/256.0;
 }
 
@@ -1053,7 +1054,7 @@ int is_ready(Gpx *gpx)
 
 // 12 - Read from EEPROM
 
-static int read_eeprom(Gpx *gpx, unsigned address, unsigned length)
+int read_eeprom(Gpx *gpx, unsigned address, unsigned length)
 {
     begin_frame(gpx);
 
@@ -1070,7 +1071,7 @@ static int read_eeprom(Gpx *gpx, unsigned address, unsigned length)
 
 // 13 - Write to EEPROM
 
-static int write_eeprom(Gpx *gpx, unsigned address, char *data, unsigned length)
+int write_eeprom(Gpx *gpx, unsigned address, char *data, unsigned length)
 {
     begin_frame(gpx);
 
@@ -2415,7 +2416,7 @@ static int add_command_at(Gpx *gpx, double z, char *filament_id, unsigned nozzle
 
 // EEPROM MACRO FUNCTIONS
 
-static int write_eeprom_8(Gpx *gpx, Sio *sio, unsigned address, unsigned char value)
+int write_eeprom_8(Gpx *gpx, Sio *sio, unsigned address, unsigned char value)
 {
     int rval;
     gpx->buffer.ptr = sio->response.eeprom.buffer;
@@ -2424,7 +2425,7 @@ static int write_eeprom_8(Gpx *gpx, Sio *sio, unsigned address, unsigned char va
     return SUCCESS;
 }
 
-static int read_eeprom_8(Gpx *gpx, Sio *sio, unsigned address, unsigned char *value)
+int read_eeprom_8(Gpx *gpx, Sio *sio, unsigned address, unsigned char *value)
 {
     int rval;
     CALL( read_eeprom(gpx, address, 2) );
@@ -2433,7 +2434,7 @@ static int read_eeprom_8(Gpx *gpx, Sio *sio, unsigned address, unsigned char *va
     return SUCCESS;
 }
 
-static int write_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short value)
+int write_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short value)
 {
     int rval;
     gpx->buffer.ptr = sio->response.eeprom.buffer;
@@ -2442,7 +2443,7 @@ static int write_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short 
     return SUCCESS;
 }
 
-static int read_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short *value)
+int read_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short *value)
 {
     int rval;
     CALL( read_eeprom(gpx, address, 2) );
@@ -2451,7 +2452,7 @@ static int read_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short *
     return SUCCESS;
 }
 
-static int write_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float value)
+int write_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float value)
 {
     int rval;
     gpx->buffer.ptr = sio->response.eeprom.buffer;
@@ -2460,7 +2461,7 @@ static int write_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float val
     return SUCCESS;
 }
 
-static int read_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float *value)
+int read_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float *value)
 {
     int rval;
     CALL( read_eeprom(gpx, address, 2) );
@@ -2469,7 +2470,7 @@ static int read_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float *val
     return SUCCESS;
 }
 
-static int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned value)
+int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned value)
 {
     int rval;
     gpx->buffer.ptr = sio->response.eeprom.buffer;
@@ -2478,7 +2479,7 @@ static int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned value)
     return SUCCESS;
 }
 
-static int read_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long *value)
+int read_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long *value)
 {
     int rval;
     CALL( read_eeprom(gpx, address, 4) );
@@ -2487,7 +2488,7 @@ static int read_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long *v
     return SUCCESS;
 }
 
-static int write_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float value)
+int write_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float value)
 {
     int rval;
     gpx->buffer.ptr = sio->response.eeprom.buffer;
@@ -2496,7 +2497,7 @@ static int write_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float value)
     return SUCCESS;
 }
 
-static int read_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float *value)
+int read_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float *value)
 {
     int rval;
     CALL( read_eeprom(gpx, address, 4) );
@@ -2520,7 +2521,7 @@ const char *get_firmware_variant(unsigned int variant_id)
 }
 
 // load a built-in eeprom map based on the firmware variant and version
-static int load_eeprom_map(Gpx *gpx)
+int load_eeprom_map(Gpx *gpx)
 {
     int rval = SUCCESS;
     
@@ -2613,7 +2614,7 @@ static int add_eeprom_mapping(Gpx *gpx, char *name, EepromType et, unsigned addr
     return vector_append(gpx->eepromMappingVector, &em);
 }
 
-static EepromMapping *find_any_eeprom_mapping(Gpx *gpx, char *name)
+EepromMapping *find_any_eeprom_mapping(Gpx *gpx, char *name)
 {
     if (!gpx->flag.sioConnected || gpx->sio == NULL) {
         gcodeResult(gpx, "(line %u) Error: eeprom operation without serial connection\n", gpx->lineNumber);
@@ -4446,6 +4447,8 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             case 28: {
                 unsigned endstop_max = 0;
                 unsigned endstop_min = 0;
+                // none means all
+                if((gpx->command.flag & gpx->axis.mask) == 0) gpx->command.flag |= XYZ_BIT_MASK;
                 if(gpx->command.flag & F_IS_SET) gpx->current.feedrate = gpx->command.f;
 
                 if(gpx->command.flag & X_IS_SET) {

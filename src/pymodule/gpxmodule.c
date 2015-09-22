@@ -14,6 +14,7 @@
 #endif
 
 #define USE_GPX_SIO_OPEN
+#include "eeprominfo.h"
 #include "gpx.h"
 
 // TODO at the moment the module is taking twice as much memory for Gpx as it
@@ -146,6 +147,7 @@ static int connected = 0;
 // Some custom python exceptions
 static PyObject *pyerrBufferOverflow;
 static PyObject *pyerrTimeout;
+static PyObject *pyerrUnknownFirmware;
 
 static int tio_vprintf(Tio *tio, const char *fmt, va_list ap)
 {
@@ -1238,6 +1240,98 @@ static PyObject *gpx_abort(PyObject *self, PyObject *args)
     return set_build_aborted_state(&gpx);
 }
 
+// def read_eeprom(id)
+static PyObject *gpx_read_eeprom(PyObject *self, PyObject *args)
+{
+    if (!connected)
+        return PyErr_NotConnected();
+
+    if (gpx.eepromMap == NULL && load_eeprom_map(&gpx) != SUCCESS) {
+        PyErr_SetString(pyerrUnknownFirmware, "No EEPROM map found for firmware type and/or version");
+        return NULL;
+    }
+
+    char *id;
+    if (!PyArg_ParseTuple(args, "s", &id))
+        return NULL;
+
+    if (gpx.flag.verboseMode) fprintf(gpx.log, "gpx_read_eeprom %s\n", id);
+    EepromMapping *pem = find_any_eeprom_mapping(&gpx, id);
+    if (pem == NULL) {
+        PyErr_SetString(PyExc_ValueError, "EEPROM id mapping not found");
+        return NULL;
+    }
+
+    unsigned char b;
+    unsigned short us;
+    unsigned long ul;
+    float n;
+    switch (pem->et) {
+        case et_boolean:
+            if (read_eeprom_8(&gpx, gpx.sio, pem->address, &b) == SUCCESS)
+                return Py_BuildValue("O", b ? Py_True : Py_False);
+            break;
+
+        case et_bitfield:
+        case et_byte:
+            if (read_eeprom_8(&gpx, gpx.sio, pem->address, &b) == SUCCESS)
+                return Py_BuildValue("B", b);
+            break;
+
+        case et_ushort:
+            if (read_eeprom_16(&gpx, gpx.sio, pem->address, &us) == SUCCESS)
+                return Py_BuildValue("H", us);
+            break;
+
+        case et_fixed:
+            if (read_eeprom_fixed_16(&gpx, gpx.sio, pem->address, &n) == SUCCESS)
+                return Py_BuildValue("f", n);
+            break;
+
+        case et_long:
+        case et_ulong:
+            if (read_eeprom_32(&gpx, gpx.sio, pem->address, &ul) == SUCCESS)
+                return Py_BuildValue(pem->et == et_long ? "l" : "k", ul);
+            break;
+
+        case et_float:
+            if (read_eeprom_float(&gpx, gpx.sio, pem->address, &n) == SUCCESS)
+                return Py_BuildValue("f", n);
+            break;
+
+        case et_string:
+            memset(gpx.sio->response.eeprom.buffer, 0, sizeof(gpx.sio->response.eeprom.buffer));
+            int len = pem->len;
+            if (len > sizeof(gpx.sio->response.eeprom.buffer))
+                len = sizeof(gpx.sio->response.eeprom.buffer);
+            if (read_eeprom(&gpx, pem->address, len) == SUCCESS)
+                return Py_BuildValue("s", gpx.sio->response.eeprom.buffer);
+            break;
+
+        default:
+            PyErr_SetString(PyExc_ValueError, "EEPROM type not supported");
+            return NULL;
+    }
+
+    return Py_BuildValue("i", 0);
+}
+
+// def write_eeprom(id, value)
+static PyObject *gpx_write_eeprom(PyObject *self, PyObject *args)
+{
+    if (!connected)
+        return PyErr_NotConnected();
+
+    char *id;
+    PyObject *value;
+
+    if (!PyArg_ParseTuple(args, "sO", &id, &value))
+        return NULL;
+
+    if (gpx.flag.verboseMode) fprintf(gpx.log, "gpx_write_eeprom\n");
+    return Py_BuildValue("i", 0);
+}
+
 
 // method table describes what is exposed to python
 static PyMethodDef GpxMethods[] = {
@@ -1252,8 +1346,10 @@ static PyMethodDef GpxMethods[] = {
     {"waiting", gpx_waiting, METH_VARARGS, "waiting() Returns True if the bot reports it is waiting for a temperature, pause or prompt"},
     {"reprap_flavor", gpx_reprap_flavor, METH_VARARGS, "reprap_flavor(boolean) Sets the expected gcode flavor (true = reprap, false = makerbot), returns the previous setting"},
     {"start", gpx_start, METH_VARARGS, "start() Call after connect and a printer specific pause (2 seconds for most) to start the serial communication"},
-    {"stop", gpx_stop, METH_VARARGS, "stop(halt_steppers, clear_queue) Tells the bot to stop to either stop the steppers, clear the queue or both"},
+    {"stop", gpx_stop, METH_VARARGS, "stop(halt_steppers, clear_queue) Tells the bot to either stop the steppers, clear the queue or both"},
     {"abort", gpx_abort, METH_VARARGS, "abort() Tells the bot to clear the queue and stop all motors and heaters"},
+    {"read_eeprom", gpx_read_eeprom, METH_VARARGS, "read_eeprom(id) Read the value identified by id from the eeprom"},
+    {"write_eeprom", gpx_write_eeprom, METH_VARARGS, "write_eeprom(id, value) Write 'value' to the eeprom location identified by 'id'"},
     {NULL, NULL, 0, NULL} // sentinel
 };
 
@@ -1273,6 +1369,10 @@ PyMODINIT_FUNC initgpx(void)
     pyerrTimeout = PyErr_NewException("gpx.Timeout", NULL, NULL);
     Py_INCREF(pyerrTimeout);
     PyModule_AddObject(m, "Timeout", pyerrTimeout);
+
+    pyerrUnknownFirmware = PyErr_NewException("gpx.UnknownFirmware", NULL, NULL);
+    Py_INCREF(pyerrUnknownFirmware);
+    PyModule_AddObject(m, "UnknownFirmware", pyerrUnknownFirmware);
 
     tio.sio.port = -1;
     tio.flags = 0;

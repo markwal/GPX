@@ -506,6 +506,22 @@ typedef long speed_t;
     int extended_stop(Gpx *gpx, unsigned halt_steppers, unsigned clear_queue);
     int set_build_progress(Gpx *gpx, unsigned percent);
     int end_build(Gpx *gpx);
+    int load_eeprom_map(Gpx *gpx);
+    int read_eeprom(Gpx *gpx, unsigned address, unsigned length);
+    int write_eeprom(Gpx *gpx, unsigned address, char *data, unsigned length);
+    int write_eeprom_8(Gpx *gpx, Sio *sio, unsigned address, unsigned char value);
+    int read_eeprom_8(Gpx *gpx, Sio *sio, unsigned address, unsigned char *value);
+    int write_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short value);
+    int read_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short *value);
+    int write_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float value);
+    int read_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float *value);
+    int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned value);
+    int read_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long *value);
+    int write_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float value);
+    int read_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float *value);
+#ifdef __eeprominfo_h__
+    EepromMapping *find_any_eeprom_mapping(Gpx *, char *name);
+#endif
 #ifdef __cplusplus
 }
 #endif

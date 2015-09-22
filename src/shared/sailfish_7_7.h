@@ -1,5 +1,5 @@
 EepromMapping eeprom_map_sailfish_7_7[] = {
-{ "ACCELERATION_ACTIVE", "Acceleration active", "", 0x16e, et_byte, 0, 0, 1,
+{ "ACCELERATION_ACTIVE", "Acceleration active", "", 0x16e, et_boolean, 0, 0, 1,
   "Check or set to 1 to use acceleration.  Uncheck or set to 0 for no acceleration.  Note that you must turn acceleration on to print safely at speeds over 50mm/s." },
 { "MAX_ACCELERATION_EXTRUDER_MOVE", "Max acceleration extruder move", "mm/s²", 0x186, et_ushort, 0, 0, 0,
   "" },
