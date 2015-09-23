@@ -3487,7 +3487,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             load_eeprom_map(gpx);
         }
     }
-    // ;@eeprom <NAME> #<HEX> <LEN>
+    // ;@eeprom <NAME> <TYPENAME> #<HEX> <LEN>
     // Add a single eeprom mapping of <NAME> to <HEX> address of type <TYPENAME> with length <LEN>
     // <LEN> only applies to et_string
     else if(MACRO_IS("eeprom")) {
