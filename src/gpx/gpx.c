@@ -4195,9 +4195,12 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->command.m = atoi(digits);
                     gpx->command.flag |= M_IS_SET;
                     if (gpx->command.m == 23 || gpx->command.m == 28) {
+                        char *s = p + 1;
+                        while(*s && *s != '*') s++;
+                        if(*s) *s++ = 0;
                         gpx->command.arg = normalize_comment(p + 1);
                         gpx->command.flag |= ARG_IS_SET;
-                        *p = 0;
+                        p = s;
                     }
                     break;
                     // Tnnn	 Select extruder nnn.
@@ -5042,6 +5045,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 break;
 
                 // M108 - Set extruder motor 5D 'simulated' RPM
+                // toolchange for ReplicatorG
             case 108:
 #if ENABLE_SIMULATED_RPM
                 if(gpx->command.flag & R_IS_SET) {
@@ -5052,6 +5056,16 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                         gpx->tool[gpx->target.extruder].rpm = gpx->command.r;
                     }
                 }
+                else
+#endif
+                if(gpx->command.flag & T_IS_SET) {
+                    if(!gpx->flag.dittoPrinting && gpx->target.extruder != gpx->current.extruder) {
+                        int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : MAX_TIMEOUT;
+                        CALL( do_tool_change(gpx, timeout) );
+                        command_emitted++;
+                    }
+                }
+#if ENABLE_SIMULATED_RPM
                 else {
                     gcodeResult(gpx, "(line %u) Syntax error: M108 is missing motor RPM, use Rn where n is 0-5" EOL, gpx->lineNumber);
                 }

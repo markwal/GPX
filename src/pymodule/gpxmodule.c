@@ -512,7 +512,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     variant = "Sailfish";
                     break;
             }
-            tio_printf(tio, "%s v%u.%u", variant, tio->sio.response.firmware.version / 100, tio->sio.response.firmware.version % 100);
+            tio_printf(tio, " %s v%u.%u", variant, tio->sio.response.firmware.version / 100, tio->sio.response.firmware.version % 100);
             break;
 
             // 135 - wait for extruder
@@ -694,7 +694,7 @@ static PyObject *gpx_write_string(const char *s)
     strncpy(gpx.buffer.in, s, sizeof(gpx.buffer.in));
     int rval = gpx_convert_line(&gpx, gpx.buffer.in);
 
-    if (tio.flag.okPending && (gpx.command.flag & (M_IS_SET | T_IS_SET | G_IS_SET))) {
+    if (tio.flag.okPending) {
         tio_printf(&tio, "ok");
         // ok means: I'm ready for another command, not necessarily that everything worked
     }
