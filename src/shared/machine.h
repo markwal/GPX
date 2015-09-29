@@ -55,7 +55,7 @@
 typedef struct {
      double max_feedrate;	// mm/minute
      double max_accel;		// mm/s^2
-     double max_speed_change;	// mm/minute
+     double max_speed_change;	// mm/s
      double home_feedrate;	// mm/minute
      double length;		// mm
      double steps_per_mm;	// steps/mm
@@ -65,7 +65,7 @@ typedef struct {
 typedef struct {
      double max_feedrate;	// mm/minute
      double max_accel;		// mm/s^2
-     double max_speed_change;	// mm/minute
+     double max_speed_change;	// mm/s
      double steps_per_mm;	// steps/mm
      double motor_steps;        // microsteps per revolution
      unsigned has_heated_build_platform;
