@@ -595,6 +595,18 @@ static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
     return len + tio_printf(tio, "// echo: ") + tio_vprintf(tio, fmt, ap);
 }
 
+static int debug_printf(const char *fmt, ...)
+{
+    va_list args;
+    int result;
+
+    va_start(args, fmt);
+    result = translate_result(&gpx, &tio, fmt, args);
+    va_end(args);
+
+    return result;
+}
+
 // return the translation or set the error context and return NULL if failure
 static PyObject *gpx_return_translation(int rval)
 {
@@ -1246,6 +1258,9 @@ static PyObject *gpx_read_eeprom(PyObject *self, PyObject *args)
     if (!connected)
         return PyErr_NotConnected();
 
+    tio.cur = 0;
+    tio.translation[0] = 0;
+
     if (gpx.eepromMap == NULL && load_eeprom_map(&gpx) != SUCCESS) {
         PyErr_SetString(pyerrUnknownFirmware, "No EEPROM map found for firmware type and/or version");
         return NULL;
@@ -1322,14 +1337,136 @@ static PyObject *gpx_write_eeprom(PyObject *self, PyObject *args)
     if (!connected)
         return PyErr_NotConnected();
 
+    tio.cur = 0;
+    tio.translation[0] = 0;
+
     char *id;
     PyObject *value;
 
     if (!PyArg_ParseTuple(args, "sO", &id, &value))
         return NULL;
+    PyObject_Print(value, gpx.log, 0);
+    fprintf(gpx.log, " <- \n");
 
     if (gpx.flag.verboseMode) fprintf(gpx.log, "gpx_write_eeprom\n");
-    return Py_BuildValue("i", 0);
+    if (gpx.eepromMap == NULL && load_eeprom_map(&gpx) != SUCCESS) {
+        PyErr_SetString(pyerrUnknownFirmware, "No EEPROM map found for firmware type and/or version");
+        return NULL;
+    }
+
+    EepromMapping *pem = find_any_eeprom_mapping(&gpx, id);
+    if (pem == NULL) {
+        PyErr_SetString(PyExc_ValueError, "EEPROM id mapping not found");
+        return NULL;
+    }
+
+    int rval = SUCCESS;
+    int len = 0;
+    unsigned char b = 0;
+    unsigned short us = 0;
+    unsigned long ul = 0;
+    float n = 0.0;
+    char *s = NULL;
+    int f = 0;
+    switch (pem->et) {
+        case et_boolean:
+            if (!PyArg_Parse(value, "B", &b))
+                return NULL;
+            debug_printf("write_eeprom_8(%u) to address %u", (unsigned)!!b, pem->address);
+            // rval = write_eeprom_8(&gpx, gpx.sio, pem->address, !!b);
+            break;
+
+        case et_bitfield:
+        case et_byte:
+            value = PyNumber_Int(value);
+            if (value == NULL)
+                return NULL;
+            f = PyArg_Parse(value, "B", &b);
+            Py_DECREF(value);
+            if (!f)
+                return NULL;
+            debug_printf("write_eeprom_8(%u) to address %u", (unsigned)b, pem->address);
+            // rval = write_eeprom_8(&gpx, gpx.sio, pem->address, b);
+            break;
+
+        case et_ushort:
+            value = PyNumber_Int(value);
+            if (value == NULL)
+                return NULL;
+            f = PyArg_Parse(value, "H", &us);
+            Py_DECREF(value);
+            if (!f)
+                return NULL;
+            debug_printf("write_eeprom_16(%u) to address %u", us, pem->address);
+            // rval = write_eeprom_16(&gpx, gpx.sio, pem->address, us);
+            break;
+
+        case et_fixed:
+            value = PyNumber_Float(value);
+            if (value == NULL)
+                return NULL;
+            f = PyArg_Parse(value, "f", &n);
+            Py_DECREF(value);
+            if (!f)
+                return NULL;
+            // rval = write_eeprom_fixed_16(&gpx, gpx.sio, pem->address, n);
+            debug_printf("write_eeprom_fixed_16(%f) to address %u", n, pem->address);
+            break;
+
+        case et_long:
+            value = PyNumber_Long(value);
+            if (value == NULL)
+                return NULL;
+            f = PyArg_Parse(value, "l", &ul);
+            Py_DECREF(value);
+            if (!f)
+                return NULL;
+            // rval = write_eeprom_32(&gpx, gpx.sio, pem->address, ul);
+            debug_printf("write_eeprom_32(%lu) to address %u", ul, pem->address);
+            break;
+
+        case et_ulong:
+            value = PyNumber_Long(value);
+            if (value == NULL)
+                return NULL;
+            f = PyArg_Parse(value, "L", &ul);
+            Py_DECREF(value);
+            if (!f)
+                return NULL;
+            // rval = write_eeprom_32(&gpx, gpx.sio, pem->address, ul);
+            debug_printf("write_eeprom_32(%lu) to address %u", ul, pem->address);
+            break;
+
+        case et_float:
+            value = PyNumber_Float(value);
+            if (value == NULL)
+                return NULL;
+            f = PyArg_Parse(value, "f", &n);
+            Py_DECREF(value);
+            if (!f)
+                return NULL;
+            // rval = write_eeprom_float(&gpx, gpx.sio, pem->address, n);
+            debug_printf("write_eeprom_float(%f) to address %u", n, pem->address);
+            break;
+
+        case et_string:
+            if (!PyArg_Parse(value, "s", &s))
+                return NULL;
+            len = strlen(s);
+            if (len >= pem->len) {
+                PyErr_SetString(PyExc_ValueError, "String value too long for indicated EEPROM entry");
+                return NULL;
+            }
+            // rval = write_eeprom(&gpx, pem->address, s, len + 1);
+            debug_printf("write_eeprom(%s) to address %u", s, pem->address);
+            break;
+
+        default:
+            PyErr_SetString(PyExc_ValueError, "EEPROM type not supported");
+            return NULL;
+    }
+
+    return gpx_return_translation(rval);
 }
 
 

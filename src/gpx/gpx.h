@@ -515,7 +515,7 @@ typedef long speed_t;
     int read_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short *value);
     int write_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float value);
     int read_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float *value);
-    int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned value);
+    int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long value);
     int read_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long *value);
     int write_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float value);
     int read_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float *value);

@@ -2470,7 +2470,7 @@ int read_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float *value)
     return SUCCESS;
 }
 
-int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned value)
+int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long value)
 {
     int rval;
     gpx->buffer.ptr = sio->response.eeprom.buffer;
