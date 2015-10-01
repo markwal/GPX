@@ -1373,7 +1373,7 @@ static PyObject *gpx_write_eeprom(PyObject *self, PyObject *args)
             if (!PyArg_Parse(value, "B", &b))
                 return NULL;
             debug_printf("write_eeprom_8(%u) to address %u", (unsigned)!!b, pem->address);
-            // rval = write_eeprom_8(&gpx, gpx.sio, pem->address, !!b);
+            rval = write_eeprom_8(&gpx, gpx.sio, pem->address, !!b);
             break;
 
         case et_bitfield:
@@ -1386,7 +1386,7 @@ static PyObject *gpx_write_eeprom(PyObject *self, PyObject *args)
             if (!f)
                 return NULL;
             debug_printf("write_eeprom_8(%u) to address %u", (unsigned)b, pem->address);
-            // rval = write_eeprom_8(&gpx, gpx.sio, pem->address, b);
+            rval = write_eeprom_8(&gpx, gpx.sio, pem->address, b);
             break;
 
         case et_ushort:
@@ -1398,7 +1398,7 @@ static PyObject *gpx_write_eeprom(PyObject *self, PyObject *args)
             if (!f)
                 return NULL;
             debug_printf("write_eeprom_16(%u) to address %u", us, pem->address);
-            // rval = write_eeprom_16(&gpx, gpx.sio, pem->address, us);
+            rval = write_eeprom_16(&gpx, gpx.sio, pem->address, us);
             break;
 
         case et_fixed:
@@ -1409,7 +1409,7 @@ static PyObject *gpx_write_eeprom(PyObject *self, PyObject *args)
             Py_DECREF(value);
             if (!f)
                 return NULL;
-            // rval = write_eeprom_fixed_16(&gpx, gpx.sio, pem->address, n);
+            rval = write_eeprom_fixed_16(&gpx, gpx.sio, pem->address, n);
             debug_printf("write_eeprom_fixed_16(%f) to address %u", n, pem->address);
             break;
 
@@ -1421,7 +1421,7 @@ static PyObject *gpx_write_eeprom(PyObject *self, PyObject *args)
             Py_DECREF(value);
             if (!f)
                 return NULL;
-            // rval = write_eeprom_32(&gpx, gpx.sio, pem->address, ul);
+            rval = write_eeprom_32(&gpx, gpx.sio, pem->address, ul);
             debug_printf("write_eeprom_32(%lu) to address %u", ul, pem->address);
             break;
 
@@ -1433,7 +1433,7 @@ static PyObject *gpx_write_eeprom(PyObject *self, PyObject *args)
             Py_DECREF(value);
             if (!f)
                 return NULL;
-            // rval = write_eeprom_32(&gpx, gpx.sio, pem->address, ul);
+            rval = write_eeprom_32(&gpx, gpx.sio, pem->address, ul);
             debug_printf("write_eeprom_32(%lu) to address %u", ul, pem->address);
             break;
 
@@ -1445,7 +1445,7 @@ static PyObject *gpx_write_eeprom(PyObject *self, PyObject *args)
             Py_DECREF(value);
             if (!f)
                 return NULL;
-            // rval = write_eeprom_float(&gpx, gpx.sio, pem->address, n);
+            rval = write_eeprom_float(&gpx, gpx.sio, pem->address, n);
             debug_printf("write_eeprom_float(%f) to address %u", n, pem->address);
             break;
 
@@ -1457,7 +1457,7 @@ static PyObject *gpx_write_eeprom(PyObject *self, PyObject *args)
                 PyErr_SetString(PyExc_ValueError, "String value too long for indicated EEPROM entry");
                 return NULL;
             }
-            // rval = write_eeprom(&gpx, pem->address, s, len + 1);
+            rval = write_eeprom(&gpx, pem->address, s, len + 1);
             debug_printf("write_eeprom(%s) to address %u", s, pem->address);
             break;
 
