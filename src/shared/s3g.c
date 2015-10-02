@@ -65,7 +65,7 @@ static const s3g_command_info_t command_table_raw[] = {
      /*   4 */  {HOST_CMD_GET_POSITION, 0, -1, "get position"},
      /* 5,6 */  // DO NOT EXIST
      /*   7 */  {HOST_CMD_ABORT, 0, -1, "abort"},
-     /*   8 */  {HOST_CMD_PAUSE, 0, -1, "pause"},
+     /*   8 */  {HOST_CMD_PAUSE, 0, -1, "Pause"},
      /*   9 */  {HOST_CMD_PROBE, 0, -1, "probe"},
      /*  10 */  {HOST_CMD_TOOL_QUERY, 0, 0, "tool query"},
      /*  11 */  {HOST_CMD_IS_FINISHED, 0, -1, "is finished?"},

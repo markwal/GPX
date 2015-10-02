@@ -105,7 +105,7 @@ int main(int argc, const char *argv[])
 	       s3g_command_display(ctx, &cmd);
      }
 
-     fprintf(stdout, "EOF\n");
+     fprintf(stdout, "\nEOF\n");
      
      s3g_close(ctx);
 
