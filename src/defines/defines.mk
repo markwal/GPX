@@ -81,7 +81,8 @@ endif
 
 # Build directories
 
-VERSION = 2.2.1
+GPX_VERSION = $(shell git describe --tags --dirty)
+VERSION = $(GPX_VERSION)
 SHAREDIR = $(SRCDIR)/shared
 PLANNERDIR = $(SRCDIR)/planner
 UTILSDIR = $(SRCDIR)/utils

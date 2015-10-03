@@ -4,8 +4,6 @@ EXE_TARGET_OBJS = $(foreach objs, \
 
 LINK_TARGETS = $(addprefix $(OBJDIR)/, $(EXE_TARGETS))
 
-GPX_VERSION = $(shell git describe --tags --dirty)
-
 all:: $(LINK_TARGETS)
 
 # Pull in auto-generated dependency information
