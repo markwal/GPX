@@ -145,6 +145,7 @@ static Tio tio;
 static int connected = 0;
 
 // Some custom python exceptions
+static PyObject *pyerrCancelBuild;
 static PyObject *pyerrBufferOverflow;
 static PyObject *pyerrTimeout;
 static PyObject *pyerrUnknownFirmware;
@@ -243,10 +244,13 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
                 else
                     tio->waitflag.waitForExtruderA = 0;
             }
-            // fallthrough
-            //
+            tio_printf(tio, " /%u", tio->sio.response.temperature);
+            break;
+
             // Query 33 - Get build platform target temperature
         case 33:
+            if (tio->waiting && tio->sio.response.temperature == 0)
+                tio->waitflag.waitForPlatform = 0;
             tio_printf(tio, " /%u", tio->sio.response.temperature);
             break;
 
@@ -649,6 +653,7 @@ static PyObject *gpx_return_translation(int rval)
             PyErr_SetString(pyerrBufferOverflow, "Buffer overflow");
             return NULL;
         case 0x83:
+            // TODO resend?
             tio.cur = 0;
             tio_printf(&tio, "Error: checksum mismatch");
             break;
@@ -667,11 +672,20 @@ static PyObject *gpx_return_translation(int rval)
             tio_printf(&tio, "Error: timeout for tool lock");
             break;
         case 0x89:
-            tio.cur = 0;
-            tio_printf(&tio, "Error: Cancel build");
-            tio.waiting = 0;
-            tio.flag.getPosWhenReady = 0;
-            break;
+            if (!tio.flag.cancelPending && !tio.waitflag.waitForCancelSync) {
+                // host didn't initiate, the bot must want us to stop, so now we'll
+                // wait for @clear_cancel
+                if (gpx.flag.verboseMode)
+                    fprintf(gpx.log, "bot cancelled, now waiting for @clear_cancel\n");
+                tio.flag.cancelPending = 1;
+                if (tio.waiting)
+                    tio.flag.waitClearedByCancel = 1;
+                tio.waiting = 0;
+                tio.waitflag.waitForEmptyQueue = 1;
+                tio.flag.getPosWhenReady = 1;
+            }
+            PyErr_SetString(pyerrCancelBuild, "Cancel build");
+            return NULL;
         case 0x8A:
             tio.cur = 0;
             tio_printf(&tio, "SD printing");
@@ -1498,6 +1512,10 @@ PyMODINIT_FUNC initgpx(void)
     PyObject *m = Py_InitModule("gpx", GpxMethods);
     if (m == NULL)
         return;
+
+    pyerrCancelBuild = PyErr_NewException("gpx.CancelBuild", NULL, NULL);
+    Py_INCREF(pyerrCancelBuild);
+    PyModule_AddObject(m, "CancelBuild", pyerrCancelBuild);
 
     pyerrBufferOverflow = PyErr_NewException("gpx.BufferOverflow", NULL, NULL);
     Py_INCREF(pyerrBufferOverflow);
