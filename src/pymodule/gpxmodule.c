@@ -107,6 +107,36 @@ long sttb_find_nocase(Sttb *psttb, char *s)
     return -1;
 }
 
+// Note on cancellation states
+// So, there are a few things that are tricky about cancellation. First, we need
+// three different threads of execution to know that there is a cancel and take
+// an action. Any of the three can initiate, but all need to complete before
+// we're back to normal.
+// 1. The host control loop needs to stop sending new commands and will send
+// (@clear_cancel) when to acknowledge that it is no longer sending new commands
+// from the cancelled job
+// 2. The host event handler loop is asynchronous with the control loop will
+// send an out of order M112 to cancel.  This is done to interrupt any long
+// running operations that the control loop will just wait for (like homing or
+// heating).  It should do nothing when the printer initiates a cancel.
+// 3. The printer itself can initiate a cancel by returning 0x89 from a serial
+// communication.  It may do this, for example, because the user used the LCD to
+// cancel the print. Complicating matters is that it will also return 0x89 to
+// acknowledge that it has complied with a host request to cancel and it takes
+// suprisingly long time for it to do that.
+//
+// so we have three bits that get set to say we're still waiting for one of the
+// threads, more than one may be set simultaneously
+// flag.cancelPending - waiting for the control loop to send (@clear_cancel)
+//      marking the end of the send stream
+// waitflag.waitForCancelSync - waiting for the event loop to send the M112 via
+//      gpx_abort
+// waitflag.waitForBotCancel - waiting for the bot to reply with 0x89
+//
+// two may be set simultaneously
+
+// In addition, on cancel we need to wait for the bot to quiesce (if clear build
+// EEPROM is set) and discover our position again.
 
 // Tio - translated serial io
 // wraps Sio and adds translation output buffer
@@ -121,9 +151,9 @@ typedef struct tTio
         struct {
             unsigned listingFiles:1;      // in the middle of an M20 response
             unsigned getPosWhenReady:1;   // waiting for queue to drain to get position
-            unsigned cancelPending:1;
-            unsigned okPending:1;
-            unsigned waitClearedByCancel:1;
+            unsigned cancelPending:1;     // we're eating everything until the host says it has stopped sending stuff (@clear_cancel)
+            unsigned okPending:1;         // we want the ok to come at the end of the response
+            unsigned waitClearedByCancel:1; // recheck wait state
         } flag;
     };
     union {
@@ -135,7 +165,8 @@ typedef struct tTio
             unsigned waitForButton:1;
             unsigned waitForStart:1;
             unsigned waitForEmptyQueue:1;
-            unsigned waitForCancelSync:1;
+            unsigned waitForCancelSync:1;  // the host came through (@clear_cancel) before the M112 so we're still waiting to send the abort
+            unsigned waitForBotCancel:1;   // we told the bot to cancel, so we're waiting for an 0x89 response
         } waitflag;
     };
     Sttb sttb;
@@ -349,7 +380,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             // 17 - reset
         case 17:
             tio->waiting = 0;
-            tio->flag.getPosWhenReady = 0;
+            tio->waitflag.waitForBotCancel = 1;
             break;
 
             // 10 - Extruder (tool) query response
@@ -672,27 +703,33 @@ static PyObject *gpx_return_translation(int rval)
             tio_printf(&tio, "Error: timeout for tool lock");
             break;
         case 0x89:
-            if (!tio.flag.cancelPending && !tio.waitflag.waitForCancelSync) {
-                // host didn't initiate, the bot must want us to stop, so now we'll
-                // wait for @clear_cancel
-                if (gpx.flag.verboseMode)
-                    fprintf(gpx.log, "bot cancelled, now waiting for @clear_cancel\n");
-                tio.flag.cancelPending = 1;
-                if (tio.waiting)
-                    tio.flag.waitClearedByCancel = 1;
-                tio.waiting = 0;
-                tio.waitflag.waitForEmptyQueue = 1;
-                tio.flag.getPosWhenReady = 1;
+            if (tio.waitflag.waitForBotCancel) {
+                // ah, we told the bot to abort, and this 0x89 means that it did
+                tio.waitflag.waitForBotCancel = 0;
+                break;
             }
+
+            // bot is initiating a cancel
+            if (gpx.flag.verboseMode)
+                fprintf(gpx.log, "bot cancelled, now waiting for @clear_cancel\n");
+            // we'll only get a @clear_cancel from the host loop, an M112
+            // won't come through because the event layer will eat the next
+            // event (because it's anticipating this event)
+            tio.flag.cancelPending = 1;
+            gpx.axis.positionKnown = 0;
+            if (tio.waiting)
+                tio.flag.waitClearedByCancel = 1;
+            tio.waiting = 0;
             PyErr_SetString(pyerrCancelBuild, "Cancel build");
             return NULL;
+
         case 0x8A:
             tio.cur = 0;
             tio_printf(&tio, "SD printing");
             break;
         case 0x8B:
             tio.cur = 0;
-            tio_printf(&tio, "Error: Shutdown due to MAXTEMP trigger");
+            tio_printf(&tio, "Error: RC_BOT_OVERHEAT Printer reports overheat condition");
             break;
         case 0x8C:
             tio.cur = 0;
@@ -1090,6 +1127,7 @@ static PyObject *gpx_reset_ini(PyObject *self, PyObject *args)
 
     // nuke it all
     gpx_initialize(&gpx, 1);
+    gpx.flag.M106AlwaysValve = 1;
 
     // restore some stuff, plus we're still in pymodule mode
     gpx.callbackHandler = callbackHandler;
@@ -1186,7 +1224,6 @@ static PyObject *gpx_stop(PyObject *self, PyObject *args)
     tio.translation[0] = 0;
     tio.waiting = 0;
     tio.flag.getPosWhenReady = 0;
-    tio.waitflag.waitForCancelSync = 0;
     tio.sec = 0;
     int rval = SUCCESS;
 
@@ -1241,7 +1278,6 @@ static PyObject *gpx_abort(PyObject *self, PyObject *args)
     tio.translation[0] = 0;
     tio.waiting = 0;
     tio.flag.getPosWhenReady = 0;
-    tio.waitflag.waitForCancelSync = 0;
     tio.sec = 0;
 
     int rval = abort_immediately(&gpx);

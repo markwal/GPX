@@ -828,6 +828,7 @@ static int get_buffer_size(Gpx *gpx)
 int clear_buffer(Gpx *gpx)
 {
     begin_frame(gpx);
+    gpx->axis.positionKnown = 0;
 
     write_8(gpx, 3);
 
@@ -839,6 +840,7 @@ int clear_buffer(Gpx *gpx)
 int abort_immediately(Gpx *gpx)
 {
     begin_frame(gpx);
+    gpx->axis.positionKnown = 0;
 
     write_8(gpx, 7);
 
@@ -1149,6 +1151,7 @@ static int select_filename(Gpx *gpx, char *filename)
 static int reset(Gpx *gpx)
 {
     begin_frame(gpx);
+    gpx->axis.positionKnown = 0;
 
     write_8(gpx, 17);
 
@@ -1198,6 +1201,7 @@ int extended_stop(Gpx *gpx, unsigned halt_steppers, unsigned clear_queue)
     unsigned flag = 0;
     if(halt_steppers) flag |= 0x1;
     if(clear_queue) flag |= 0x2;
+    gpx->axis.positionKnown = 0;
 
     begin_frame(gpx);
 
@@ -3567,6 +3571,9 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             s = "B";
             gcodeResult(gpx, "%s: %.10g, %g, %g, %g, %g, %u\n", s, e->steps_per_mm, e->max_feedrate, e->max_accel, e->max_speed_change, e->motor_steps, e->has_heated_build_platform);
         }
+        else if (NAME_IS("overheat")) {
+            return 0x8B;
+        }
     }
     return SUCCESS;
 }
@@ -4085,7 +4092,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
     char *digits;
     char *p = gcode_line; // current parser location
     while(isspace(*p)) p++;
-    VERBOSESIO( if (gpx->flag.sioConnected) fprintf(gpx->log, "gcode_line: %s", gcode_line); )
+    VERBOSESIO( if (gpx->flag.sioConnected) fprintf(gpx->log, "gcode_line: %s\n", gcode_line); )
     // check for line number
     if(*p == 'n' || *p == 'N') {
         digits = p;
