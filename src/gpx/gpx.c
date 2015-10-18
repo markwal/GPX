@@ -225,6 +225,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     gpx->current.extruder = 0;
     gpx->current.offset = 0;
     gpx->current.percent = 0;
+    gpx->current.speed_factor = 100;
 
     gpx->axis.positionKnown = 0;
     gpx->axis.mask = gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;;
@@ -262,6 +263,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->override[i].standby_temperature = 0;
         gpx->override[i].active_temperature = 0;
         gpx->override[i].build_platform_temperature = 0;
+        gpx->override[i].extrusion_factor = 100;
     }
 
     if(firstTime) {
@@ -678,7 +680,7 @@ static double get_home_feedrate(Gpx *gpx, int flag) {
 
 static double get_safe_feedrate(Gpx *gpx, int flag, Ptr5d delta) {
 
-    double feedrate = gpx->current.feedrate;
+    double feedrate = gpx->current.feedrate * ((double)gpx->current.speed_factor / 100);
     if(feedrate == 0.0) {
         feedrate = gpx->machine.x.max_feedrate;
         if(feedrate < gpx->machine.y.max_feedrate) {
@@ -762,8 +764,8 @@ static Point5d delta_mm(Gpx *gpx)
     if(gpx->command.flag & X_IS_SET) deltaMM.x = gpx->target.position.x - gpx->current.position.x; else deltaMM.x = 0;
     if(gpx->command.flag & Y_IS_SET) deltaMM.y = gpx->target.position.y - gpx->current.position.y; else deltaMM.y = 0;
     if(gpx->command.flag & Z_IS_SET) deltaMM.z = gpx->target.position.z - gpx->current.position.z; else deltaMM.z = 0;
-    if(gpx->command.flag & A_IS_SET) deltaMM.a = gpx->target.position.a - gpx->current.position.a; else deltaMM.a = 0;
-    if(gpx->command.flag & B_IS_SET) deltaMM.b = gpx->target.position.b - gpx->current.position.b; else deltaMM.b = 0;
+    if(gpx->command.flag & A_IS_SET) deltaMM.a = (gpx->target.position.a - gpx->current.position.a) * gpx->override[A].extrusion_factor / 100; else deltaMM.a = 0;
+    if(gpx->command.flag & B_IS_SET) deltaMM.b = (gpx->target.position.b - gpx->current.position.b) * gpx->override[B].extrusion_factor / 100; else deltaMM.b = 0;
     return deltaMM;
 }
 
@@ -1574,7 +1576,7 @@ static int queue_absolute_point(Gpx *gpx)
     long longestDDA = gpx->longestDDA ? gpx->longestDDA : get_longest_dda(gpx);
     Point5d steps = mm_to_steps(gpx, &gpx->target.position, &gpx->excess);
 
-    feedrate = gpx->current.feedrate;
+    feedrate = gpx->current.feedrate * ((double)gpx->current.speed_factor / 100);
 
     // 7 February 2015
     // Fix issue #12 whereby an unaccelerated move may move far too fast
@@ -2108,6 +2110,7 @@ static int queue_ext_point(Gpx *gpx, double feedrate)
                 else {
                     deltaMM.a = -(distance * packing_scale);
                 }
+                deltaMM.a *= ((double)gpx->override[A].extrusion_factor / 100);
                 gpx->target.position.a = gpx->current.position.a + deltaMM.a;
                 deltaSteps.a = round(fabs(deltaMM.a) * gpx->machine.a.steps_per_mm);
             }
@@ -2127,6 +2130,7 @@ static int queue_ext_point(Gpx *gpx, double feedrate)
                 else {
                     deltaMM.b = -(distance * packing_scale);
                 }
+                deltaMM.b *= ((double)gpx->override[B].extrusion_factor / 100);
                 gpx->target.position.b = gpx->current.position.b + deltaMM.b;
                 deltaSteps.b = round(fabs(deltaMM.b) * gpx->machine.b.steps_per_mm);
             }
@@ -5369,6 +5373,22 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     CALL( set_build_progress(gpx, 100) );
 		    CALL( end_build(gpx) );
                     gpx->current.percent = 100;
+                }
+                break;
+
+                // M220 - Set speed factor override percentage
+            case 220:
+                if((gpx->command.flag & S_IS_SET) && gpx->command.s > 0)
+                    gpx->current.speed_factor = (unsigned)gpx->command.s;
+                break;
+
+                // M221 - Set extrude factor override percentage
+            case 221:
+                if((gpx->command.flag & S_IS_SET) && gpx->command.s > 0) {
+                    unsigned tool_id = gpx->current.extruder;
+                    if(gpx->command.flag & T_IS_SET)
+                        tool_id = gpx->target.extruder;
+                    gpx->override[tool_id].extrusion_factor = (unsigned)gpx->command.s;
                 }
                 break;
 

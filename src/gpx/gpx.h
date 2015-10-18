@@ -198,6 +198,7 @@ typedef long speed_t;
         unsigned standby_temperature;
         unsigned active_temperature;
         unsigned build_platform_temperature;
+        unsigned extrusion_factor; // set by M221
     } Override;
 
     typedef struct tFilament {
@@ -252,6 +253,7 @@ typedef long speed_t;
             int extruder;       // the currently selected extruder being used by the bot
             int offset;         // current G10 offset
             unsigned percent;   // current percent progress
+            unsigned speed_factor; // set by M220
         } current;
 
         struct {
