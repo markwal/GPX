@@ -5575,7 +5575,11 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
             }
             if(strlen(gpx->buffer.in) == BUFFER_MAX - 1) {
                 overflow = 1;
-                gcodeResult(gpx, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX);
+                // ignore run-on comments, this is actually a little too permissive
+                // since technically we should ignore ';' contained within a
+                // parenthetical comment
+                if (!strchr(gpx->buffer.in, ';'))
+                    gcodeResult(gpx, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX);
             }
 
             rval = gpx_convert_line(gpx, gpx->buffer.in);
