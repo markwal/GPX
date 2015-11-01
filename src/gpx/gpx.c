@@ -65,10 +65,10 @@ static int gcodeResult(Gpx *gpx, const char *fmt, ...)
     va_list args;
 
     va_start(args, fmt);
-    if (gpx->resultHandler != NULL) {
+    if(gpx->resultHandler != NULL) {
         result = gpx->resultHandler(gpx, gpx->callbackData, fmt, args);
     }
-    else if (gpx->flag.logMessages) {
+    else if(gpx->flag.logMessages) {
         result = vfprintf(gpx->log, fmt, args);
     }
     va_end(args);
@@ -101,7 +101,7 @@ Machine *gpx_find_machine(const char *machine)
     // check the aliases
     MachineAlias **pma;
     for (pma = machine_aliases; *pma; pma++) {
-        if (MACHINE_IS((*pma)->alias)) {
+        if(MACHINE_IS((*pma)->alias)) {
             machine = (*pma)->type;
             break;
         }
@@ -126,26 +126,26 @@ int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* 
 int gpx_set_machine(Gpx *gpx, const char *machine_type, int init)
 {
     Machine *machine = gpx_find_machine(machine_type);
-    if (machine == NULL)
+    if(machine == NULL)
         return ERROR;
 
     // only load/clobber the on-board machine definition if the one specified is differenti
     // or if we're initializing
-    if (init || gpx->machine.id != machine->id) {
+    if(init || gpx->machine.id != machine->id) {
         memcpy(&gpx->machine, machine, sizeof(Machine));
         VERBOSE( fprintf(gpx->log, "Loading machine definition: %s" EOL, machine->desc) );
-        if (gpx->iniPath != NULL) {
+        if(gpx->iniPath != NULL) {
             // if there's a gpx->iniPath + "/" + machine->type + ".ini" load it
             // here recursively
             char machineIni[1024];
             machineIni[0] = 0;
             int i = snprintf(machineIni, sizeof(machineIni), "%s/%s.ini", gpx->iniPath, machine->type);
-            if (i > 0 && i < sizeof(machineIni)) {
-                if (access(machineIni, R_OK) == SUCCESS) {
+            if(i > 0 && i < sizeof(machineIni)) {
+                if(access(machineIni, R_OK) == SUCCESS) {
                     VERBOSE( fprintf(gpx->log, "Using custom machine definition from: %s" EOL, machineIni) );
                     ini_parse(gpx, machineIni, gpx_set_property);
                 }
-                else if (errno != ENOENT)
+                else if(errno != ENOENT)
                     VERBOSE( fprintf(gpx->log, "Unable to load custom machine definition errno = %d\n", errno) );
             }
         }
@@ -293,7 +293,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->eepromMappingVector = NULL;
     }
 
-    if (gpx->eepromMappingVector != NULL) {
+    if(gpx->eepromMappingVector != NULL) {
         free(gpx->eepromMappingVector);
         gpx->eepromMappingVector = NULL;
     }
@@ -1136,12 +1136,12 @@ static int play_back_capture(Gpx *gpx, char *filename)
 
 static int select_filename(Gpx *gpx, char *filename)
 {
-    if (gpx->selectedFilename != NULL) {
+    if(gpx->selectedFilename != NULL) {
         free(gpx->selectedFilename);
         gpx->selectedFilename = NULL;
     }
     gpx->selectedFilename = strdup(filename);
-    if (gpx->selectedFilename == NULL)
+    if(gpx->selectedFilename == NULL)
         return EOSERROR;
     if(gpx->callbackHandler)
         return gpx->callbackHandler(gpx, gpx->callbackData, gpx->buffer.out, 0);
@@ -2049,10 +2049,10 @@ static int start_build(Gpx *gpx, const char * filename)
     // that leaves 27 bytes for the build name
     // (But the LCD actually has far less room)
     // We'll just truncate at 24
-    if (!filename)
+    if(!filename)
 	 filename = "GPX" GPX_VERSION;
     len = strlen(filename);
-    if (len > 24) len = 24;
+    if(len > 24) len = 24;
     write_string(gpx, filename, len);
 
     return end_frame(gpx);
@@ -2533,7 +2533,7 @@ int load_eeprom_map(Gpx *gpx)
 {
     int rval = SUCCESS;
     
-    if (!gpx->flag.sioConnected || gpx->sio == NULL) {
+    if(!gpx->flag.sioConnected || gpx->sio == NULL) {
         gcodeResult(gpx, "(line %u) Serial not connected: can't detect which eeprom map without asking the bot" EOL, gpx->lineNumber);
         return ERROR;
     }
@@ -2624,7 +2624,7 @@ static int add_eeprom_mapping(Gpx *gpx, char *name, EepromType et, unsigned addr
 
 EepromMapping *find_any_eeprom_mapping(Gpx *gpx, char *name)
 {
-    if (!gpx->flag.sioConnected || gpx->sio == NULL) {
+    if(!gpx->flag.sioConnected || gpx->sio == NULL) {
         gcodeResult(gpx, "(line %u) Error: eeprom operation without serial connection\n", gpx->lineNumber);
         return NULL;
     }
@@ -2635,7 +2635,7 @@ EepromMapping *find_any_eeprom_mapping(Gpx *gpx, char *name)
         pem = vector_get(gpx->eepromMappingVector, iem);
     }
     else if((iem = find_builtin_eeprom_mapping(gpx, name)) >= 0) {
-        if (gpx->eepromMap == NULL) {
+        if(gpx->eepromMap == NULL) {
             gcodeResult(gpx, "(line %u) Unexpected error: find_builtin_eeprom_mapping returned an invalid index %d.\n", gpx->lineNumber, iem);
             return NULL;
         }
@@ -2731,12 +2731,12 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
         return ERROR;
     }
     if(pem->et != et_string) {
-        if (string_value != NULL) {
+        if(string_value != NULL) {
             gcodeResult(gpx, "(line %u) Error: string value unexpected for eeprom setting %s\n", gpx->lineNumber, pem->id);
             return ERROR;
         }
 
-        if (value != 0.0)
+        if(value != 0.0)
             hex = (unsigned long)value;
 
     }
@@ -2745,7 +2745,7 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
         case et_bitfield:
         case et_boolean:
         case et_byte: {
-            if (hex > 255) {
+            if(hex > 255) {
                 gcodeResult(gpx, "(line %u) Error: parameter out of range for eeprom setting %s\n", gpx->lineNumber, pem->id);
                 return ERROR;
             }
@@ -2756,7 +2756,7 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
         }
 
         case et_ushort: {
-            if (hex > 65535) {
+            if(hex > 65535) {
                 gcodeResult(gpx, "(line %u) Error: parameter out of range for eeprom setting %s\n", gpx->lineNumber, pem->id);
                 return ERROR;
             }
@@ -3200,7 +3200,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         // trim any leading white space
         while(isspace(*p)) p++;
         if(isalpha(*p)) {
-            if (name == NULL || (!MACRO_IS("eeprom") && !MACRO_IS("ewrite")))
+            if(name == NULL || (!MACRO_IS("eeprom") && !MACRO_IS("ewrite")))
                 name = p;
             else
                 string_param = p;
@@ -3487,7 +3487,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     // ;@load_eeprom_map
     // Load the appropriate built-in eeprom map for the firmware flavor and version
     else if(MACRO_IS("load_eeprom_map")) {
-        if (name) {
+        if(name) {
             // FUTURE <NAME> parameter to allow run-time loading of non-built-in maps
             gcodeResult(gpx, "(line %u) Error: custom eeprommap's not supported by this version of gpx" EOL, gpx->lineNumber);
         }
@@ -3536,10 +3536,10 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         }
     }
     // ;@debug <COMMAND>
-    else if (MACRO_IS("debug")) {
+    else if(MACRO_IS("debug")) {
         // ;@debug pos
         // Output current position
-        if (NAME_IS("pos")) {
+        if(NAME_IS("pos")) {
             gcodeResult(gpx, "gpx position X:%0.2f Y:%0.2f Z:%0.2f A:%0.2f B:%0.2f\n",
                 gpx->current.position.x, gpx->current.position.y, gpx->current.position.z,
                 gpx->current.position.a, gpx->current.position.b);
@@ -3547,7 +3547,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             char s[sizeof(axes_names)], *p = s;
             int i;
             for (i = 0; i < sizeof(axes_names); i++) {
-                if (gpx->axis.positionKnown & (1 << i))
+                if(gpx->axis.positionKnown & (1 << i))
                     *p++ = axes_names[i];
             }
             *p++ = 0;
@@ -3555,7 +3555,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         }
         // @debug axes
         // Output current machine settings for each axxes
-        else if (NAME_IS("axes")) {
+        else if(NAME_IS("axes")) {
             gcodeResult(gpx, "steps_per_mm, max_feedrate, max_acceleration, max_speed_change, home_feedrate, length, endstop\n");
             Axis *a = &gpx->machine.x;
             char *s = "X";
@@ -3575,7 +3575,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             s = "B";
             gcodeResult(gpx, "%s: %.10g, %g, %g, %g, %g, %u\n", s, e->steps_per_mm, e->max_feedrate, e->max_accel, e->max_speed_change, e->motor_steps, e->has_heated_build_platform);
         }
-        else if (NAME_IS("overheat")) {
+        else if(NAME_IS("overheat")) {
             return 0x8B;
         }
     }
@@ -3692,7 +3692,7 @@ static int ini_parse_file(Gpx* gpx, FILE* file, int (*handler)(Gpx*, const char*
         else if(*prev_name && *start && start > gpx->buffer.in) {
             /* Non-black line with leading whitespace, treat as continuation
              of previous name's value (as per Python ConfigParser). */
-            if (handler(gpx, section, prev_name, start) && !error)
+            if(handler(gpx, section, prev_name, start) && !error)
                 error = gpx->lineNumber;
         }
 #endif
@@ -3720,7 +3720,7 @@ static int ini_parse_file(Gpx* gpx, FILE* file, int (*handler)(Gpx*, const char*
                 name = rstrip(start);
                 value = lskip(end + 1);
                 end = find_char_or_comment(value, '\0');
-                if (*end == ';')
+                if(*end == ';')
                     *end = '\0';
                 rstrip(value);
 
@@ -3975,18 +3975,18 @@ SECTION_ERROR:
 int gpx_load_config(Gpx *gpx, const char *filename)
 {
     VERBOSE( fprintf(gpx->log, "Loading config: %s\n", filename) );
-    if (gpx->iniPath != NULL) {
+    if(gpx->iniPath != NULL) {
         free(gpx->iniPath);
         gpx->iniPath = NULL;
     }
     char *t = strdup(filename);
-    if (t != NULL) {
+    if(t != NULL) {
         gpx->iniPath = strdup(dirname(t));
         free(t);
     }
 
     int rval = ini_parse(gpx, filename, gpx_set_property);
-    if (rval == 0)
+    if(rval == 0)
         SHOW( fprintf(gpx->log, "Loaded config: %s\n", filename) );
     return rval;
 }
@@ -4070,15 +4070,15 @@ static int get_extruder_temperature_extended(Gpx *gpx)
 
     CALL(get_extruder_temperature(gpx, 0));
     CALL(get_extruder_target_temperature(gpx, 0));
-    if (gpx->machine.extruder_count > 1) {
+    if(gpx->machine.extruder_count > 1) {
         CALL(get_extruder_temperature(gpx, 1));
         CALL(get_extruder_target_temperature(gpx, 1));
     }
-    if (gpx->machine.a.has_heated_build_platform) {
+    if(gpx->machine.a.has_heated_build_platform) {
         CALL(get_build_platform_temperature(gpx, 0));
         CALL(get_build_platform_target_temperature(gpx, 0));
     }
-    else if (gpx->machine.b.has_heated_build_platform) {
+    else if(gpx->machine.b.has_heated_build_platform) {
         CALL(get_build_platform_temperature(gpx, 1));
         CALL(get_build_platform_target_temperature(gpx, 1));
     }
@@ -4096,7 +4096,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
     char *digits;
     char *p = gcode_line; // current parser location
     while(isspace(*p)) p++;
-    VERBOSESIO( if (gpx->flag.sioConnected) fprintf(gpx->log, "gcode_line: %s\n", gcode_line); )
+    VERBOSESIO( if(gpx->flag.sioConnected) fprintf(gpx->log, "gcode_line: %s\n", gcode_line); )
     // check for line number
     if(*p == 'n' || *p == 'N') {
         digits = p;
@@ -4205,7 +4205,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 case 'M':
                     gpx->command.m = atoi(digits);
                     gpx->command.flag |= M_IS_SET;
-                    if (gpx->command.m == 23 || gpx->command.m == 28) {
+                    if(gpx->command.m == 23 || gpx->command.m == 28) {
                         char *s = p + 1;
                         while(*s && *s != '*') s++;
                         if(*s) *s++ = 0;
@@ -4226,7 +4226,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     // this line's number was already stripped off, so this should
                     // be a parameter to an M110 which GPX does not currently implement
                     // so we'll silently ignore
-                    if ((gpx->command.flag & M_IS_SET) && gpx->command.m == 110)
+                    if((gpx->command.flag & M_IS_SET) && gpx->command.m == 110)
                         break;
                     // fallthrough
 
@@ -4742,24 +4742,24 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // M23 - Select SD file
             case 23:
-                if (gpx->command.flag & ARG_IS_SET)
+                if(gpx->command.flag & ARG_IS_SET)
                     CALL( select_filename(gpx, gpx->command.arg) );
                 break;
 
                 // M24 - Start/resume SD print
             case 24:
-                if (gpx->flag.sd_paused) {
+                if(gpx->flag.sd_paused) {
                     CALL( pause_resume(gpx) );
                     gpx->flag.sd_paused = 0;
                 }
-                else if (gpx->selectedFilename != NULL) {
+                else if(gpx->selectedFilename != NULL) {
                     CALL( play_back_capture(gpx, gpx->selectedFilename) );
                 }
                 break;
 
                 // M25 - Pause SD print
             case 25:
-                if (!gpx->flag.sd_paused) {
+                if(!gpx->flag.sd_paused) {
                     CALL( pause_resume(gpx) );
                     gpx->flag.sd_paused = 1;
                 }
@@ -4770,7 +4770,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 // s3g doesn't have a set SD position
                 // looks like software uses the sequence M25\nM26 S0 to cancel
                 // the print so that the next M24 will start over 
-                VERBOSE( {if (gpx->command.flag & S_IS_SET && gpx->command.s > 0)
+                VERBOSE( {if(gpx->command.flag & S_IS_SET && gpx->command.s > 0)
                     fprintf(gpx->log, "Only reset to sd position 0 is supported: M26 S0" EOL);} )
                 break;
 
@@ -4782,7 +4782,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // M28 - Begin write to SD card
             case 28:
-                if (gpx->command.flag & ARG_IS_SET) {
+                if(gpx->command.flag & ARG_IS_SET) {
                     CALL( capture_to_file(gpx, gpx->command.arg) );
                 }
                 break;
@@ -5095,7 +5095,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 // weird.
                 // We only pay attention to this when connected to the bot, why would
                 // you just put it in an offline file?
-                if (gpx->flag.sioConnected)
+                if(gpx->flag.sioConnected)
                     CALL( abort_immediately(gpx) );
                 break;
 
@@ -5578,7 +5578,7 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
                 // ignore run-on comments, this is actually a little too permissive
                 // since technically we should ignore ';' contained within a
                 // parenthetical comment
-                if (!strchr(gpx->buffer.in, ';'))
+                if(!strchr(gpx->buffer.in, ';'))
                     gcodeResult(gpx, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX);
             }
 
@@ -5591,7 +5591,7 @@ int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2)
 
         if(program_is_running()) {
             end_program();
-	    if (!gpx->noend) {
+	    if(!gpx->noend) {
 		 CALL( set_build_progress(gpx, 100) );
 		 CALL( end_build(gpx) );
 	    }
@@ -6016,7 +6016,7 @@ size_t readport(int port, char *buffer, size_t bytes)
 
     // wait up to one second for the first byte
     rval = select(port + 1, &fds, NULL, NULL, &tv);
-    if (rval <= 0)
+    if(rval <= 0)
         return rval;
 
     // wait up to 1/10th intercharacter (from VTIME)
@@ -6099,7 +6099,7 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                     // 0x81 - Success
                 case 0x81: {
                     unsigned command = (unsigned)buffer[COMMAND_OFFSET];
-                    if ((command & 0x80) == 0) {
+                    if((command & 0x80) == 0) {
                         read_query_response(gpx, sio, command, buffer);
                     }
                     return SUCCESS;
@@ -6108,7 +6108,7 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                     // 0x82 - Action buffer overflow, entire packet discarded
                 case 0x82:
 		{
-                    if (!sio->flag.retryBufferOverflow)
+                    if(!sio->flag.retryBufferOverflow)
                         goto L_ABORT;
 #ifdef HAS_NANOSLEEP
 // mingw32 cross compiler lacks nanosleep()
@@ -6227,7 +6227,7 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
 	 va_start(ap, item_code);
 	 retstat = process_options(gpx, item_code, ap);
 	 va_end(ap);
-	 if (retstat != SUCCESS)
+	 if(retstat != SUCCESS)
 	      return retstat;
     }
 
@@ -6319,7 +6319,7 @@ static int eeprom_set_property(Gpx *gpx, const char* section, const char* proper
     int rval;
     unsigned int address = (unsigned int)strtol(property, NULL, 0);
 
-    if (gpx->sio == NULL) {
+    if(gpx->sio == NULL) {
         gcodeResult(gpx, "(line %u) Error: eeprom_set_property only supported when connected via serial" EOL, gpx->lineNumber);
         return ERROR;
     }
