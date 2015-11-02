@@ -171,6 +171,7 @@ typedef struct tTio
     };
     Sttb sttb;
     time_t sec;
+    Point5d position_response; // last synchronized get extended position response
 } Tio;
 static Tio tio;
 static int connected = 0;
@@ -466,15 +467,17 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                 (double)tio->sio.response.position.z / gpx->machine.z.steps_per_mm,
                 epos);
 
-            // set our current position
+            // squirrel away any positions we don't think we know, in case the
+            // incoming stream tries to do a G92 without those axes
             if (tio->flag.getPosWhenReady) {
-                gpx->current.position.x = tio->sio.response.position.x / gpx->machine.x.steps_per_mm;
-                gpx->current.position.y = tio->sio.response.position.y / gpx->machine.y.steps_per_mm;
-                gpx->current.position.z = tio->sio.response.position.z / gpx->machine.z.steps_per_mm;
-                gpx->axis.positionKnown |= XYZ_BIT_MASK;
-            }
+                if (!(gpx->axis.positionKnown & X_IS_SET)) gpx->current.position.x = (double)tio->sio.response.position.x / gpx->machine.x.steps_per_mm;
+                if (!(gpx->axis.positionKnown & Y_IS_SET)) gpx->current.position.y = (double)tio->sio.response.position.y / gpx->machine.y.steps_per_mm;
+                if (!(gpx->axis.positionKnown & Z_IS_SET)) gpx->current.position.z = (double)tio->sio.response.position.z / gpx->machine.z.steps_per_mm;
+                if (!(gpx->axis.positionKnown & A_IS_SET)) gpx->current.position.a = (double)tio->sio.response.position.a / gpx->machine.a.steps_per_mm;
+                if (!(gpx->axis.positionKnown & B_IS_SET)) gpx->current.position.b = (double)tio->sio.response.position.b / gpx->machine.b.steps_per_mm;
             }
             break;
+        }
 
             // 23 - Get motherboard status
         case 23:
@@ -717,6 +720,8 @@ static PyObject *gpx_return_translation(int rval)
             // event (because it's anticipating this event)
             tio.flag.cancelPending = 1;
             gpx.axis.positionKnown = 0;
+            gpx.excess.a = 0;
+            gpx.excess.b = 0;
             if (tio.waiting)
                 tio.flag.waitClearedByCancel = 1;
             tio.waiting = 0;
@@ -753,6 +758,8 @@ static PyObject *gpx_return_translation(int rval)
 static PyObject *gpx_write_string(const char *s)
 {
     unsigned waiting = tio.waiting;
+    if (waiting && gpx.flag.verboseMode)
+        fprintf(gpx.log, "waiting in gpx_write_string\n");
 
     strncpy(gpx.buffer.in, s, sizeof(gpx.buffer.in));
     int rval = gpx_convert_line(&gpx, gpx.buffer.in);
@@ -765,6 +772,8 @@ static PyObject *gpx_write_string(const char *s)
     else if (!tio.waiting && waiting)
         tio_printf(&tio, "\nok");
     tio.flag.okPending = 0;
+    if (waiting && gpx.flag.verboseMode)
+        fprintf(gpx.log, "leaving gpx_write_string %d\n", tio.waiting);
 
     return gpx_return_translation(rval);
 }
@@ -831,6 +840,8 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
 
     gpx_cleanup();
     gpx_initialize(&gpx, 0);
+    gpx.axis.positionKnown = 0;
+    gpx.flag.M106AlwaysValve = 1;
 
     // open the log file
     if (logpath != NULL && (gpx.log = fopen(logpath, "a")) == NULL) {
@@ -947,6 +958,8 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, ""))
         return NULL;
 
+    if (gpx.flag.verboseMode)
+        fprintf(gpx.log, "i");
     tio.cur = 0;
     tio.translation[0] = 0;
 
@@ -954,7 +967,7 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
         rval = get_next_filename(&gpx, 0);
     }
     else if (tio.waiting) {
-        if (gpx.flag.verboseMode && gpx.flag.logMessages)
+        if (gpx.flag.verboseMode)
             fprintf(gpx.log, "tio.waiting = %u\n", tio.waiting);
         if (!tio.waitflag.waitForCancelSync) {
             // if we're waiting for the queue to drain, do that before checking on
@@ -972,10 +985,12 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
                     rval = is_extruder_ready(&gpx, 1);
             }
         }
-        if (gpx.flag.verboseMode && gpx.flag.logMessages)
+        if (gpx.flag.verboseMode)
             fprintf(gpx.log, "tio.waiting = %u and rval = %d\n", tio.waiting, rval);
         if (rval == SUCCESS) {
             if (tio.waiting) {
+                if (gpx.flag.verboseMode)
+                    fprintf(gpx.log, "o");
                 return gpx_write_string("M105");
             }
             tio.cur = 0;
@@ -986,6 +1001,8 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
         tio.flag.waitClearedByCancel = 0;
         tio_printf(&tio, "ok");
     }
+    if (gpx.flag.verboseMode)
+        fprintf(gpx.log, "o");
     return gpx_return_translation(rval);
 }
 
@@ -1127,6 +1144,7 @@ static PyObject *gpx_reset_ini(PyObject *self, PyObject *args)
 
     // nuke it all
     gpx_initialize(&gpx, 1);
+    gpx.axis.positionKnown = 0;
     gpx.flag.M106AlwaysValve = 1;
 
     // restore some stuff, plus we're still in pymodule mode
@@ -1571,5 +1589,6 @@ PyMODINIT_FUNC initgpx(void)
     tio.sec = 0;
     sttb_init(&tio.sttb, 10);
     gpx_initialize(&gpx, 1);
+    gpx.axis.positionKnown = 0;
     gpx.flag.M106AlwaysValve = 1;
 }

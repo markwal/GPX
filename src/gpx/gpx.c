@@ -227,7 +227,11 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     gpx->current.percent = 0;
     gpx->current.speed_factor = 100;
 
-    gpx->axis.positionKnown = 0;
+    // actually, gpx doesn't know A and B except that at the start of an SD
+    // print they're always reset to zero.  The first absolute move already
+    // assumed any unspecified extruder was 0.  So while this isn't yet correct
+    // it makes the output most like the old GPX prior to fixing issue markwal/GPX#1
+    gpx->axis.positionKnown = gpx->machine.extruder_count == 1 ? A_IS_SET : (A_IS_SET|B_IS_SET);
     gpx->axis.mask = gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;;
 
     // initialize the accumulated rounding error
@@ -830,7 +834,9 @@ static int get_buffer_size(Gpx *gpx)
 int clear_buffer(Gpx *gpx)
 {
     begin_frame(gpx);
-    gpx->axis.positionKnown = 0;
+    gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);
+    gpx->excess.a = 0;
+    gpx->excess.b = 0;
 
     write_8(gpx, 3);
 
@@ -842,7 +848,9 @@ int clear_buffer(Gpx *gpx)
 int abort_immediately(Gpx *gpx)
 {
     begin_frame(gpx);
-    gpx->axis.positionKnown = 0;
+    gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);
+    gpx->excess.a = 0;
+    gpx->excess.b = 0;
 
     write_8(gpx, 7);
 
@@ -1153,7 +1161,9 @@ static int select_filename(Gpx *gpx, char *filename)
 static int reset(Gpx *gpx)
 {
     begin_frame(gpx);
-    gpx->axis.positionKnown = 0;
+    gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);
+    gpx->excess.a = 0;
+    gpx->excess.b = 0;
 
     write_8(gpx, 17);
 
@@ -1203,7 +1213,9 @@ int extended_stop(Gpx *gpx, unsigned halt_steppers, unsigned clear_queue)
     unsigned flag = 0;
     if(halt_steppers) flag |= 0x1;
     if(clear_queue) flag |= 0x2;
-    gpx->axis.positionKnown = 0;
+    gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);
+    gpx->excess.a = 0;
+    gpx->excess.b = 0;
 
     begin_frame(gpx);
 
@@ -1642,7 +1654,7 @@ static int queue_absolute_point(Gpx *gpx)
 
 // 140 - Set extended position
 
-static int set_position(Gpx *gpx)
+int set_position(Gpx *gpx)
 {
     Point5d steps = mm_to_steps(gpx, &gpx->current.position, NULL);
 
@@ -2076,15 +2088,26 @@ int end_build(Gpx *gpx)
 
 // IMPORTANT: this command updates the parser state
 
-static int queue_ext_point(Gpx *gpx, double feedrate)
+static int queue_ext_point(Gpx *gpx, double feedrate, Ptr5d delta, int relative)
 {
     /* If we don't know our previous position on a command axis, we can't calculate the feedrate
        or distance correctly, so we use an unaccelerated command with a fixed DDA. */
+    // Unless we're in relative mode in which case we'll issue a relative move
+    // Or if one of the unknown axes was not specified by this command in which
+    // case we don't know where to tell 139 to go, so we'll use a 0 relative move on
+    // those axes here (see markwal/GPX#1)
     unsigned mask = gpx->command.flag & gpx->axis.mask;
-    if((gpx->axis.positionKnown & mask) != mask) {
+    unsigned stillUnknown = (~(gpx->axis.positionKnown | mask)) & gpx->axis.mask;
+    if((gpx->axis.positionKnown & mask) != mask && !relative && !stillUnknown) {
         return queue_absolute_point(gpx);
     }
-    Point5d deltaMM = delta_mm(gpx);
+
+    Point5d deltaMM;
+    if (stillUnknown || relative)
+        deltaMM = *delta;
+    else
+        deltaMM = delta_mm(gpx);
+
     Point5d deltaSteps = delta_steps(gpx, deltaMM);
 
     // check that we have actually moved on at least one axis when the move is
@@ -2111,7 +2134,8 @@ static int queue_ext_point(Gpx *gpx, double feedrate)
                     deltaMM.a = -(distance * packing_scale);
                 }
                 deltaMM.a *= ((double)gpx->override[A].extrusion_factor / 100);
-                gpx->target.position.a = gpx->current.position.a + deltaMM.a;
+                if(gpx->axis.positionKnown & A_IS_SET)
+                    gpx->target.position.a = gpx->current.position.a + deltaMM.a;
                 deltaSteps.a = round(fabs(deltaMM.a) * gpx->machine.a.steps_per_mm);
             }
             if(B_IS_SET && deltaMM.b > 0.0001) {
@@ -2131,11 +2155,22 @@ static int queue_ext_point(Gpx *gpx, double feedrate)
                     deltaMM.b = -(distance * packing_scale);
                 }
                 deltaMM.b *= ((double)gpx->override[B].extrusion_factor / 100);
-                gpx->target.position.b = gpx->current.position.b + deltaMM.b;
+                if(gpx->axis.positionKnown & B_IS_SET)
+                    gpx->target.position.b = gpx->current.position.b + deltaMM.b;
                 deltaSteps.b = round(fabs(deltaMM.b) * gpx->machine.b.steps_per_mm);
             }
         }
-        Point5d target = gpx->target.position;
+
+        Point5d target = relative ? *delta : gpx->target.position;
+
+        if (stillUnknown) {
+            if (stillUnknown & X_IS_SET)
+                target.x = 0;
+            if (stillUnknown & Y_IS_SET)
+                target.y = 0;
+            if (stillUnknown & Z_IS_SET)
+                target.z = 0;
+        }
 
         target.a = -deltaMM.a;
         target.b = -deltaMM.b;
@@ -2241,7 +2276,7 @@ static int queue_ext_point(Gpx *gpx, double feedrate)
         write_32(gpx, (unsigned)dda_rate);
 
         // uint8: Axes bitfield to specify which axes are relative. Any axis with a bit set should make a relative movement.
-        write_8(gpx, A_IS_SET|B_IS_SET);
+        write_8(gpx, relative ? AXES_BIT_MASK : stillUnknown|A_IS_SET|B_IS_SET);
 
         // float (single precision, 32 bit): mm distance for this move.  normal of XYZ if any of these axes are active, and AB for extruder only moves
         write_float(gpx, (float)distance);
@@ -2814,12 +2849,17 @@ static int display_tag(Gpx *gpx) {
 
 // calculate target position
 
-static int calculate_target_position(Gpx *gpx)
+static int calculate_target_position(Gpx *gpx, Ptr5d delta, int *relative)
 {
     int rval;
     // G10 ofset
     Point3d userOffset = gpx->offset[gpx->current.offset];
     double userScale = 1.0;
+
+    // we try to calculate a new absolute target even if we're in relative mode
+    // only resort to relative x,y,z if we don't know where we are.
+    delta->x = delta->y = delta->z = delta->a = delta->b = 0;
+    *relative = 0;
 
     if(gpx->flag.macrosEnabled) {
         // plus command line offset
@@ -2833,33 +2873,59 @@ static int calculate_target_position(Gpx *gpx)
     // CALCULATE TARGET POSITION
 
     // x
+    gpx->target.position.x = gpx->current.position.x;
     if(gpx->command.flag & X_IS_SET) {
-        gpx->target.position.x = gpx->flag.relativeCoordinates ? (gpx->current.position.x + (gpx->command.x * userScale)) : ((gpx->command.x + userOffset.x) * userScale);
-    }
-    else {
-        gpx->target.position.x = gpx->current.position.x;
+        if(gpx->flag.relativeCoordinates) {
+            delta->x = gpx->command.x * userScale;
+            gpx->target.position.x += delta->x;
+            *relative = !!(gpx->axis.positionKnown & X_IS_SET);
+        }
+        else {
+            gpx->target.position.x = (gpx->command.x + userOffset.x) * userScale;
+            delta->x = gpx->target.position.x - gpx->current.position.x;
+        }
     }
 
     // y
+    gpx->target.position.y = gpx->current.position.y;
     if(gpx->command.flag & Y_IS_SET) {
-        gpx->target.position.y = gpx->flag.relativeCoordinates ? (gpx->current.position.y + (gpx->command.y * userScale)) : ((gpx->command.y + userOffset.y) * userScale);
-    }
-    else {
-        gpx->target.position.y = gpx->current.position.y;
+        if(gpx->flag.relativeCoordinates) {
+            delta->y = gpx->command.y * userScale;
+            gpx->target.position.y += delta->y;
+            *relative = !!(gpx->axis.positionKnown & Y_IS_SET);
+        }
+        else {
+            gpx->target.position.y = (gpx->command.y + userOffset.y) * userScale;
+            delta->y = gpx->target.position.y - gpx->current.position.y;
+        }
     }
 
     // z
+    gpx->target.position.z = gpx->current.position.z;
     if(gpx->command.flag & Z_IS_SET) {
-        gpx->target.position.z = gpx->flag.relativeCoordinates ? (gpx->current.position.z + (gpx->command.z * userScale)) : ((gpx->command.z + userOffset.z) * userScale);
-    }
-    else {
-        gpx->target.position.z = gpx->current.position.z;
+        if(gpx->flag.relativeCoordinates) {
+            delta->z = gpx->command.z * userScale;
+            gpx->target.position.z += delta->z;
+            *relative = !!(gpx->axis.positionKnown & Z_IS_SET);
+        }
+        else {
+            gpx->target.position.z = (gpx->command.z + userOffset.z) * userScale;
+            delta->z = gpx->target.position.z - gpx->current.position.z;
+        }
     }
 
     // a
     if(gpx->command.flag & A_IS_SET) {
         double a = (gpx->override[A].filament_scale == 1.0) ? gpx->command.a : (gpx->command.a * gpx->override[A].filament_scale);
-        gpx->target.position.a = (gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) ? (gpx->current.position.a + a) : a;
+        if(gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) {
+            delta->a = a;
+            gpx->target.position.a += a;
+            *relative = !!(gpx->axis.positionKnown & A_IS_SET);
+        }
+        else {
+            gpx->target.position.a = a;
+            delta->a = gpx->target.position.a - gpx->current.position.a;
+        }
     }
     else {
         gpx->target.position.a = gpx->current.position.a;
@@ -2868,7 +2934,15 @@ static int calculate_target_position(Gpx *gpx)
     // b
     if(gpx->command.flag & B_IS_SET) {
         double b = (gpx->override[B].filament_scale == 1.0) ? gpx->command.b : (gpx->command.b * gpx->override[B].filament_scale);
-        gpx->target.position.b = (gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) ? (gpx->current.position.b + b) : b;
+        if(gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) {
+            delta->b = b;
+            gpx->target.position.b += b;
+            *relative = !!(gpx->axis.positionKnown & B_IS_SET);
+        }
+        else {
+            gpx->target.position.b = b;
+            delta->b = gpx->target.position.b - gpx->current.position.b;
+        }
     }
     else {
         gpx->target.position.b = gpx->current.position.b;
@@ -2883,11 +2957,19 @@ static int calculate_target_position(Gpx *gpx)
 
     if(gpx->flag.dittoPrinting) {
         if(gpx->command.flag & A_IS_SET) {
-            gpx->target.position.b = gpx->target.position.a;
+            delta->b = delta->a;
+            if(gpx->axis.positionKnown & A_IS_SET) {
+                gpx->target.position.b = gpx->target.position.a;
+                gpx->axis.positionKnown |= A_IS_SET;
+            }
             gpx->command.flag |= B_IS_SET;
         }
         else if(gpx->command.flag & B_IS_SET) {
-            gpx->target.position.a = gpx->target.position.b;
+            delta->a = delta->b;
+            if(gpx->axis.positionKnown & B_IS_SET) {
+                gpx->target.position.a = gpx->target.position.b;
+                gpx->axis.positionKnown |= A_IS_SET;
+            }
             gpx->command.flag |= A_IS_SET;
         }
     }
@@ -3054,9 +3136,8 @@ static int do_tool_change(Gpx *gpx, int timeout) {
     // well defined.  For example, we cannot do this for a tool change
     // immediately after a 'recall home offsets' command.
 
-    if(XYZ_BIT_MASK == (gpx->axis.positionKnown & XYZ_BIT_MASK)) {
+    if(gpx->axis.mask == (gpx->axis.positionKnown & gpx->axis.mask)) {
 	 gpx->target.position = gpx->current.position;
-	 gpx->axis.mask = XYZ_BIT_MASK;
 	 CALL( queue_absolute_point(gpx) );
     }
 
@@ -3149,6 +3230,13 @@ static char *normalize_comment(char *p) {
     // strip white space from the beginning of comment.
     while(isspace(*p)) p++;
     return p;
+}
+
+static void show_current_pos(Gpx *gpx)
+{
+    gcodeResult(gpx, "X:%0.2f Y:%0.2f Z:%0.2f A:%0.2f B:%0.2f\n",
+        gpx->current.position.x, gpx->current.position.y, gpx->current.position.z,
+        gpx->current.position.a, gpx->current.position.b);
 }
 
 // MACRO PARSER
@@ -3540,9 +3628,9 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         // ;@debug pos
         // Output current position
         if(NAME_IS("pos")) {
-            gcodeResult(gpx, "gpx position X:%0.2f Y:%0.2f Z:%0.2f A:%0.2f B:%0.2f\n",
-                gpx->current.position.x, gpx->current.position.y, gpx->current.position.z,
-                gpx->current.position.a, gpx->current.position.b);
+            gcodeResult(gpx, "gpx position ");
+            show_current_pos(gpx);
+
             char axes_names[] = "XYZAB";
             char s[sizeof(axes_names)], *p = s;
             int i;
@@ -4337,24 +4425,22 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
     // INTERPRET COMMAND
 
+    Point5d delta;
+    int relative;
+
     if(gpx->command.flag & G_IS_SET) {
         switch(gpx->command.g) {
                 // G0 - Rapid Positioning
-            case 0:
-                if(gpx->command.flag & F_IS_SET) {
-                    CALL( calculate_target_position(gpx) );
-                    CALL( queue_ext_point(gpx, 0.0) );
-                    update_current_position(gpx);
-                    command_emitted++;
-                }
-                else {
-                    Point3d delta;
-                    CALL( calculate_target_position(gpx) );
-                    if(gpx->command.flag & X_IS_SET) delta.x = fabs(gpx->target.position.x - gpx->current.position.x);
-                    if(gpx->command.flag & Y_IS_SET) delta.y = fabs(gpx->target.position.y - gpx->current.position.y);
-                    if(gpx->command.flag & Z_IS_SET) delta.z = fabs(gpx->target.position.z - gpx->current.position.z);
+            case 0: {
+                double feedrate = 0.0;
+                CALL( calculate_target_position(gpx, &delta, &relative) );
+                if(!(gpx->command.flag & F_IS_SET)) {
+                    if(gpx->command.flag & X_IS_SET) delta.x = fabs(delta.x);
+                    if(gpx->command.flag & Y_IS_SET) delta.y = fabs(delta.y);
+                    if(gpx->command.flag & Z_IS_SET) delta.z = fabs(delta.z);
                     double length = magnitude(gpx->command.flag & XYZ_BIT_MASK, (Ptr5d)&delta);
-                    double candidate, feedrate = DBL_MAX;
+                    double candidate;
+                    feedrate = DBL_MAX;
                     if(gpx->command.flag & X_IS_SET && delta.x != 0.0) {
                         feedrate = gpx->machine.x.max_feedrate * length / delta.x;
                     }
@@ -4373,16 +4459,17 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     if(feedrate == DBL_MAX) {
                         feedrate = gpx->machine.x.max_feedrate;
                     }
-                    CALL( queue_ext_point(gpx, feedrate) );
-                    update_current_position(gpx);
-                    command_emitted++;
                 }
+                CALL( queue_ext_point(gpx, feedrate, &delta, relative) );
+                update_current_position(gpx);
+                command_emitted++;
                 break;
+            }
 
                 // G1 - Coordinated Motion
             case 1:
-                CALL( calculate_target_position(gpx) );
-                CALL( queue_ext_point(gpx, 0.0) );
+                CALL( calculate_target_position(gpx, &delta, &relative) );
+                CALL( queue_ext_point(gpx, 0.0, &delta, relative) );
                 update_current_position(gpx);
                 command_emitted++;
                 break;
@@ -4395,7 +4482,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 if(gpx->command.flag & P_IS_SET) {
 #if ENABLE_SIMULATED_RPM
                     if(gpx->tool[gpx->current.extruder].motor_enabled && gpx->tool[gpx->current.extruder].rpm) {
-                        CALL( calculate_target_position(gpx) );
+                        CALL( calculate_target_position(gpx, &delta, &relative) );
                         CALL( queue_new_point(gpx, gpx->command.p) );
                         command_emitted++;
                     }
@@ -4557,13 +4644,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // G91 - Relative Positioning
             case 91:
-                if((gpx->axis.positionKnown & XYZ_BIT_MASK) == XYZ_BIT_MASK) {
-                    gpx->flag.relativeCoordinates = 1;
-                }
-                else {
-                    gcodeResult(gpx, "(line %u) Semantic error: G91 switch to relative positioning prior to first absolute move" EOL, gpx->lineNumber);
-                    return ERROR;
-                }
+                gpx->flag.relativeCoordinates = 1;
                 break;
 
                 // G92 - Define current position on axes
@@ -4574,6 +4655,14 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 if(gpx->command.flag & Z_IS_SET) gpx->current.position.z = gpx->command.z * userScale;
                 if(gpx->command.flag & A_IS_SET) gpx->current.position.a = gpx->command.a;
                 if(gpx->command.flag & B_IS_SET) gpx->current.position.b = gpx->command.b;
+                if(((gpx->axis.positionKnown | gpx->command.flag) & gpx->axis.mask) != gpx->axis.mask) {
+                    // there's a problem with MakerBot's version of G92 (140 set extended position) in that
+                    // it must take all coordinates, so if a G92 specifies a subset, the other coordinates
+                    // are set as a side effect to whatever GPX thinks is "current" whether it knows or not
+                    gcodeResult(gpx, "(line %u) warning G92 emulation unable to determine all coordinates to set via x3g:140 set extended position\n", gpx->lineNumber);
+                    gcodeResult(gpx, "current position defined as ");
+                    show_current_pos(gpx);
+                }
                 CALL( set_position(gpx) );
                 command_emitted++;
                 // flag axes that are known
@@ -5424,8 +5513,13 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                         conditional_z += gpx->user.offset.z;
                     }
 
-                    double z = gpx->flag.relativeCoordinates ? (gpx->current.position.z + gpx->command.z) : (gpx->command.z + conditional_z);
-                    CALL( pause_at_zpos(gpx, z) );
+                    if(gpx->flag.relativeCoordinates && !(gpx->axis.positionKnown & Z_IS_SET)) {
+                        gcodeResult(gpx, "(line %u) Pause at zPos ignored because relative positioning is set and current Z position is unknown.\n", gpx->lineNumber);
+                    }
+                    else {
+                        double z = gpx->flag.relativeCoordinates ? (gpx->current.position.z + gpx->command.z) : (gpx->command.z + conditional_z);
+                        CALL( pause_at_zpos(gpx, z) );
+                    }
                 }
                 else {
                     gcodeResult(gpx, "(line %u) Syntax warning: M322 is missing Z axis" EOL, gpx->lineNumber);
@@ -5459,8 +5553,8 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
     // X,Y,Z,A,B,E,F
     else if(gpx->command.flag & (AXES_BIT_MASK | F_IS_SET)) {
         if(!(gpx->command.flag & COMMENT_IS_SET)) {
-            CALL( calculate_target_position(gpx) );
-            CALL( queue_ext_point(gpx, 0.0) );
+            CALL( calculate_target_position(gpx, &delta, &relative) );
+            CALL( queue_ext_point(gpx, 0.0, &delta, relative) );
             update_current_position(gpx);
             command_emitted++;
         }
