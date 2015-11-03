@@ -75,6 +75,13 @@ static int gcodeResult(Gpx *gpx, const char *fmt, ...)
     return result;
 }
 
+static void show_current_pos(Gpx *gpx)
+{
+    gcodeResult(gpx, "X:%0.2f Y:%0.2f Z:%0.2f A:%0.2f B:%0.2f\n",
+        gpx->current.position.x, gpx->current.position.y, gpx->current.position.z,
+        gpx->current.position.a, gpx->current.position.b);
+}
+
 void gpx_list_machines(FILE *fp)
 {
      Machine **ptr = machines;
@@ -2920,7 +2927,6 @@ static int calculate_target_position(Gpx *gpx, Ptr5d delta, int *relative)
         if(gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) {
             delta->a = a;
             gpx->target.position.a += a;
-            *relative = !!(gpx->axis.positionKnown & A_IS_SET);
         }
         else {
             gpx->target.position.a = a;
@@ -2937,7 +2943,6 @@ static int calculate_target_position(Gpx *gpx, Ptr5d delta, int *relative)
         if(gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) {
             delta->b = b;
             gpx->target.position.b += b;
-            *relative = !!(gpx->axis.positionKnown & B_IS_SET);
         }
         else {
             gpx->target.position.b = b;
@@ -3136,9 +3141,12 @@ static int do_tool_change(Gpx *gpx, int timeout) {
     // well defined.  For example, we cannot do this for a tool change
     // immediately after a 'recall home offsets' command.
 
+    VERBOSE( gcodeResult(gpx, "(line %u) do_tool_change to %d\n", gpx->lineNumber, gpx->target.extruder) );
     if(gpx->axis.mask == (gpx->axis.positionKnown & gpx->axis.mask)) {
-	 gpx->target.position = gpx->current.position;
-	 CALL( queue_absolute_point(gpx) );
+        gpx->target.position = gpx->current.position;
+        VERBOSE( gcodeResult(gpx, "(line %u) queuing an absolute point to ", gpx->lineNumber) );
+        VERBOSE( show_current_pos(gpx) );
+        CALL( queue_absolute_point(gpx) );
     }
 
     // set current extruder so changes in E are expressed as changes to A or B
@@ -3230,13 +3238,6 @@ static char *normalize_comment(char *p) {
     // strip white space from the beginning of comment.
     while(isspace(*p)) p++;
     return p;
-}
-
-static void show_current_pos(Gpx *gpx)
-{
-    gcodeResult(gpx, "X:%0.2f Y:%0.2f Z:%0.2f A:%0.2f B:%0.2f\n",
-        gpx->current.position.x, gpx->current.position.y, gpx->current.position.z,
-        gpx->current.position.a, gpx->current.position.b);
 }
 
 // MACRO PARSER

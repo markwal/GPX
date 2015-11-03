@@ -719,6 +719,7 @@ static PyObject *gpx_return_translation(int rval)
             // won't come through because the event layer will eat the next
             // event (because it's anticipating this event)
             tio.flag.cancelPending = 1;
+            gpx.flag.programState = READY_STATE;
             gpx.axis.positionKnown = 0;
             gpx.excess.a = 0;
             gpx.excess.b = 0;
@@ -1211,6 +1212,8 @@ static PyObject *set_build_aborted_state(Gpx *gpx)
         int retries = 5;
         while (retries--) {
             rval = set_build_progress(gpx, 100);
+            if (rval == 0x8B)
+                return gpx_return_translation(rval);
             if (rval == SUCCESS || rval != ESIOTIMEOUT)
                 break;
         }
