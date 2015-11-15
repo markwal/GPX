@@ -43,7 +43,7 @@ PYTHON = python
 else ifeq ($(UNAME_OS), Linux)
 
 CC = cc
-CC_FLAGS =
+CC_FLAGS = -Wstrict-prototypes -Wformat -Werror=format-security
 LD_FLAGS =
 PLATFORM = linux
 EXE =
