@@ -820,7 +820,7 @@ speed_t speed_from_long(long *baudrate)
             break;
         default:
             sprintf(gpx.buffer.out, "Unsupported baud rate '%ld'\n", *baudrate);
-            fprintf(gpx.log, gpx.buffer.out);
+            fprintf(gpx.log, "%s", gpx.buffer.out);
             PyErr_SetString(PyExc_ValueError, gpx.buffer.out);
             break;
     }
