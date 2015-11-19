@@ -5345,6 +5345,19 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);;
                     gpx->excess.a = 0;
                     gpx->excess.b = 0;
+
+                    // since we always emit relative extruder moves, let's pretend
+                    // that M132 always returns 0 for the extruders, this will prevent
+                    // confusion later when the gcode only uses E and we continue
+                    // to think we don't know where the other extruder is
+                    if(gpx->command.flag & A_IS_SET) {
+                        gpx->axis.positionKnown |= A_IS_SET;
+                        gpx->current.position.a = 0;
+                    }
+                    if(gpx->command.flag & B_IS_SET) {
+                        gpx->axis.positionKnown |= B_IS_SET;
+                        gpx->current.position.b = 0;
+                    }
                 }
                 else {
                     gcodeResult(gpx, "(line %u) Syntax error: M132 is missing axes, use X Y Z A B" EOL, gpx->lineNumber);
