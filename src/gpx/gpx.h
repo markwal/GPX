@@ -304,6 +304,7 @@ typedef long speed_t;
             unsigned verboseSioMode:1;  // extra verbose for serial packets back and forth
             unsigned rewrite5D:1;       // calculate 5D E values rather than scaling them
             unsigned M106AlwaysValve:1; // force M106 to reprap flavor even in makerbot mode
+            unsigned onlyExplicitToolChange:1; // no implicit tool change when Tn used as a parameter
 
         // STATE
             unsigned programState:8;    // gcode program state used to trigger start and end code sequences

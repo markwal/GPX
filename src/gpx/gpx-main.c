@@ -383,10 +383,14 @@ int main(int argc, char * const argv[])
 
     gpx_initialize(&gpx, 1);
 
+    // peek at first option in case we want verbose for reading gpx.ini
+    if (argc > 1 && argv[1][0] == 'v')
+        gpx.flag.verboseMode = 1;
+
     // READ GPX.INI
     i = gpx_find_ini(&gpx, argv[0]);
     if (i > 0) {
-        fprintf(stderr, "(line %u) Configuration syntax error: unrecognised paremeters" EOL, i);
+        fprintf(stderr, "(line %u) Configuration syntax error: unrecognised parameters" EOL, i);
         usage(1);
         goto done;
     }

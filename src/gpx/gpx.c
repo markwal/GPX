@@ -322,6 +322,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
         gpx->flag.rewrite5D = 0;
         gpx->flag.sioConnected = 0;
         gpx->flag.M106AlwaysValve = 0;
+        gpx->flag.onlyExplicitToolChange = 0;
     }
 
     // STATE
@@ -3368,6 +3369,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     }
     // ;@enable ditto
     // ;@enable progress
+    // ;@enable explicit_tool_change
     else if(MACRO_IS("enable")) {
         if(name) {
             if(NAME_IS("ditto")) {
@@ -3380,12 +3382,29 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
                 }
             }
             else if(NAME_IS("progress")) gpx->flag.buildProgress = 1;
+            else if(NAME_IS("explicit_tool_change")) gpx->flag.onlyExplicitToolChange = 1;
             else {
                 gcodeResult(gpx, "(line %u) Semantic error: @enable macro with unrecognised parameter '%s'" EOL, gpx->lineNumber, name);
             }
         }
         else {
             gcodeResult(gpx, "(line %u) Syntax error: @enable macro with missing parameter" EOL, gpx->lineNumber);
+        }
+    }
+    // ;@disable ditto
+    // ;@disable progress
+    // ;@disable explicit_tool_change
+    else if(MACRO_IS("disable")) {
+        if(name) {
+            if(NAME_IS("ditto")) gpx->flag.dittoPrinting = 0;
+            else if(NAME_IS("progress")) gpx->flag.buildProgress = 0;
+            else if(NAME_IS("explicit_tool_change")) gpx->flag.onlyExplicitToolChange = 0;
+            else {
+                gcodeResult(gpx, "(line %u) Semantic error: @disable macro with unrecognised parameter '%s'" EOL, gpx->lineNumber, name);
+            }
+        }
+        else {
+            gcodeResult(gpx, "(line %u) Syntax error: @disable macro with missing parameter" EOL, gpx->lineNumber);
         }
     }
     // ;@filament <NAME> <DIAMETER>mm <TEMP>c #<LED-COLOUR>
@@ -4076,7 +4095,7 @@ int gpx_load_config(Gpx *gpx, const char *filename)
 
     int rval = ini_parse(gpx, filename, gpx_set_property);
     if(rval == 0)
-        SHOW( fprintf(gpx->log, "Loaded config: %s\n", filename) );
+        VERBOSE( fprintf(gpx->log, "Loaded config: %s\n", filename) );
     return rval;
 }
 
@@ -4396,7 +4415,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
     }
 
     // revert tool selection to current extruder (Makerbot Tn is not sticky)
-    if(!gpx->flag.reprapFlavor) gpx->target.extruder = gpx->current.extruder;
+    if(!gpx->flag.reprapFlavor || gpx->flag.onlyExplicitToolChange) gpx->target.extruder = gpx->current.extruder;
 
     // change the extruder selection (in the virtual tool carosel)
     if(gpx->command.flag & T_IS_SET && !gpx->flag.dittoPrinting) {
