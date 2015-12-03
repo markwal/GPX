@@ -384,7 +384,7 @@ int main(int argc, char * const argv[])
     gpx_initialize(&gpx, 1);
 
     // peek at first option in case we want verbose for reading gpx.ini
-    if (argc > 1 && argv[1][0] == 'v')
+    if (argc > 1 && argv[1][0] && argv[1][1] == 'v')
         gpx.flag.verboseMode = 1;
 
     // READ GPX.INI
