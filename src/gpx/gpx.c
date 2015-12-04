@@ -2000,6 +2000,7 @@ static int display_message(Gpx *gpx, char *message, unsigned vPos, unsigned hPos
 int set_build_progress(Gpx *gpx, unsigned percent)
 {
     if(percent > 100) percent = 100;
+    gpx->current.percent = percent;
 
     begin_frame(gpx);
 
@@ -3683,6 +3684,23 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             s = "B";
             gcodeResult(gpx, "%s: %.10g, %g, %g, %g, %g, %u\n", s, e->steps_per_mm, e->max_feedrate, e->max_accel, e->max_speed_change, e->motor_steps, e->has_heated_build_platform);
         }
+        // @debug progress
+        // Output internal state relating to progress reporting
+        else if(NAME_IS("progress")) {
+            char *s;
+            switch (gpx->flag.programState) {
+                case READY_STATE:   s = "READY_STATE"; break;
+                case RUNNING_STATE: s = "RUNNING_STATE"; break;
+                case ENDED_STATE:   s = "ENDED_STATE"; break;
+                default:            s = "UNKNOWN"; break;
+            }
+            gcodeResult(gpx, "buildProgress: %s\n", gpx->flag.buildProgress ? "True" : "False");
+            gcodeResult(gpx, "programState: %s\n", s);
+            gcodeResult(gpx, "macrosEnabled: %s\n", gpx->flag.macrosEnabled ? "True" : "False");
+            gcodeResult(gpx, "runMacros: %s\n", gpx->flag.runMacros ? "True" : "False");
+            gcodeResult(gpx, "current.percent: %d\%\n", gpx->current.percent);
+            gcodeResult(gpx, "total.time: %lf\n", gpx->total.time);
+        }
         else if(NAME_IS("overheat")) {
             return 0x8B;
         }
@@ -4974,7 +4992,6 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 			    if(!gpx->noend) {
 				 CALL( end_build(gpx) );
 			    }
-                            gpx->current.percent = 100;
                         }
                         else {
                             // enable macros in object body
@@ -4987,7 +5004,6 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                             }
                             if(gpx->current.percent < percent && (percent == 1 || gpx->total.time == 0.0 || gpx->flag.buildProgress == 0)) {
                                 CALL( set_build_progress(gpx, percent) );
-                                gpx->current.percent = percent;
                             }
                         }
                     }
@@ -5494,7 +5510,6 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     end_program();
                     CALL( set_build_progress(gpx, 100) );
 		    CALL( end_build(gpx) );
-                    gpx->current.percent = 100;
                 }
                 break;
 
@@ -5622,12 +5637,10 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             else if(percent < 100 && program_is_running()) {
                 if(gpx->current.percent) {
                     CALL( set_build_progress(gpx, percent) );
-                    gpx->current.percent = percent;
                 }
                 // force 1%
                 else {
                     CALL( set_build_progress(gpx, 1) );
-                    gpx->current.percent = 1;
                 }
             }
             command_emitted = 0;
