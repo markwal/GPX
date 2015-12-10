@@ -230,6 +230,19 @@ static void gpx_cleanup(void)
     gpx_set_machine(&gpx, "r2", 1);
 }
 
+static void clear_state_for_cancel()
+{
+    gpx.flag.programState = READY_STATE;
+    gpx.axis.positionKnown = 0;
+    gpx.excess.a = 0;
+    gpx.excess.b = 0;
+    if (tio.waiting)
+        tio.flag.waitClearedByCancel = 1;
+    tio.waiting = 0;
+    tio.waitflag.waitForEmptyQueue = 1;
+    tio.flag.getPosWhenReady = 0;
+}
+
 // wrap port_handler and translate to the expect gcode response
 #define COMMAND_OFFSET 2
 #define EXTRUDER_ID_OFFSET 3
@@ -619,7 +632,6 @@ static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
         else {
             tio->flag.cancelPending = 0;
             tio->waitflag.waitForEmptyQueue = 1;
-            tio->flag.getPosWhenReady = 1;
         }
         return 0;
     }
@@ -719,13 +731,7 @@ static PyObject *gpx_return_translation(int rval)
             // won't come through because the event layer will eat the next
             // event (because it's anticipating this event)
             tio.flag.cancelPending = 1;
-            gpx.flag.programState = READY_STATE;
-            gpx.axis.positionKnown = 0;
-            gpx.excess.a = 0;
-            gpx.excess.b = 0;
-            if (tio.waiting)
-                tio.flag.waitClearedByCancel = 1;
-            tio.waiting = 0;
+            clear_state_for_cancel();
             PyErr_SetString(pyerrCancelBuild, "Cancel build");
             return NULL;
 
@@ -922,7 +928,6 @@ static PyObject *gpx_start(PyObject *self, PyObject *args)
     int rval = get_advanced_version_number(&gpx);
     if (rval >= 0) {
         tio.waitflag.waitForEmptyQueue = 1;
-        tio.flag.getPosWhenReady = 1;
         tio_printf(&tio, "\necho: gcode to x3g translation by GPX");
         return gpx_write_string("M21");
     }
@@ -1239,12 +1244,9 @@ static PyObject *gpx_stop(PyObject *self, PyObject *args)
         tio.flag.cancelPending = 1;
     }
 
-    if (tio.waiting)
-        tio.flag.waitClearedByCancel = 1;
+    clear_state_for_cancel();
     tio.cur = 0;
     tio.translation[0] = 0;
-    tio.waiting = 0;
-    tio.flag.getPosWhenReady = 0;
     tio.sec = 0;
     int rval = SUCCESS;
 
@@ -1269,8 +1271,6 @@ static PyObject *gpx_stop(PyObject *self, PyObject *args)
 
     if (!tio.flag.cancelPending) {
         tio.waitflag.waitForCancelSync = 0;
-        tio.waitflag.waitForEmptyQueue = 1;
-        tio.flag.getPosWhenReady = 1;
     }
     if (rval != SUCCESS)
         return gpx_return_translation(rval);
@@ -1293,12 +1293,9 @@ static PyObject *gpx_abort(PyObject *self, PyObject *args)
         tio.flag.cancelPending = 1;
     }
 
-    if (tio.waiting)
-        tio.flag.waitClearedByCancel = 1;
+    clear_state_for_cancel();
     tio.cur = 0;
     tio.translation[0] = 0;
-    tio.waiting = 0;
-    tio.flag.getPosWhenReady = 0;
     tio.sec = 0;
 
     int rval = abort_immediately(&gpx);
@@ -1312,8 +1309,6 @@ static PyObject *gpx_abort(PyObject *self, PyObject *args)
 
     if (!tio.flag.cancelPending) {
         tio.waitflag.waitForCancelSync = 0;
-        tio.waitflag.waitForEmptyQueue = 1;
-        tio.flag.getPosWhenReady = 1;
     }
     if (rval != SUCCESS) {
         if (gpx.flag.verboseMode) fprintf(gpx.log, "abort_immediately rval = %d\n", rval);
