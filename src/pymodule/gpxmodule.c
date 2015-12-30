@@ -230,7 +230,7 @@ static void gpx_cleanup(void)
     gpx_set_machine(&gpx, "r2", 1);
 }
 
-static void clear_state_for_cancel()
+static void clear_state_for_cancel(void)
 {
     gpx.flag.programState = READY_STATE;
     gpx.axis.positionKnown = 0;
@@ -1180,6 +1180,16 @@ static PyObject *gpx_waiting(PyObject *self, PyObject *args)
         Py_RETURN_FALSE;
 }
 
+// def build_started()
+// are we printing a build?
+static PyObject *gpx_build_started(PyObject *self, PyObject *args)
+{
+    if (gpx.flag.programState == RUNNING_STATE)
+        Py_RETURN_TRUE;
+    else
+        Py_RETURN_FALSE;
+}
+
 // def reprap_flavor(turn_on_reprap)
 static PyObject *gpx_reprap_flavor(PyObject *self, PyObject *args)
 {
@@ -1553,6 +1563,7 @@ static PyMethodDef GpxMethods[] = {
     {"abort", gpx_abort, METH_VARARGS, "abort() Tells the bot to clear the queue and stop all motors and heaters"},
     {"read_eeprom", gpx_read_eeprom, METH_VARARGS, "read_eeprom(id) Read the value identified by id from the eeprom"},
     {"write_eeprom", gpx_write_eeprom, METH_VARARGS, "write_eeprom(id, value) Write 'value' to the eeprom location identified by 'id'"},
+    {"build_started", gpx_build_started, METH_VARARGS, "build_started() Returns True if a build has been started, but not yet ended"},
     {NULL, NULL, 0, NULL} // sentinel
 };
 

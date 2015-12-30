@@ -3563,7 +3563,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
     }
     // ;@build <NAME>
     else if(MACRO_IS("build")) {
-        set_build_name(gpx, name);
+        set_build_name(gpx, string_param ? string_param : name);
     }
     // ;@flavor <FLAVOR>
     else if(MACRO_IS("flavor")) {
@@ -3694,6 +3694,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
                 case ENDED_STATE:   s = "ENDED_STATE"; break;
                 default:            s = "UNKNOWN"; break;
             }
+            gcodeResult(gpx, "buildName: %s\n", gpx->buildName);
             gcodeResult(gpx, "buildProgress: %s\n", gpx->flag.buildProgress ? "True" : "False");
             gcodeResult(gpx, "programState: %s\n", s);
             gcodeResult(gpx, "macrosEnabled: %s\n", gpx->flag.macrosEnabled ? "True" : "False");
@@ -4979,7 +4980,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                         if(!gpx->nostart) {
 			     CALL( start_build(gpx, gpx->buildName) );
 			}
-                        CALL( set_build_progress(gpx, 0) );
+                        CALL( set_build_progress(gpx, percent) );
                         // start extruder in a known state
                         CALL( change_extruder_offset(gpx, gpx->current.extruder) );
                     }
