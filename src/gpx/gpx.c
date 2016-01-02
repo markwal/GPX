@@ -2924,6 +2924,7 @@ static int calculate_target_position(Gpx *gpx, Ptr5d delta, int *relative)
     }
 
     // a
+    gpx->target.position.a = gpx->current.position.a;
     if(gpx->command.flag & A_IS_SET) {
         double a = (gpx->override[A].filament_scale == 1.0) ? gpx->command.a : (gpx->command.a * gpx->override[A].filament_scale);
         if(gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) {
@@ -2935,11 +2936,9 @@ static int calculate_target_position(Gpx *gpx, Ptr5d delta, int *relative)
             delta->a = gpx->target.position.a - gpx->current.position.a;
         }
     }
-    else {
-        gpx->target.position.a = gpx->current.position.a;
-    }
 
     // b
+    gpx->target.position.b = gpx->current.position.b;
     if(gpx->command.flag & B_IS_SET) {
         double b = (gpx->override[B].filament_scale == 1.0) ? gpx->command.b : (gpx->command.b * gpx->override[B].filament_scale);
         if(gpx->flag.relativeCoordinates || gpx->flag.extruderIsRelative) {
@@ -2950,9 +2949,6 @@ static int calculate_target_position(Gpx *gpx, Ptr5d delta, int *relative)
             gpx->target.position.b = b;
             delta->b = gpx->target.position.b - gpx->current.position.b;
         }
-    }
-    else {
-        gpx->target.position.b = gpx->current.position.b;
     }
 
     // update current feedrate
@@ -3087,7 +3083,7 @@ static void update_current_position(Gpx *gpx)
         }
     }
     gpx->current.position = gpx->target.position;
-    if(!gpx->flag.relativeCoordinates) gpx->axis.positionKnown |= gpx->command.flag & gpx->axis.mask;
+    if(!gpx->flag.relativeCoordinates) gpx->axis.positionKnown |= (gpx->command.flag & gpx->axis.mask);
 }
 
 // TOOL CHANGE
@@ -3143,7 +3139,6 @@ static int do_tool_change(Gpx *gpx, int timeout) {
     // well defined.  For example, we cannot do this for a tool change
     // immediately after a 'recall home offsets' command.
 
-    VERBOSE( gcodeResult(gpx, "(line %u) do_tool_change to %d\n", gpx->lineNumber, gpx->target.extruder) );
     if(gpx->axis.mask == (gpx->axis.positionKnown & gpx->axis.mask)) {
         gpx->target.position = gpx->current.position;
         VERBOSE( gcodeResult(gpx, "(line %u) queuing an absolute point to ", gpx->lineNumber) );
