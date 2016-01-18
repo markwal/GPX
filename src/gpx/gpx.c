@@ -5046,7 +5046,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 // M103 - Turn extruder off
             case 103:
                 if(gpx->flag.dittoPrinting) {
-                    CALL( set_steppers(gpx, A_IS_SET|B_IS_SET, 1) );
+                    CALL( set_steppers(gpx, A_IS_SET|B_IS_SET, 0) );
                     command_emitted++;
                     gpx->tool[A].motor_enabled = gpx->tool[B].motor_enabled = 0;
                 }
