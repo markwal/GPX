@@ -5289,7 +5289,6 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 if(gpx->machine.a.has_heated_build_platform || gpx->machine.b.has_heated_build_platform) {
                     if(gpx->command.flag & S_IS_SET) {
                         unsigned temperature = (unsigned)gpx->command.s;
-                        if(temperature > HBP_MAX) temperature = HBP_MAX;
                         unsigned tool_id = gpx->machine.a.has_heated_build_platform ? A : B;
                         if(gpx->command.flag & T_IS_SET) {
                             tool_id = gpx->target.extruder;
@@ -5438,7 +5437,6 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 if(gpx->machine.a.has_heated_build_platform || gpx->machine.b.has_heated_build_platform) {
                     if(gpx->command.flag & S_IS_SET) {
                         unsigned temperature = (unsigned)gpx->command.s;
-                        if(temperature > HBP_MAX) temperature = HBP_MAX;
                         unsigned tool_id = gpx->machine.a.has_heated_build_platform ? A : B;
                         if(gpx->command.flag & T_IS_SET) {
                             tool_id = gpx->target.extruder;
