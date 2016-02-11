@@ -5307,7 +5307,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                         }
                     }
                     else {
-                        gcodeResult(gpx, "(line %u) Syntax error: M%u is missing temperature, use Sn where n is 0-120" EOL, gpx->lineNumber, gpx->command.m);
+                        gcodeResult(gpx, "(line %u) Syntax error: M%u is missing temperature, use Sn where n is 0-130" EOL, gpx->lineNumber, gpx->command.m);
                     }
                 }
                 else {
