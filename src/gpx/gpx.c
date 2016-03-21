@@ -1076,6 +1076,8 @@ int is_ready(Gpx *gpx)
 
 int read_eeprom(Gpx *gpx, unsigned address, unsigned length)
 {
+    SHOW( fprintf(gpx->log, "Reading EEPROM address %u length %u\n", address, length) );
+
     begin_frame(gpx);
 
     write_8(gpx, 12);
@@ -1093,6 +1095,8 @@ int read_eeprom(Gpx *gpx, unsigned address, unsigned length)
 
 int write_eeprom(Gpx *gpx, unsigned address, char *data, unsigned length)
 {
+    SHOW( fprintf(gpx->log, "Writing EEPROM address %u length %u\n", address, length) );
+
     begin_frame(gpx);
 
     write_8(gpx, 13);
