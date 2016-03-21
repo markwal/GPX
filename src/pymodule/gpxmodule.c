@@ -364,7 +364,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     // but other than enumerating all the files again, we don't
                     // have a way to tell the printer to go check if it can be
                     // opened
-                    tio_printf(tio, " File opened:%s Size:%d\nFile selected:%s", gpx->selectedFilename, 0, gpx->selectedFilename);
+                    tio_printf(tio, "\nFile opened:%s Size:%d\nFile selected:%s", gpx->selectedFilename, 0, gpx->selectedFilename);
                     // currently no way to ask Sailfish for the file size, that I can tell :-(
                     break;
                 }
