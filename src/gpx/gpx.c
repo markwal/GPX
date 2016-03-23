@@ -3942,6 +3942,8 @@ done:
      return iret;
 }
 
+int gpx_parse_steps_per_mm_all_axes(Gpx *gpx, char *parm);
+
 int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, char* value)
 {
     int rval;
@@ -4085,6 +4087,9 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
             gpx->axis.mask = gpx->machine.extruder_count == 1 ? (XYZ_BIT_MASK | A_IS_SET) : AXES_BIT_MASK;;
         }
         else if(PROPERTY_IS("timeout")) gpx->machine.timeout = atoi(value);
+        else if(PROPERTY_IS("steps_per_mm")) {
+            gpx_parse_steps_per_mm_all_axes(gpx, value);
+        }
         else goto SECTION_ERROR;
     }
     else {
@@ -4096,6 +4101,33 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
 SECTION_ERROR:
     gcodeResult(gpx, "(line %u) Configuration error: [%s] section contains unrecognised property %s = %s" EOL, gpx->lineNumber, section, property, value);
     return gpx->lineNumber;
+}
+
+// parse a steps per mm parameter of the form x88.9y88.9z94.5a102.4b105.7
+int gpx_parse_steps_per_mm_all_axes(Gpx *gpx, char *parm)
+{
+    if(parm == NULL)
+        return SUCCESS;
+
+    char *s = parm;
+    char axis = *s;
+
+    while(*s++) {
+        if (isdigit(*s)) {
+            double steps = strtod(s, &s);
+            switch(tolower(axis)) {
+                case 'x': gpx->machine.x.steps_per_mm = steps; break;
+                case 'y': gpx->machine.y.steps_per_mm = steps; break;
+                case 'z': gpx->machine.z.steps_per_mm = steps; break;
+                case 'a': gpx->machine.a.steps_per_mm = steps; break;
+                case 'b': gpx->machine.b.steps_per_mm = steps; break;
+                default:
+                    gcodeResult(gpx, "(line %u) Configuration error: steps per mm parameter (%s) contains unrecognized axis '%c'\n", gpx->lineNumber, parm, axis);
+            }
+        }
+        axis = *s;
+    }
+    return SUCCESS;
 }
 
 int gpx_load_config(Gpx *gpx, const char *filename)

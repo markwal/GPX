@@ -382,6 +382,7 @@ int main(int argc, char * const argv[])
     atexit(exit_handler);
 
     gpx_initialize(&gpx, 1);
+    gpx.log = stderr;
 
     // peek at first option in case we want verbose for reading gpx.ini
     if (argc > 1 && argv[1][0] && argv[1][1] == 'v')
@@ -402,7 +403,7 @@ int main(int argc, char * const argv[])
     // error message should they be attempted when the code
     // is compiled without serial I/O support.
 
-    while ((c = getopt(argc, argv, "CFN:b:c:de:gf:ilm:n:pqrstuvwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CFN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
         switch (c) {
 	    case 'C':
 		 // Write config data to a temp file
@@ -520,9 +521,14 @@ int main(int argc, char * const argv[])
                 truncate_filename = 1;
                 break;
             case 'u':
-                gpx.flag.verboseSioMode = 1;
+                if(gpx_set_property(&gpx, "machine", "steps_per_mm", optarg)) {
+                    usage(1);
+                    goto done;
+                }
                 break;
             case 'v':
+                if (gpx.flag.verboseMode)
+                    gpx.flag.verboseSioMode = 1;
                 gpx.flag.verboseMode = 1;
                 break;
             case 'w':
