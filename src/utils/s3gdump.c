@@ -36,11 +36,7 @@
 
 #include "s3g.h"
 
-#if defined(__arm__)
-#define GETOPTS_END (char)-1
-#else
 #define GETOPTS_END -1
-#endif
 
 static void usage(FILE *f, const char *prog)
 {
@@ -56,7 +52,7 @@ static void usage(FILE *f, const char *prog)
 
 int main(int argc, const char *argv[])
 {
-     char c;
+     int c;
      s3g_context_t *ctx;
      s3g_command_t cmd;
      int lineno, simple;

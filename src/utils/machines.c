@@ -58,7 +58,7 @@ int main(int argc, char * const argv[])
      size_t dlen = 0;
      int iret = 0;
      Machine machine, **ptr = machines;
-     char c;
+     int c;
      int also_dump_wrong = 0;
 
      while ((c = getopt(argc, argv, "c?")) != -1)
