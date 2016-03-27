@@ -34,6 +34,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <time.h>
+#include <stdint.h>
+#include <endian.h>
+
 #include <libgen.h>
 
 #include "gpx.h"
@@ -389,52 +392,52 @@ static unsigned char read_8(Gpx *gpx)
     return *gpx->buffer.ptr++;
 }
 
-static void write_16(Gpx *gpx, unsigned short value)
+static void write_16(Gpx *gpx, uint16_t value)
 {
     union {
-        unsigned short s;
+        uint16_t s;
         unsigned char b[2];
     } u;
-    u.s = value;
+    u.s = htole16(value);
     *gpx->buffer.ptr++ = u.b[0];
     *gpx->buffer.ptr++ = u.b[1];
 }
 
-static unsigned short read_16(Gpx *gpx)
+static uint16_t read_16(Gpx *gpx)
 {
     union {
-        unsigned short s;
+        uint16_t s;
         unsigned char b[2];
     } u;
     u.b[0] = *gpx->buffer.ptr++;
     u.b[1] = *gpx->buffer.ptr++;
-    return u.s;
+    return le16toh(u.s);
 }
 
-static void write_32(Gpx *gpx, unsigned int value)
+static void write_32(Gpx *gpx, uint32_t value)
 {
     union {
-        unsigned int i;
+        uint32_t i;
         unsigned char b[4];
     } u;
-    u.i = value;
+    u.i = htole32(value);
     *gpx->buffer.ptr++ = u.b[0];
     *gpx->buffer.ptr++ = u.b[1];
     *gpx->buffer.ptr++ = u.b[2];
     *gpx->buffer.ptr++ = u.b[3];
 }
 
-static unsigned int read_32(Gpx *gpx)
+static uint32_t read_32(Gpx *gpx)
 {
     union {
-        unsigned int i;
+        uint32_t i;
         unsigned char b[4];
     } u;
     u.b[0] = *gpx->buffer.ptr++;
     u.b[1] = *gpx->buffer.ptr++;
     u.b[2] = *gpx->buffer.ptr++;
     u.b[3] = *gpx->buffer.ptr++;
-    return u.i;
+    return le32toh(u.i);
 }
 
 static void write_fixed_16(Gpx *gpx, float value)
@@ -457,9 +460,11 @@ static void write_float(Gpx *gpx, float value)
 {
     union {
         float f;
+        uint32_t i;
         unsigned char b[4];
     } u;
     u.f = value;
+    u.i = htole32(u.i);
     *gpx->buffer.ptr++ = u.b[0];
     *gpx->buffer.ptr++ = u.b[1];
     *gpx->buffer.ptr++ = u.b[2];
@@ -470,12 +475,14 @@ static float read_float(Gpx *gpx)
 {
     union {
         float f;
+        uint32_t i;
         unsigned char b[4];
     } u;
     u.b[0] = *gpx->buffer.ptr++;
     u.b[1] = *gpx->buffer.ptr++;
     u.b[2] = *gpx->buffer.ptr++;
     u.b[3] = *gpx->buffer.ptr++;
+    u.i = le32toh(u.i);
     return u.f;
 }
 
