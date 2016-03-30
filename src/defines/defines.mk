@@ -81,8 +81,6 @@ endif
 
 # Build directories
 
-GPX_VERSION = $(shell git describe --tags --dirty)
-VERSION = $(GPX_VERSION)
 SHAREDIR = $(SRCDIR)/shared
 PLANNERDIR = $(SRCDIR)/planner
 UTILSDIR = $(SRCDIR)/utils
@@ -92,7 +90,7 @@ OBJDIR = $(PLATFORM)_obj
 
 INCDIR = -I$(SHAREDIR) -I$(GPXDIR) -I$(PLANNERDIR)
 
-ARCHIVE = gpx-$(VERSION)-$(PLATFORM)
+ARCHIVE = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-$(PLATFORM)
 ARCHDIR = $(OBJDIR)/$(ARCHIVE)
 MACHINEDIR = $(SRCDIR)/../machines
 

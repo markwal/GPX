@@ -18,8 +18,8 @@ $(LINK_TARGETS):: $(EXE_TARGET_OBJS)
 
 $(OBJDIR)/%$(OBJ):: %.c
 	@test -d $(OBJDIR) || $(MKDIR) $(OBJDIR)
-	$(CC) -g -DGPX_VERSION=\"$(GPX_VERSION)\" $(CC_FLAGS) $($(notdir $(addsuffix _DEFS, $(basename ${@})))) $(INCDIR) -c -o $@ $<
-	$(CC) -DGPX_VERSION=\"$(GPX_VERSION)\" $(CC_FLAGS) $($(notdir $(addsuffix _DEFS, $(basename ${@})))) \
+	$(CC) -g $(CC_FLAGS) $($(notdir $(addsuffix _DEFS, $(basename ${@})))) $(INCDIR) -c -o $@ $<
+	$(CC) $(CC_FLAGS) $($(notdir $(addsuffix _DEFS, $(basename ${@})))) \
 		$(INCDIR) -MM -MF $(OBJDIR)/$*$(DEP) -MT $(OBJDIR)/$*$(OBJ) $(CC_FLAGS) $<
 
 clean::

@@ -2,31 +2,19 @@
 # Dan Newman, February 2015
 #
 
-SRCDIR = ..
-
-include $(SRCDIR)/defines/defines.mk
-
-EXE_TARGETS = gpx
-
-ifeq ($(PLATFORM), win32)
-SIO_SRCS = winsio.c
-endif
-ifeq ($(PLATFORM), win64)
-SIO_SRCS = winsio.c
+bin_PROGRAMS = gpx
+gpx_SOURCES = gpx.c gpx-main.c ../shared/machine_config.c ../shared/opt.c vector.c
+if HAVE_WINDOWS_H
+gpx_SOURCES += winsio.c
 endif
 
-gpx_SRCS = gpx.c gpx-main.c config.c opt.c vector.c $(EXTRA_SRCS) $(SIO_SRCS)
-gpx_OBJS = $(notdir $(gpx_SRCS:.c=$(OBJ)))
-gpx_LIBS = m
+LDADD = -lm
 
-gpx-main_DEFS = -DSERIAL_SUPPORT
+gpx_DEFS = -DSERIAL_SUPPORT
 
-ifdef PYTHON
-ifdef DIFF
-
-all::
-
-test:: $(OBJDIR)/gpx$(EXE)
+if HAVE_PYTHON
+if HAVE_DIFF
+extra_test:: $(OBJDIR)/gpx$(EXE)
 	$(OBJDIR)/gpx$(EXE) -p -m r2x tests/lint.gcode $(OBJDIR)/lint.x3g > $(OBJDIR)/lint.log 2>&1
 	$(OBJDIR)/gpx$(EXE) -g -p -m r2x tests/lint.gcode $(OBJDIR)/lint-g.x3g > $(OBJDIR)/lint-g.log 2>&1
 	$(OBJDIR)/gpx$(EXE) -p -m r2x tests/issue13.gcode $(OBJDIR)/issue13.x3g > $(OBJDIR)/issue13.log 2>&1
@@ -53,10 +41,3 @@ test:: $(OBJDIR)/gpx$(EXE)
 	-@$(RM) $(OBJDIR)/issue13-g.x3g $(OBJDIR)/issue13-g.txt $(OBJDIR)/issue13-g.log
 endif
 endif
-
-##########
-#
-# This should be the last line of the file
-#
-
-include $(SRCDIR)/defines/rules.mk
