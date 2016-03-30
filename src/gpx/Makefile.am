@@ -8,7 +8,7 @@ if HAVE_WINDOWS_H
 gpx_SOURCES += winsio.c
 endif
 
-LDADD = -lm
+gpx_LDADD = -lm
 
 gpx_DEFS = -DSERIAL_SUPPORT
 

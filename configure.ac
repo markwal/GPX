@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.69])
 AC_INIT([gpx], [m4_esyscmd_s([git describe --tag --dirty])], [https://github.com/markwal/GPX/issues],,[https://github.com/markwal/GPX])
-AM_INIT_AUTOMAKE([subdir-objects])
+AM_INIT_AUTOMAKE([-Wall foreign subdir-objects])
 AC_CONFIG_SRCDIR([src/gpx/gpx.c])
 AC_CONFIG_HEADERS([src/shared/config.h])
 
