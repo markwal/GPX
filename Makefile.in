@@ -169,8 +169,8 @@ CTAGS = ctags
 CSCOPE = cscope
 DIST_SUBDIRS = $(SUBDIRS)
 am__DIST_COMMON = $(srcdir)/Makefile.in \
-	$(top_srcdir)/src/shared/config.h.in AUTHORS COPYING ChangeLog \
-	INSTALL NEWS README compile depcomp install-sh missing
+	$(top_srcdir)/src/shared/config.h.in AUTHORS compile depcomp \
+	install-sh missing
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -305,8 +305,9 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-EXTRA_DIST = examples machines scripts
+EXTRA_DIST = examples scripts README.md
 SUBDIRS = src/gpx src/utils
+AM_CPPFLAGS = -I$(top_srcdir)/src/shared
 all: all-recursive
 
 .SUFFIXES:
@@ -316,15 +317,15 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
-	      echo ' cd $(srcdir) && $(AUTOMAKE) --gnu'; \
-	      $(am__cd) $(srcdir) && $(AUTOMAKE) --gnu \
+	      echo ' cd $(srcdir) && $(AUTOMAKE) --foreign'; \
+	      $(am__cd) $(srcdir) && $(AUTOMAKE) --foreign \
 		&& exit 0; \
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu Makefile
+	  $(AUTOMAKE) --foreign Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \
@@ -464,6 +465,7 @@ cscopelist-am: $(am__tagged_files)
 distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 	-rm -f cscope.out cscope.in.out cscope.po.out cscope.files
+@HAVE_SIGNOSX_FALSE@dist-hook:
 
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
@@ -522,6 +524,9 @@ distdir: $(DISTFILES)
 	      || exit 1; \
 	  fi; \
 	done
+	$(MAKE) $(AM_MAKEFLAGS) \
+	  top_distdir="$(top_distdir)" distdir="$(distdir)" \
+	  dist-hook
 	-test -n "$(am__skip_mode_fix)" \
 	|| find "$(distdir)" -type d ! -perm -755 \
 		-exec chmod u+rwx,go+rx {} \; -o \
@@ -762,8 +767,8 @@ uninstall-am:
 .PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am \
 	am--refresh check check-am clean clean-cscope clean-generic \
 	cscope cscopelist-am ctags ctags-am dist dist-all dist-bzip2 \
-	dist-gzip dist-lzip dist-shar dist-tarZ dist-xz dist-zip \
-	distcheck distclean distclean-generic distclean-hdr \
+	dist-gzip dist-hook dist-lzip dist-shar dist-tarZ dist-xz \
+	dist-zip distcheck distclean distclean-generic distclean-hdr \
 	distclean-tags distcleancheck distdir distuninstallcheck dvi \
 	dvi-am html html-am info info-am install install-am \
 	install-data install-data-am install-dvi install-dvi-am \
@@ -778,10 +783,23 @@ uninstall-am:
 .PRECIOUS: Makefile
 
 
-@HAVE_CREATEDMG_TRUE@dist-dmg: distdir
-@HAVE_CREATEDMG_TRUE@@HAVE_SIGNOSX_TRUE@	$(SIGNOSX) $(distdir)/gpx$(EXE)
+@HAVE_SIGNOSX_TRUE@dist-hook:
+@HAVE_SIGNOSX_TRUE@	$(SIGNOSX) $(builddir)/src/gpx/gpx$(EXEEXT)
+@HAVE_SIGNOSX_TRUE@	$(SIGNOSX) $(builddir)/src/utils/machines$(EXEEXT)
+@HAVE_SIGNOSX_TRUE@	$(SIGNOSX) $(builddir)/src/utils/s3gdump$(EXEEXT)
+
+.PHONY : binaries
+binaries:
+	cp $(builddir)/src/gpx/gpx$(EXEEXT) $(distdir)
+	cp $(builddir)/src/utils/machines$(EXEEXT) $(distdir)
+	cp $(builddir)/src/utils/s3gdump$(EXEEXT) $(distdir)
+
+bdist: distdir binaries
+	$(MAKE) $(AM_MAKEFLAGS) $(DIST_TARGETS) am__post_remove_distdir='@:'
+	$(am__post_remove_distdir)
+
+@HAVE_CREATEDMG_TRUE@dist-dmg: binaries
 @HAVE_CREATEDMG_TRUE@	$(CREATEDMG) $(distdir) $(distdir).dmg
-@HAVE_CREATEDMG_TRUE@	tardir=$(distdir) && $(am__tar) | GZIP=$(GZIP_ENV) gzip -c >$(distdir).tar.gz
 @HAVE_CREATEDMG_TRUE@	$(am__post_remove_distdir)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

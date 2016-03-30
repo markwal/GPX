@@ -2,14 +2,14 @@
 # Dan Newman, February 2015
 #
 
+AM_CPPFLAGS = -I$(top_srcdir)/src/shared
+
 bin_PROGRAMS = gpx
 gpx_SOURCES = gpx.c gpx-main.c ../shared/machine_config.c ../shared/opt.c vector.c
 if HAVE_WINDOWS_H
 gpx_SOURCES += winsio.c
 endif
-
 gpx_LDADD = -lm
-
 gpx_DEFS = -DSERIAL_SUPPORT
 
 if HAVE_PYTHON

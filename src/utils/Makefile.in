@@ -259,9 +259,12 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-SRCDIR = ..
+AM_CPPFLAGS = -I$(top_srcdir)/src/shared
+MACHINEDIR = $(top_builddir)/machine_inis
+GPXDIR = $(top_srcdir)/src/gpx
 s3gdump_SOURCES = s3gdump.c ../shared/s3g.c ../shared/s3g_stdio.c
 machines_SOURCES = machines.c ../shared/opt.c ../shared/machine_config.c
+EXTRA_DIST = $(MACHINEDIR)
 all: all-am
 
 .SUFFIXES:
@@ -275,9 +278,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu src/utils/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign src/utils/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu src/utils/Makefile
+	  $(AUTOMAKE) --foreign src/utils/Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \
@@ -599,14 +602,14 @@ uninstall-am: uninstall-binPROGRAMS
 .PRECIOUS: Makefile
 
 
-generate_machines: machines$(EXEEXT)
-	@test -d $(MACHINEDIR) || $(MKDIR) $(MACHINEDIR)
-	@$(OBJDIR)/machines$(EXE) $(MACHINEDIR)/
+$(MACHINEDIR): $(builddir)/machines$(EXEEXT)
+	@$(MKDIR_P) $(MACHINEDIR)
+	@$(builddir)/machines$(EXEEXT) $(MACHINEDIR)/
 
-@HAVE_DIFF_TRUE@test:: $(OBJDIR)/s3gdump$(EXE)
-@HAVE_DIFF_TRUE@	$(OBJDIR)/s3gdump$(EXE) $(GPXDIR)/tests/lint.x3g > $(OBJDIR)/lint.txt 2>&1
-@HAVE_DIFF_TRUE@	$(DIFF) $(GPXDIR)/tests/lint.txt $(OBJDIR)/lint.txt
-@HAVE_DIFF_TRUE@	-@$(RM) $(OBJDIR)/lint.txt
+@HAVE_DIFF_TRUE@extra_test:: $(builddir)/s3gdump$(EXEEXT)
+@HAVE_DIFF_TRUE@	$(builddir)/s3gdump$(EXEEXT) $(GPXDIR)/tests/lint.x3g > $(builddir)/lint.txt 2>&1
+@HAVE_DIFF_TRUE@	$(DIFF) $(GPXDIR)/tests/lint.txt $(builddir)/lint.txt
+@HAVE_DIFF_TRUE@	-@$(RM) $(builddir)/lint.txt
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
