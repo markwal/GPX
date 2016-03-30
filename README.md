@@ -66,7 +66,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 # Usage
-
+```
 gpx [-CFdgilpqrtvw] [-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]
 
 Options:
@@ -126,3 +126,4 @@ Examples:
 	gpx -p -m r2 my-sliced-model.gcode
 	gpx -c custom-tom.ini example.gcode /volumes/things/example.x3g
 	gpx -x 3 -y -3 offset-model.gcode
+```
