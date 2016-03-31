@@ -28,8 +28,8 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <endian.h>
 
+#include "portable_endian.h"
 #include "s3g_private.h"
 #include "s3g_stdio.h"
 #include "s3g.h"

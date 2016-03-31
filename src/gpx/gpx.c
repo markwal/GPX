@@ -35,10 +35,10 @@
 #include <unistd.h>
 #include <time.h>
 #include <stdint.h>
-#include <endian.h>
 
 #include <libgen.h>
 
+#include "portable_endian.h"
 #include "gpx.h"
 
 #define A 0
