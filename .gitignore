@@ -26,6 +26,5 @@ Makefile
 s3gdump
 config.log
 config.status
-configure
 autom4te.cache
 .deps
