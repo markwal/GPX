@@ -25,6 +25,7 @@ AM_CONDITIONAL([HAVE_DIFF], [test -n "$DIFF"])
 AC_CHECK_HEADERS([fcntl.h float.h inttypes.h limits.h stdint.h stdlib.h string.h unistd.h])
 AC_CHECK_HEADERS([windows.h], [HAVE_WINDOWS_H=yes])
 AM_CONDITIONAL([HAVE_WINDOWS_H], [test -n "$HAVE_WINDOWS_H"])
+AM_CONDITIONAL([CROSS_COMPILING], [test "$cross_compiling" != no]) 
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
@@ -38,8 +39,6 @@ AC_TYPE_UINT32_T
 AC_TYPE_UINT8_T
 
 # Checks for library functions.
-AC_FUNC_MALLOC
-AC_FUNC_REALLOC
 AC_FUNC_STRTOD
 AC_CHECK_FUNCS([atexit memmove memset select sqrt strcasecmp strchr strdup strerror strrchr strtol])
 

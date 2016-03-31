@@ -789,14 +789,16 @@ uninstall-am:
 @HAVE_SIGNOSX_TRUE@	$(SIGNOSX) $(builddir)/src/utils/s3gdump$(EXEEXT)
 
 .PHONY : binaries
-binaries:
+binaries: distdir
 	cp $(builddir)/src/gpx/gpx$(EXEEXT) $(distdir)
 	cp $(builddir)/src/utils/machines$(EXEEXT) $(distdir)
 	cp $(builddir)/src/utils/s3gdump$(EXEEXT) $(distdir)
+	ls $(distdir)
 
-bdist: distdir binaries
-	$(MAKE) $(AM_MAKEFLAGS) $(DIST_TARGETS) am__post_remove_distdir='@:'
-	$(am__post_remove_distdir)
+.PHONY : bdist
+bdist:
+	$(MAKE) $(AM_MAKEFLAGS) binaries $(DIST_TARGETS) am__post_remove_distdir='@:'
+#	$(am__post_remove_distdir)
 
 @HAVE_CREATEDMG_TRUE@dist-dmg: binaries
 @HAVE_CREATEDMG_TRUE@	$(CREATEDMG) $(distdir) $(distdir).dmg
