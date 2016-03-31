@@ -17,16 +17,20 @@
 # Build GPX, build GPX distributions
 # Dan Newman, February 2015
 #
-# make dist        -- compile gpx and assemble a gpx distribution
-# make             -- compile gpx
-# make mostlyclean -- remove the build directories but retain distributions
-# make clean       -- remove the build directories and distributions
+# mkdir build       -- create build folder, name it whatever you like
+# cd build
+# ../configure      -- analyze your system to create the Makefiles
+# make              -- compile gpx and utilities
+# sudo make install -- install gpx and utilities, defaults to /usr/local/bin
 #
-# For cross compiling with MinGW, two target types may be specified on
-# the make command line:
+# for a cross compile, give the --host parameter to ../configure
+# ../configure host=i686-w64-mingw32   -- build a Makefile for win32 cross-compile
+# ../configure host=x86_64-w64-mingw32 -- build a Makefile for win64 cross-compile
 #
-#   make [optional-target] TARGET=mingw32    # Build for Win 32
-#   make [optional-target] TARGET=mingw64    # Build for Win 64
+# make dist         -- create a source distribution archive
+# make bdist        -- create a distribution archive that includes the built programs
+# make clean        -- remove the build directories but retain distributions
+# make distclean    -- remove the build directories and distributions
 VPATH = @srcdir@
 am__is_gnu_make = { \
   if test -z '$(MAKELEVEL)'; then \
@@ -793,12 +797,11 @@ binaries: distdir
 	cp $(builddir)/src/gpx/gpx$(EXEEXT) $(distdir)
 	cp $(builddir)/src/utils/machines$(EXEEXT) $(distdir)
 	cp $(builddir)/src/utils/s3gdump$(EXEEXT) $(distdir)
-	ls $(distdir)
 
 .PHONY : bdist
 bdist:
 	$(MAKE) $(AM_MAKEFLAGS) binaries $(DIST_TARGETS) am__post_remove_distdir='@:'
-#	$(am__post_remove_distdir)
+	$(am__post_remove_distdir)
 
 @HAVE_CREATEDMG_TRUE@dist-dmg: binaries
 @HAVE_CREATEDMG_TRUE@	$(CREATEDMG) $(distdir) $(distdir).dmg
