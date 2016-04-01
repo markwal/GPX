@@ -51,8 +51,8 @@ sudo make install
 
 # Copyright
 
-Copyright (c) 2013 WHPThomas, All rights reserved.
-Additional changes Copyright (c) 2014, 2015 DNewman, MWalker
+Copyright (c) 2013 WHPThomas, All rights reserved.  
+Additional changes Copyright (c) 2014, 2015 DNewman, MWalker  
 All rights reserved.
 
 This program is free software; you can redistribute it and/or modify

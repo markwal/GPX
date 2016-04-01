@@ -26,8 +26,8 @@ $(MACHINEDIR): $(MACHINES_PROGRAM)
 	@$(MACHINES) $(MACHINEDIR)/
 
 if HAVE_DIFF
-extra_test:: $(builddir)/s3gdump$(EXEEXT)
+test-local: $(builddir)/s3gdump$(EXEEXT)
 	$(builddir)/s3gdump$(EXEEXT) $(GPXDIR)/tests/lint.x3g > $(builddir)/lint.txt 2>&1
 	$(DIFF) $(GPXDIR)/tests/lint.txt $(builddir)/lint.txt
-	-@$(RM) $(builddir)/lint.txt
+#	-@$(RM) $(builddir)/lint.txt
 endif

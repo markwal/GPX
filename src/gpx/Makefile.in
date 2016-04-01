@@ -148,6 +148,7 @@ am__can_run_installinfo = \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
+am__extra_recursive_targets = test-recursive
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -385,6 +386,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
+test-local: 
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -507,6 +509,8 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+@HAVE_DIFF_FALSE@test-local:
+@HAVE_PYTHON_FALSE@test-local:
 clean: clean-am
 
 clean-am: clean-binPROGRAMS clean-generic mostlyclean-am
@@ -574,6 +578,10 @@ ps: ps-am
 
 ps-am:
 
+test: test-am
+
+test-am: test-local
+
 uninstall-am: uninstall-binPROGRAMS
 
 .MAKE: install-am install-strip
@@ -589,37 +597,37 @@ uninstall-am: uninstall-binPROGRAMS
 	install-ps-am install-strip installcheck installcheck-am \
 	installdirs maintainer-clean maintainer-clean-generic \
 	mostlyclean mostlyclean-compile mostlyclean-generic pdf pdf-am \
-	ps ps-am tags tags-am uninstall uninstall-am \
-	uninstall-binPROGRAMS
+	ps ps-am tags tags-am test-am test-local uninstall \
+	uninstall-am uninstall-binPROGRAMS
 
 .PRECIOUS: Makefile
 
 
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@extra_test:: $(OBJDIR)/gpx$(EXE)
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(OBJDIR)/gpx$(EXE) -p -m r2x tests/lint.gcode $(OBJDIR)/lint.x3g > $(OBJDIR)/lint.log 2>&1
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(OBJDIR)/gpx$(EXE) -g -p -m r2x tests/lint.gcode $(OBJDIR)/lint-g.x3g > $(OBJDIR)/lint-g.log 2>&1
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(OBJDIR)/gpx$(EXE) -p -m r2x tests/issue13.gcode $(OBJDIR)/issue13.x3g > $(OBJDIR)/issue13.log 2>&1
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(OBJDIR)/gpx$(EXE) -g -p -m r2x tests/issue13.gcode $(OBJDIR)/issue13-g.x3g > $(OBJDIR)/issue13-g.log 2>&1
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(PYTHON) $(SRCDIR)/../scripts/s3g-decompiler.py $(OBJDIR)/lint.x3g > $(OBJDIR)/lint.txt 2>&1
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(PYTHON) $(SRCDIR)/../scripts/s3g-decompiler.py $(OBJDIR)/lint-g.x3g > $(OBJDIR)/lint-g.txt 2>&1
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(PYTHON) $(SRCDIR)/../scripts/s3g-decompiler.py $(OBJDIR)/issue13.x3g > $(OBJDIR)/issue13.txt 2>&1
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(PYTHON) $(SRCDIR)/../scripts/s3g-decompiler.py $(OBJDIR)/issue13-g.x3g > $(OBJDIR)/issue13-g.txt 2>&1
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/lint.txt $(OBJDIR)/lint.txt
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/lint-g.txt $(OBJDIR)/lint-g.txt
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/issue13.txt $(OBJDIR)/issue13.txt
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/issue13-g.txt $(OBJDIR)/issue13-g.txt
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/lint.x3g $(OBJDIR)/lint.x3g
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/lint.log $(OBJDIR)/lint.log
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/lint-g.x3g $(OBJDIR)/lint-g.x3g
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/lint-g.log $(OBJDIR)/lint-g.log
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/issue13.x3g $(OBJDIR)/issue13.x3g
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/issue13.log $(OBJDIR)/issue13.log
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/issue13-g.x3g $(OBJDIR)/issue13-g.x3g
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) tests/issue13-g.log $(OBJDIR)/issue13-g.log
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	-@$(RM) $(OBJDIR)/lint.x3g $(OBJDIR)/lint.txt $(OBJDIR)/lint.log
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	-@$(RM) $(OBJDIR)/lint-g.x3g $(OBJDIR)/lint-g.txt $(OBJDIR)/lint-g.log
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	-@$(RM) $(OBJDIR)/issue13.x3g $(OBJDIR)/issue13.txt $(OBJDIR)/issue13.log
-@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	-@$(RM) $(OBJDIR)/issue13-g.x3g $(OBJDIR)/issue13-g.txt $(OBJDIR)/issue13-g.log
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@test-local: $(builddir)/gpx$(EXEEXT)
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(builddir)/gpx$(EXEEXT) -p -m r2x $(srcdir)/tests/lint.gcode $(builddir)/lint.x3g > $(builddir)/lint.log 2>&1
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(builddir)/gpx$(EXEEXT) -g -p -m r2x $(srcdir)/tests/lint.gcode $(builddir)/lint-g.x3g > $(builddir)/lint-g.log 2>&1
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(builddir)/gpx$(EXEEXT) -p -m r2x $(srcdir)/tests/issue13.gcode $(builddir)/issue13.x3g > $(builddir)/issue13.log 2>&1
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(builddir)/gpx$(EXEEXT) -g -p -m r2x $(srcdir)/tests/issue13.gcode $(builddir)/issue13-g.x3g > $(builddir)/issue13-g.log 2>&1
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(PYTHON) $(top_srcdir)/scripts/s3g-decompiler.py $(builddir)/lint.x3g > $(builddir)/lint.txt 2>&1
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(PYTHON) $(top_srcdir)/scripts/s3g-decompiler.py $(builddir)/lint-g.x3g > $(builddir)/lint-g.txt 2>&1
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(PYTHON) $(top_srcdir)/scripts/s3g-decompiler.py $(builddir)/issue13.x3g > $(builddir)/issue13.txt 2>&1
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(PYTHON) $(top_srcdir)/scripts/s3g-decompiler.py $(builddir)/issue13-g.x3g > $(builddir)/issue13-g.txt 2>&1
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/lint.txt $(builddir)/lint.txt
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/lint-g.txt $(builddir)/lint-g.txt
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/issue13.txt $(builddir)/issue13.txt
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/issue13-g.txt $(builddir)/issue13-g.txt
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/lint.x3g $(builddir)/lint.x3g
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/lint.log $(builddir)/lint.log
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/lint-g.x3g $(builddir)/lint-g.x3g
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/lint-g.log $(builddir)/lint-g.log
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/issue13.x3g $(builddir)/issue13.x3g
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/issue13.log $(builddir)/issue13.log
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/issue13-g.x3g $(builddir)/issue13-g.x3g
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	$(DIFF) $(srcdir)/tests/issue13-g.log $(builddir)/issue13-g.log
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	-@$(RM) $(builddir)/lint.x3g $(builddir)/lint.txt $(builddir)/lint.log
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	-@$(RM) $(builddir)/lint-g.x3g $(builddir)/lint-g.txt $(builddir)/lint-g.log
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	-@$(RM) $(builddir)/issue13.x3g $(builddir)/issue13.txt $(builddir)/issue13.log
+@HAVE_DIFF_TRUE@@HAVE_PYTHON_TRUE@	-@$(RM) $(builddir)/issue13-g.x3g $(builddir)/issue13-g.txt $(builddir)/issue13-g.log
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

@@ -4,19 +4,20 @@
 AC_PREREQ([2.69])
 AC_INIT([gpx], [m4_esyscmd_s([git describe --tag --dirty])], [https://github.com/markwal/GPX/issues],,[https://github.com/markwal/GPX])
 AM_INIT_AUTOMAKE([-Wall foreign subdir-objects])
+AM_EXTRA_RECURSIVE_TARGETS([test])
 AC_CONFIG_SRCDIR([src/gpx/gpx.c])
 AC_CONFIG_HEADERS([src/shared/config.h])
 
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_MAKE_SET
-AC_CHECK_PROG([SIGNOSX], [sign-osx.sh])
+AC_CHECK_PROG([SIGNOSX], [sign-osx.sh], [sign-osx.sh])
 AM_CONDITIONAL([HAVE_SIGNOSX], [test -n "$SIGNOSX"])
-AC_CHECK_PROG([CREATEDMG], [hdiutil create -format UDZO -srcfolder])
+AC_CHECK_PROG([CREATEDMG], [hdiutil], [hdiutil create -format UDZO -srcfolder])
 AM_CONDITIONAL([HAVE_CREATEDMG], [test -n "$CREATEDMG"])
-AC_CHECK_PROG([PYTHON], [python])
+AC_CHECK_PROG([PYTHON], [python], [python])
 AM_CONDITIONAL([HAVE_PYTHON], [test -n "$PYTHON"])
-AC_CHECK_PROG([DIFF], [diff])
+AC_CHECK_PROG([DIFF], [diff], [diff -b])
 AM_CONDITIONAL([HAVE_DIFF], [test -n "$DIFF"])
 
 # Checks for libraries.

@@ -146,6 +146,7 @@ am__can_run_installinfo = \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
+am__extra_recursive_targets = test-recursive
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -399,6 +400,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
+test-local: 
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -521,6 +523,7 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+@HAVE_DIFF_FALSE@test-local:
 clean: clean-am
 
 clean-am: clean-binPROGRAMS clean-generic mostlyclean-am
@@ -588,6 +591,10 @@ ps: ps-am
 
 ps-am:
 
+test: test-am
+
+test-am: test-local
+
 uninstall-am: uninstall-binPROGRAMS
 
 .MAKE: install-am install-strip
@@ -603,8 +610,8 @@ uninstall-am: uninstall-binPROGRAMS
 	install-ps-am install-strip installcheck installcheck-am \
 	installdirs maintainer-clean maintainer-clean-generic \
 	mostlyclean mostlyclean-compile mostlyclean-generic pdf pdf-am \
-	ps ps-am tags tags-am uninstall uninstall-am \
-	uninstall-binPROGRAMS
+	ps ps-am tags tags-am test-am test-local uninstall \
+	uninstall-am uninstall-binPROGRAMS
 
 .PRECIOUS: Makefile
 
@@ -613,10 +620,10 @@ $(MACHINEDIR): $(MACHINES_PROGRAM)
 	@$(MKDIR_P) $(MACHINEDIR)
 	@$(MACHINES) $(MACHINEDIR)/
 
-@HAVE_DIFF_TRUE@extra_test:: $(builddir)/s3gdump$(EXEEXT)
+@HAVE_DIFF_TRUE@test-local: $(builddir)/s3gdump$(EXEEXT)
 @HAVE_DIFF_TRUE@	$(builddir)/s3gdump$(EXEEXT) $(GPXDIR)/tests/lint.x3g > $(builddir)/lint.txt 2>&1
 @HAVE_DIFF_TRUE@	$(DIFF) $(GPXDIR)/tests/lint.txt $(builddir)/lint.txt
-@HAVE_DIFF_TRUE@	-@$(RM) $(builddir)/lint.txt
+#	-@$(RM) $(builddir)/lint.txt
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

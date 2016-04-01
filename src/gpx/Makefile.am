@@ -14,30 +14,30 @@ gpx_DEFS = -DSERIAL_SUPPORT
 
 if HAVE_PYTHON
 if HAVE_DIFF
-extra_test:: $(OBJDIR)/gpx$(EXE)
-	$(OBJDIR)/gpx$(EXE) -p -m r2x tests/lint.gcode $(OBJDIR)/lint.x3g > $(OBJDIR)/lint.log 2>&1
-	$(OBJDIR)/gpx$(EXE) -g -p -m r2x tests/lint.gcode $(OBJDIR)/lint-g.x3g > $(OBJDIR)/lint-g.log 2>&1
-	$(OBJDIR)/gpx$(EXE) -p -m r2x tests/issue13.gcode $(OBJDIR)/issue13.x3g > $(OBJDIR)/issue13.log 2>&1
-	$(OBJDIR)/gpx$(EXE) -g -p -m r2x tests/issue13.gcode $(OBJDIR)/issue13-g.x3g > $(OBJDIR)/issue13-g.log 2>&1
-	$(PYTHON) $(SRCDIR)/../scripts/s3g-decompiler.py $(OBJDIR)/lint.x3g > $(OBJDIR)/lint.txt 2>&1
-	$(PYTHON) $(SRCDIR)/../scripts/s3g-decompiler.py $(OBJDIR)/lint-g.x3g > $(OBJDIR)/lint-g.txt 2>&1
-	$(PYTHON) $(SRCDIR)/../scripts/s3g-decompiler.py $(OBJDIR)/issue13.x3g > $(OBJDIR)/issue13.txt 2>&1
-	$(PYTHON) $(SRCDIR)/../scripts/s3g-decompiler.py $(OBJDIR)/issue13-g.x3g > $(OBJDIR)/issue13-g.txt 2>&1
-	$(DIFF) tests/lint.txt $(OBJDIR)/lint.txt
-	$(DIFF) tests/lint-g.txt $(OBJDIR)/lint-g.txt
-	$(DIFF) tests/issue13.txt $(OBJDIR)/issue13.txt
-	$(DIFF) tests/issue13-g.txt $(OBJDIR)/issue13-g.txt
-	$(DIFF) tests/lint.x3g $(OBJDIR)/lint.x3g
-	$(DIFF) tests/lint.log $(OBJDIR)/lint.log
-	$(DIFF) tests/lint-g.x3g $(OBJDIR)/lint-g.x3g
-	$(DIFF) tests/lint-g.log $(OBJDIR)/lint-g.log
-	$(DIFF) tests/issue13.x3g $(OBJDIR)/issue13.x3g
-	$(DIFF) tests/issue13.log $(OBJDIR)/issue13.log
-	$(DIFF) tests/issue13-g.x3g $(OBJDIR)/issue13-g.x3g
-	$(DIFF) tests/issue13-g.log $(OBJDIR)/issue13-g.log
-	-@$(RM) $(OBJDIR)/lint.x3g $(OBJDIR)/lint.txt $(OBJDIR)/lint.log
-	-@$(RM) $(OBJDIR)/lint-g.x3g $(OBJDIR)/lint-g.txt $(OBJDIR)/lint-g.log
-	-@$(RM) $(OBJDIR)/issue13.x3g $(OBJDIR)/issue13.txt $(OBJDIR)/issue13.log
-	-@$(RM) $(OBJDIR)/issue13-g.x3g $(OBJDIR)/issue13-g.txt $(OBJDIR)/issue13-g.log
+test-local: $(builddir)/gpx$(EXEEXT)
+	$(builddir)/gpx$(EXEEXT) -p -m r2x $(srcdir)/tests/lint.gcode $(builddir)/lint.x3g > $(builddir)/lint.log 2>&1
+	$(builddir)/gpx$(EXEEXT) -g -p -m r2x $(srcdir)/tests/lint.gcode $(builddir)/lint-g.x3g > $(builddir)/lint-g.log 2>&1
+	$(builddir)/gpx$(EXEEXT) -p -m r2x $(srcdir)/tests/issue13.gcode $(builddir)/issue13.x3g > $(builddir)/issue13.log 2>&1
+	$(builddir)/gpx$(EXEEXT) -g -p -m r2x $(srcdir)/tests/issue13.gcode $(builddir)/issue13-g.x3g > $(builddir)/issue13-g.log 2>&1
+	$(PYTHON) $(top_srcdir)/scripts/s3g-decompiler.py $(builddir)/lint.x3g > $(builddir)/lint.txt 2>&1
+	$(PYTHON) $(top_srcdir)/scripts/s3g-decompiler.py $(builddir)/lint-g.x3g > $(builddir)/lint-g.txt 2>&1
+	$(PYTHON) $(top_srcdir)/scripts/s3g-decompiler.py $(builddir)/issue13.x3g > $(builddir)/issue13.txt 2>&1
+	$(PYTHON) $(top_srcdir)/scripts/s3g-decompiler.py $(builddir)/issue13-g.x3g > $(builddir)/issue13-g.txt 2>&1
+	$(DIFF) $(srcdir)/tests/lint.txt $(builddir)/lint.txt
+	$(DIFF) $(srcdir)/tests/lint-g.txt $(builddir)/lint-g.txt
+	$(DIFF) $(srcdir)/tests/issue13.txt $(builddir)/issue13.txt
+	$(DIFF) $(srcdir)/tests/issue13-g.txt $(builddir)/issue13-g.txt
+	$(DIFF) $(srcdir)/tests/lint.x3g $(builddir)/lint.x3g
+	$(DIFF) $(srcdir)/tests/lint.log $(builddir)/lint.log
+	$(DIFF) $(srcdir)/tests/lint-g.x3g $(builddir)/lint-g.x3g
+	$(DIFF) $(srcdir)/tests/lint-g.log $(builddir)/lint-g.log
+	$(DIFF) $(srcdir)/tests/issue13.x3g $(builddir)/issue13.x3g
+	$(DIFF) $(srcdir)/tests/issue13.log $(builddir)/issue13.log
+	$(DIFF) $(srcdir)/tests/issue13-g.x3g $(builddir)/issue13-g.x3g
+	$(DIFF) $(srcdir)/tests/issue13-g.log $(builddir)/issue13-g.log
+	-@$(RM) $(builddir)/lint.x3g $(builddir)/lint.txt $(builddir)/lint.log
+	-@$(RM) $(builddir)/lint-g.x3g $(builddir)/lint-g.txt $(builddir)/lint-g.log
+	-@$(RM) $(builddir)/issue13.x3g $(builddir)/issue13.txt $(builddir)/issue13.log
+	-@$(RM) $(builddir)/issue13-g.x3g $(builddir)/issue13-g.txt $(builddir)/issue13-g.log
 endif
 endif
