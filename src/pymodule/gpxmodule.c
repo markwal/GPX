@@ -283,7 +283,7 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
 
             // Query 32 - Get extruder target temperature
         case 32:
-            if (tio->waiting && tio->sio.response.temperature == 0) {
+            if (tio->waiting && !tio->waitflag.waitForEmptyQueue && tio->sio.response.temperature == 0) {
                 if (extruder_id)
                     tio->waitflag.waitForExtruderB = 0;
                 else
@@ -294,7 +294,7 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
 
             // Query 33 - Get build platform target temperature
         case 33:
-            if (tio->waiting && tio->sio.response.temperature == 0)
+            if (tio->waiting && !tio->waitflag.waitForEmptyQueue && tio->sio.response.temperature == 0)
                 tio->waitflag.waitForPlatform = 0;
             tio_printf(tio, " /%u", tio->sio.response.temperature);
             break;
@@ -527,26 +527,26 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                 case 0:
                     // this is a matter of Not SD printing *yet* when we just
                     // kicked off the print, let's give it a moment
-                    tio_printf(tio, " Not SD printing");
+                    tio_printf(tio, "\nNot SD printing");
                     break;
                 case 1:
                     tio->sec = 0;
                     tio->waitflag.waitForStart = 0;
-                    tio_printf(tio, " SD printing byte on line %u/0", tio->sio.response.build.lineNumber);
+                    tio_printf(tio, "\nSD printing byte on line %u/0", tio->sio.response.build.lineNumber);
                     break;
                 case 4:
-                    tio_printf(tio, " SD printing cancelled. ");
+                    tio_printf(tio, "\nSD printing cancelled. ");
                     tio->waiting = 0;
                     tio->flag.getPosWhenReady = 0;
                     // fall through
                 case 2:
-                    tio_printf(tio, " Done printing file");
+                    tio_printf(tio, "\nDone printing file");
                     break;
                 case 3:
-                    tio_printf(tio, " SD printing paused at line %u", tio->sio.response.build.lineNumber);
+                    tio_printf(tio, "\nSD printing paused at line %u", tio->sio.response.build.lineNumber);
                     break;
                 case 5:
-                    tio_printf(tio, " SD printing sleeping at line %u", tio->sio.response.build.lineNumber);
+                    tio_printf(tio, "\nSD printing sleeping at line %u", tio->sio.response.build.lineNumber);
                     break;
             }
             break;
@@ -572,9 +572,9 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             tio->translation[0] = 0;
             VERBOSE( fprintf(gpx->log, "waiting for extruder %d\n", extruder) );
             if (extruder == 0)
-                tio->waitflag.waitForExtruderA = 1;
+                tio->waitflag.waitForEmptyQueue = tio->waitflag.waitForExtruderA = 1;
             else
-                tio->waitflag.waitForExtruderB = 1;
+                tio->waitflag.waitForEmptyQueue = tio->waitflag.waitForExtruderB = 1;
             break;
 
             // 141 - wait for build platform
@@ -582,7 +582,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             tio->cur = 0;
             tio->translation[0] = 0;
             VERBOSE( fprintf(gpx->log, "waiting for platform\n") );
-            tio->waitflag.waitForPlatform = 1;
+            tio->waitflag.waitForEmptyQueue = tio->waitflag.waitForPlatform = 1;
             break;
 
             // 144 - recall home position
