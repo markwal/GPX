@@ -105,7 +105,8 @@ CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am__gpx_SOURCES_DIST = gpx.c gpx-main.c ../shared/machine_config.c \
-	../shared/opt.c vector.c winsio.c
+	../shared/opt.c vector.c vector.h gpx.h winsio.h _getopt.h \
+	winsio.c
 am__dirstamp = $(am__leading_dot)dirstamp
 @HAVE_WINDOWS_H_TRUE@am__objects_1 = winsio.$(OBJEXT)
 am_gpx_OBJECTS = gpx.$(OBJEXT) gpx-main.$(OBJEXT) \
@@ -264,7 +265,8 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(top_srcdir)/src/shared
 gpx_SOURCES = gpx.c gpx-main.c ../shared/machine_config.c \
-	../shared/opt.c vector.c $(am__append_1)
+	../shared/opt.c vector.c vector.h gpx.h winsio.h _getopt.h \
+	$(am__append_1)
 gpx_LDADD = -lm
 gpx_DEFS = -DSERIAL_SUPPORT
 all: all-am
