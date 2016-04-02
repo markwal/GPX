@@ -5,7 +5,7 @@ from setuptools import setup, Extension
 
 sources = [
 	'gpxmodule.c',
-	'../shared/config.c',
+	'../shared/machine_config.c',
 	'../shared/opt.c',
 	'../gpx/gpx.c',
 	'../gpx/gpx-main.c',

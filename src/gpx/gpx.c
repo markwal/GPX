@@ -35,10 +35,10 @@
 #include <unistd.h>
 #include <time.h>
 #include <stdint.h>
-#include <endian.h>
 
 #include <libgen.h>
 
+#include "portable_endian.h"
 #include "gpx.h"
 
 #define A 0
@@ -2082,7 +2082,7 @@ static int start_build(Gpx *gpx, const char * filename)
     // (But the LCD actually has far less room)
     // We'll just truncate at 24
     if(!filename)
-	 filename = "GPX" GPX_VERSION;
+	 filename = PACKAGE_STRING;
     len = strlen(filename);
     if(len > 24) len = 24;
     write_string(gpx, filename, len);
@@ -2861,7 +2861,7 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
 
 static int display_tag(Gpx *gpx) {
     int rval;
-    CALL( display_message(gpx, "GPX " GPX_VERSION, 0, 0, 2, 0) );
+    CALL( display_message(gpx, PACKAGE_STRING, 0, 0, 2, 0) );
     return SUCCESS;
 }
 

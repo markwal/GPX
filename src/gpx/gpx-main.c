@@ -57,7 +57,7 @@ typedef long speed_t;
 #endif
 
 #include "gpx.h"
-#include "config.h"
+#include "machine_config.h"
 
 // Global variables
 
@@ -123,7 +123,7 @@ static void usage(int err)
     if (err)
         fputs(EOL, fp);
 
-    fputs("GPX " GPX_VERSION EOL, fp);
+    fputs("GPX " PACKAGE_VERSION EOL, fp);
     fputs("Copyright (c) 2013 WHPThomas, All rights reserved." EOL, fp);
 
     fputs("Additional changes Copyright (c) 2014, 2015 DNewman, MWalker" EOL, fp);
@@ -362,7 +362,7 @@ int main(int argc, char * const argv[])
     char *config = NULL;
     char *eeprom = NULL;
     double filament_diameter = 0;
-    char *buildname = "GPX " GPX_VERSION;
+    char *buildname = PACKAGE_STRING;
 #ifdef _WIN32
     char *otherdelim = NULL;
 #endif

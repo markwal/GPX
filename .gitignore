@@ -21,3 +21,10 @@ tags
 build
 dist
 machines
+stamp-h1
+Makefile
+s3gdump
+config.log
+config.status
+autom4te.cache
+.deps

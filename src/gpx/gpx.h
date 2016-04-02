@@ -35,6 +35,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdarg.h>
 #include "vector.h"
+#include "config.h"
 
 #define HOST_VERSION 50
 

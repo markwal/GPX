@@ -30,9 +30,10 @@
 #include <string.h>
 #include <errno.h>
 
+#include "config.h"
 #include "getopt.h"
 #include "opt.h"
-#include "config.h"
+#include "machine_config.h"
 
 #define MACHINE_ARRAY
 #include "std_machines.h"

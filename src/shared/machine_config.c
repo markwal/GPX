@@ -31,8 +31,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "opt.h"
 #include "config.h"
+#include "opt.h"
+#include "machine_config.h"
 #include "machine.h"
 
 #define MACHINE_ARRAY
