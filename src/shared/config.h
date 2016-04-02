@@ -16,10 +16,6 @@
 /* Define to 1 if you have the <limits.h> header file. */
 #define HAVE_LIMITS_H 1
 
-/* Define to 1 if your system has a GNU libc compatible `malloc' function, and
-   to 0 otherwise. */
-#define HAVE_MALLOC 1
-
 /* Define to 1 if you have the `memmove' function. */
 #define HAVE_MEMMOVE 1
 
@@ -28,10 +24,6 @@
 
 /* Define to 1 if you have the `memset' function. */
 #define HAVE_MEMSET 1
-
-/* Define to 1 if your system has a GNU libc compatible `realloc' function,
-   and to 0 otherwise. */
-#define HAVE_REALLOC 1
 
 /* Define to 1 if you have the `select' function. */
 #define HAVE_SELECT 1
@@ -94,7 +86,7 @@
 #define PACKAGE_NAME "gpx"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "gpx 2.4.2-5-g6612f33-dirty"
+#define PACKAGE_STRING "gpx 2.4.2-13-gda8f5ae-dirty"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "gpx"
@@ -103,13 +95,13 @@
 #define PACKAGE_URL "https://github.com/markwal/GPX"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "2.4.2-5-g6612f33-dirty"
+#define PACKAGE_VERSION "2.4.2-13-gda8f5ae-dirty"
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1
 
 /* Version number of package */
-#define VERSION "2.4.2-5-g6612f33-dirty"
+#define VERSION "2.4.2-13-gda8f5ae-dirty"
 
 /* Define for Solaris 2.5.1 so the uint32_t typedef from <sys/synch.h>,
    <pthread.h>, or <semaphore.h> is not used. If the typedef were allowed, the
@@ -132,12 +124,6 @@
 /* Define to the type of a signed integer type of width exactly 64 bits if
    such a type exists and the standard includes do not define it. */
 /* #undef int64_t */
-
-/* Define to rpl_malloc if the replacement function should be used. */
-/* #undef malloc */
-
-/* Define to rpl_realloc if the replacement function should be used. */
-/* #undef realloc */
 
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 /* #undef size_t */

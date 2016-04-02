@@ -5,7 +5,7 @@
 AM_CPPFLAGS = -I$(top_srcdir)/src/shared
 
 bin_PROGRAMS = gpx
-gpx_SOURCES = gpx.c gpx-main.c ../shared/machine_config.c ../shared/opt.c vector.c
+gpx_SOURCES = gpx.c gpx-main.c ../shared/machine_config.c ../shared/opt.c vector.c vector.h gpx.h winsio.h _getopt.h
 if HAVE_WINDOWS_H
 gpx_SOURCES += winsio.c
 endif

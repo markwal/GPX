@@ -16,7 +16,7 @@
 # make clean        -- remove the build directories but retain distributions
 # make distclean    -- remove the build directories and distributions
 
-EXTRA_DIST = examples scripts README.md
+EXTRA_DIST = examples scripts README.md src/shared
 SUBDIRS = src/gpx src/utils
 
 AM_CPPFLAGS = -I$(top_srcdir)/src/shared
