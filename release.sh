@@ -6,56 +6,42 @@
 # do all of the builds we currently release: mac, linux, mingw32, mingw64, but
 # for now, I don't have a Mac, so this script does the other three
 
-while getopts ":c" opt; do
-    case $opt in
-        c)
-            clean=yes
-            ;;
-        \?)
-            echo "Usage:" >&2
-            echo "Paul put content here." >&2
-            exit 1
-            ;;
-    esac
-done
-
-if [ -n "$clean" ]; then
-    echo "Doing the cleaning..."
-fi
-
-echo "Doing the building..."
+echo "------------------------------------------------------------------"
+echo "Linux build first"
 mkdir -p build
 cd build
-for plat in "linux" "win32" "win64"; do
+mkdir -p linux
+cd linux
+make 
+make test
+make bdist
+archive=`ls gpx*.tar.gz`
+if [[ "${#archive[@]}" == "1" ]]; then
+    mv $archive ../${archive/.tar.gz/-linux.tar.gz}
+fi
+cd ..
+
+for plat in "win32" "win64"; do
     echo "------------------------------------------------------------------"
-    echo "Making dir $plat"
+    echo "Building $plat"
     mkdir -p $plat
     cd $plat
     pwd
     case $plat in
-        linux)
-            args=""
-            test=yes
-            ;;
         win32)
             args="-host i686-w64-mingw32"
-            unset test
             ;;
         win64)
             args="-host x86_64-w64-mingw32"
-            unset test
             ;;
     esac
     echo "Calling configure"
     ../../configure $args
     make
-    if [ -n "$test" ]; then
-        make test
-    fi
-    make bdist
-    archive=`ls gpx*.tar.gz`
+    make bdist DIST_TARGETS=dist-zip
+    archive=`ls gpx*.zip`
     if [[ "${#archive[@]}" == "1" ]]; then
-        mv $archive ../${archive/.tar.gz/-$plat.tar.gz}
+        mv $archive ../${archive/.zip/-$plat.zip}
     fi
     cd ..
 done
