@@ -3279,8 +3279,8 @@ static char *normalize_comment(char *p) {
  GCODE_FLAVOR:= S+ ('makerbot' | 'reprap')
  */
 
-#define MACRO_IS(token) strcmp(token, macro) == 0
-#define NAME_IS(n) strcasecmp(name, n) == 0
+#define MACRO_IS(token) (strcmp(token, macro) == 0)
+#define NAME_IS(n) (strcasecmp(name, n) == 0)
 
 static int parse_macro(Gpx *gpx, const char* macro, char *p)
 {
