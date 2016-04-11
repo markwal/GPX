@@ -15,10 +15,10 @@ gpx_DEFS = -DSERIAL_SUPPORT
 if HAVE_PYTHON
 if HAVE_DIFF
 test-local: $(builddir)/gpx$(EXEEXT)
-	$(builddir)/gpx$(EXEEXT) -p -m r2x $(srcdir)/tests/lint.gcode $(builddir)/lint.x3g > $(builddir)/lint.log 2>&1
-	$(builddir)/gpx$(EXEEXT) -g -p -m r2x $(srcdir)/tests/lint.gcode $(builddir)/lint-g.x3g > $(builddir)/lint-g.log 2>&1
-	$(builddir)/gpx$(EXEEXT) -p -m r2x $(srcdir)/tests/issue13.gcode $(builddir)/issue13.x3g > $(builddir)/issue13.log 2>&1
-	$(builddir)/gpx$(EXEEXT) -g -p -m r2x $(srcdir)/tests/issue13.gcode $(builddir)/issue13-g.x3g > $(builddir)/issue13-g.log 2>&1
+	$(builddir)/gpx$(EXEEXT) -I -p -m r2x $(srcdir)/tests/lint.gcode $(builddir)/lint.x3g > $(builddir)/lint.log 2>&1
+	$(builddir)/gpx$(EXEEXT) -I -g -p -m r2x $(srcdir)/tests/lint.gcode $(builddir)/lint-g.x3g > $(builddir)/lint-g.log 2>&1
+	$(builddir)/gpx$(EXEEXT) -I -p -m r2x $(srcdir)/tests/issue13.gcode $(builddir)/issue13.x3g > $(builddir)/issue13.log 2>&1
+	$(builddir)/gpx$(EXEEXT) -I -g -p -m r2x $(srcdir)/tests/issue13.gcode $(builddir)/issue13-g.x3g > $(builddir)/issue13-g.log 2>&1
 	$(PYTHON) $(top_srcdir)/scripts/s3g-decompiler.py $(builddir)/lint.x3g > $(builddir)/lint.txt 2>&1
 	$(PYTHON) $(top_srcdir)/scripts/s3g-decompiler.py $(builddir)/lint-g.x3g > $(builddir)/lint-g.txt 2>&1
 	$(PYTHON) $(top_srcdir)/scripts/s3g-decompiler.py $(builddir)/issue13.x3g > $(builddir)/issue13.txt 2>&1

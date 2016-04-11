@@ -145,11 +145,12 @@ static void usage(int err)
     fputs("GNU General Public License for more details." EOL, fp);
 
     fputs(EOL "Usage:" EOL, fp);
-    fputs("gpx [-CFdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
+    fputs("gpx [-CFIdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
     fputs(EOL "Options:" EOL, fp);
-    fputs("\t-C\tCreate temporary file with a copy of the machine configuration" EOL, fp);
+    fputs("\t-C\tcreate temporary file with a copy of the machine configuration" EOL, fp);
     fputs("\t-F\twrite X3G on-wire framing data to output file" EOL, fp);
-    fputs("\t-N\tDisable writing of the X3G header (start build notice)," EOL, fp);
+    fputs("\t-I\tignore default .ini files" EOL, fp);
+    fputs("\t-N\tdisable writing of the X3G header (start build notice)," EOL, fp);
     fputs("\t  \ttail (end build notice), or both" EOL, fp);
     fputs("\t-d\tsimulated ditto printing" EOL, fp);
     fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, fp);
@@ -355,6 +356,7 @@ int main(int argc, char * const argv[])
 {
     int c, i, rval = 1;
     int force_framing = 0;
+    int ignore_default_ini = 0;
     int log_to_file = 0;
     int standard_io = 0;
     int serial_io = 0;
@@ -384,16 +386,36 @@ int main(int argc, char * const argv[])
     gpx_initialize(&gpx, 1);
     gpx.log = stderr;
 
-    // peek at first option in case we want verbose for reading gpx.ini
-    if (argc > 1 && argv[1][0] && argv[1][1] == 'v')
-        gpx.flag.verboseMode = 1;
+    // we run through getopt twice, the first time is to figure out whether to load
+    // the ini file from the default locations and whether to be verbose about it
+    // we need to load the ini file before parsing the rest so that the command line
+    // overrides the default ini in the standard case
+    while ((c = getopt(argc, argv, "CFIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
+        switch (c) {
+            case 'I':
+                ignore_default_ini = 1;
+                break;
+            case 'l':
+                gpx.flag.verboseMode = 1;
+                log_to_file = 1;
+                break;
+            case 'v':
+                if(gpx.flag.verboseMode)
+                    gpx.flag.verboseSioMode = 1;
+                gpx.flag.verboseMode = 1;
+                break;
+        }
+    }
+    optind = 1;
 
-    // READ GPX.INI
-    i = gpx_find_ini(&gpx, argv[0]);
-    if (i > 0) {
-        fprintf(stderr, "(line %u) Configuration syntax error: unrecognised parameters" EOL, i);
-        usage(1);
-        goto done;
+    if(!ignore_default_ini) {
+        // READ GPX.INI
+        i = gpx_find_ini(&gpx, argv[0]);
+        if (i > 0) {
+            fprintf(stderr, "(line %u) Configuration syntax error: unrecognised parameters" EOL, i);
+            usage(1);
+            goto done;
+        }
     }
 
     // READ COMMAND LINE
@@ -403,7 +425,7 @@ int main(int argc, char * const argv[])
     // error message should they be attempted when the code
     // is compiled without serial I/O support.
 
-    while ((c = getopt(argc, argv, "CFN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CFIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
         switch (c) {
 	    case 'C':
 		 // Write config data to a temp file
@@ -413,6 +435,8 @@ int main(int argc, char * const argv[])
 	    case 'F':
 		 force_framing = ITEM_FRAMING_ENABLE;
 		 break;
+            case 'I':
+                 break; // handled in first getopt loop
 	    case 'N':
 		 if(optarg[0] == 'h' || optarg[1] == 'h')
 		      gpx_set_start(&gpx, 0);
@@ -465,7 +489,7 @@ int main(int argc, char * const argv[])
                 // fall through
             case 's':
 #if !defined(SERIAL_SUPPORT)
-		 fprintf(stderr, NO_SERIAL_SUPPORT_MSG EOL);
+		fprintf(stderr, NO_SERIAL_SUPPORT_MSG EOL);
 		usage(1);
 		goto done;
 #else
@@ -496,9 +520,7 @@ int main(int argc, char * const argv[])
                 standard_io = 1;
                 break;
             case 'l':
-                gpx.flag.verboseMode = 1;
-                log_to_file = 1;
-                break;
+                break; // handled in first getopt loop
             case 'm':
                 if(gpx_set_property(&gpx, "printer", "machine_type", optarg)) {
                     usage(1);
@@ -527,10 +549,7 @@ int main(int argc, char * const argv[])
                 }
                 break;
             case 'v':
-                if (gpx.flag.verboseMode)
-                    gpx.flag.verboseSioMode = 1;
-                gpx.flag.verboseMode = 1;
-                break;
+                break; // handled in first getopt loop
             case 'w':
                 gpx.flag.rewrite5D = 1;
                 break;
