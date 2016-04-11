@@ -1,3 +1,2 @@
 language: c
 sudo: false
-script: touch configure && ./configure && make && make test

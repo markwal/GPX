@@ -21,6 +21,9 @@ SUBDIRS = src/gpx src/utils
 
 AM_CPPFLAGS = -I$(top_srcdir)/src/shared
 
+.PHONY : first debug release
+first debug release: all
+
 if HAVE_SIGNOSX
 dist-hook:
 	$(SIGNOSX) $(builddir)/src/gpx/gpx$(EXEEXT)

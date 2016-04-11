@@ -4,6 +4,7 @@
 AC_PREREQ([2.69])
 AC_INIT([gpx], [2.4.3], [https://github.com/markwal/GPX/issues],,[https://github.com/markwal/GPX])
 AM_INIT_AUTOMAKE([-Wall foreign subdir-objects])
+AM_MAINTAINER_MODE([disable])
 AM_EXTRA_RECURSIVE_TARGETS([test])
 AC_CONFIG_SRCDIR([src/gpx/gpx.c])
 AC_CONFIG_HEADERS([src/shared/config.h])
