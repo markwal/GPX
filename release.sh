@@ -12,6 +12,7 @@ mkdir -p build
 cd build
 mkdir -p linux
 cd linux
+../../configure --enable-maintainer-mode $args
 make 
 make test
 make bdist
@@ -36,7 +37,7 @@ for plat in "win32" "win64"; do
             ;;
     esac
     echo "Calling configure"
-    ../../configure $args
+    ../../configure --enable-maintainer-mode $args
     make
     make bdist DIST_TARGETS=dist-zip
     archive=`ls gpx*.zip`

@@ -30,9 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if !defined(_WIN32) && !defined(_WIN64)
 #include <unistd.h>
-#endif
 
 #if defined(SERIAL_SUPPORT)
 #if !defined(_WIN32) && !defined(_WIN64)
@@ -49,12 +47,6 @@ typedef long speed_t;
      "by this build of GPX"
 #endif
 
-#if defined(_WIN32) || defined(_WIN64)
-#include "getopt_.h"
-// strcasecmp() is not provided on Windows
-// _stricmp() is equivalent but may require <string.h>
-#define strcasecmp _stricmp
-#endif
 
 #include "gpx.h"
 #include "machine_config.h"
