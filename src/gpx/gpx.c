@@ -2260,7 +2260,7 @@ static int queue_ext_point(Gpx *gpx, double feedrate, Ptr5d delta, int relative)
         Point5d steps = mm_to_steps(gpx, &target, &gpx->excess);
 
 	// Total time required for the motion in units of microseconds
-        double usec = (60000000.0 * minutes);
+        double usec = (60000000.0L * minutes);
 
 	// Time interval between steps along the axis with the highest step count
 	//   total-time / highest-step-count
@@ -2269,7 +2269,7 @@ static int queue_ext_point(Gpx *gpx, double feedrate, Ptr5d delta, int relative)
 
         // Convert dda_interval into dda_rate (dda steps per second on the longest axis)
 	// steps-per-microsecond * 1000000 us/s = 1000000 * (1 / dda_interval)
-        double dda_rate = 1000000.0 / dda_interval;
+        double dda_rate = 1000000.0L / dda_interval;
 
         gpx->accumulated.time += (minutes * 60) * ACCELERATION_TIME;
 
