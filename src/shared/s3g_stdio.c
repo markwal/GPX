@@ -36,8 +36,14 @@
 
 #if !defined(_WIN32) && !defined(_WIN64)
 
+#if defined(ENOSR)
+#define ERRNO_EQ_ENOSR errno == ENOSR
+#else
+#define ERRNO_EQ_ENOSR 0
+#endif
+
 #define FD_TEMPORARY_ERR() \
-     (errno == EINTR || errno == ENOMEM || errno == ENOSR || errno == ENOBUFS)
+     (errno == EINTR || errno == ENOMEM || errno == ENOBUFS || ERRNO_EQ_ENOSR)
 #define FD_WOULDBLOCK_ERR() \
      (errno == EWOULDBLOCK || errno == EAGAIN)
 
