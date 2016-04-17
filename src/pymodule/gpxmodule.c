@@ -167,6 +167,8 @@ typedef struct tTio
             unsigned waitForEmptyQueue:1;
             unsigned waitForCancelSync:1;  // the host came through (@clear_cancel) before the M112 so we're still waiting to send the abort
             unsigned waitForBotCancel:1;   // we told the bot to cancel, so we're waiting for an 0x89 response
+            unsigned waitForBuffer:1;      // the firmware's buffer is full
+            unsigned waitForUnpause:1;     // the bot is paused
         } waitflag;
     };
     Sttb sttb;
@@ -386,6 +388,10 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
         return rval;
     }
 
+    // we got a SUCCESS on a queable command, so we're not waiting anymore
+    if (command & 0x80)
+        tio->waitflag.waitForBuffer = 0;
+
     switch (command) {
             // 03 - Clear buffer
         case 3:
@@ -513,44 +519,63 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             break;
 
             // Query 24 - Get build statistics
-        case 24: {
-            time_t t;
-            if (tio->sec && tio->sio.response.build.status != 1 && time(&t) < tio->sec) {
-                if ((tio->sec - t) > 4) {
-                    // in case we have a clock discontinuity we don't want to ignore status forever
-                    tio->sec = 0;
-                    tio->waitflag.waitForStart = 0;
+        case 24:
+            if (tio->waitflag.waitForStart || ((gpx->command.flag & M_IS_SET) && (gpx->command.m == 27))) {
+                // M27 response
+                time_t t;
+                if (tio->sec && tio->sio.response.build.status != 1 && time(&t) < tio->sec) {
+                    if ((tio->sec - t) > 4) {
+                        // in case we have a clock discontinuity we don't want to ignore status forever
+                        tio->sec = 0;
+                        tio->waitflag.waitForStart = 0;
+                    }
+                    break; // ignore it if we haven't started yet
                 }
-                break; // ignore it if we haven't started yet
+                switch (tio->sio.response.build.status) {
+                    case BUILD_NONE:
+                        // this is a matter of Not SD printing *yet* when we just
+                        // kicked off the print, let's give it a moment
+                        tio_printf(tio, "\nNot SD printing");
+                        break;
+                    case BUILD_RUNNING:
+                        tio->sec = 0;
+                        tio->waitflag.waitForStart = 0;
+                        tio_printf(tio, "\nSD printing byte on line %u/0", tio->sio.response.build.lineNumber);
+                        break;
+                    case BUILD_CANCELED:
+                        tio_printf(tio, "\nSD printing cancelled. ");
+                        tio->waiting = 0;
+                        tio->flag.getPosWhenReady = 0;
+                        // fall through
+                    case BUILD_FINISHED_NORMALLY:
+                        tio_printf(tio, "\nDone printing file");
+                        break;
+                    case BUILD_PAUSED:
+                        tio_printf(tio, "\nSD printing paused at line %u", tio->sio.response.build.lineNumber);
+                        break;
+                    case BUILD_CANCELLING:
+                        tio_printf(tio, "\nSD printing sleeping at line %u", tio->sio.response.build.lineNumber);
+                        break;
+                }
             }
-            switch (tio->sio.response.build.status) {
-                case 0:
-                    // this is a matter of Not SD printing *yet* when we just
-                    // kicked off the print, let's give it a moment
-                    tio_printf(tio, "\nNot SD printing");
-                    break;
-                case 1:
-                    tio->sec = 0;
-                    tio->waitflag.waitForStart = 0;
-                    tio_printf(tio, "\nSD printing byte on line %u/0", tio->sio.response.build.lineNumber);
-                    break;
-                case 4:
-                    tio_printf(tio, "\nSD printing cancelled. ");
-                    tio->waiting = 0;
-                    tio->flag.getPosWhenReady = 0;
-                    // fall through
-                case 2:
-                    tio_printf(tio, "\nDone printing file");
-                    break;
-                case 3:
-                    tio_printf(tio, "\nSD printing paused at line %u", tio->sio.response.build.lineNumber);
-                    break;
-                case 5:
-                    tio_printf(tio, "\nSD printing sleeping at line %u", tio->sio.response.build.lineNumber);
-                    break;
+            else {
+                // not an M27 response, we're checking routinely or to clear a wait state
+                switch (tio->sio.response.build.status) {
+                    case BUILD_NONE:
+                    case BUILD_RUNNING:
+                        if (tio->waitflag.waitForUnpause)
+                            tio->waitflag.waitForEmptyQueue = 1;
+                        // fallthrough
+                    default:
+                        tio->waitflag.waitForUnpause = 0;
+                        break;
+                    case BUILD_PAUSED:
+                        tio->waitflag.waitForUnpause = 1;
+                        tio_printf(tio, "\n// echo: Waiting for unpause button on the LCD panel\n");
+                        break;
+                }
             }
             break;
-        }
 
             // 27 - Get advanced version number
         case 27: {
@@ -661,8 +686,8 @@ static int debug_printf(const char *fmt, ...)
 static PyObject *gpx_return_translation(int rval)
 {
     // ENDED -> READY
-    if (gpx.flag.programState > 1)
-        gpx.flag.programState = 0;
+    if (gpx.flag.programState > RUNNING_STATE)
+        gpx.flag.programState = READY_STATE;
     gpx.flag.macrosEnabled = 1;
 
     // if we're waiting for something and we haven't produced any output
@@ -696,6 +721,7 @@ static PyObject *gpx_return_translation(int rval)
             PyErr_SetString(PyExc_IOError, "Generic Packet error");
             return NULL;
         case 0x82: // Action buffer overflow
+            tio.waitflag.waitForBuffer = 1;
             PyErr_SetString(pyerrBufferOverflow, "Buffer overflow");
             return NULL;
         case 0x83:
@@ -947,6 +973,7 @@ static PyObject *gpx_write(PyObject *self, PyObject *args)
 
     tio.cur = 0;
     tio.translation[0] = 0;
+    tio.waitflag.waitForBuffer = 0; // maybe clear this every time?
     tio.flag.okPending = !tio.waiting;
     PyObject *rval = gpx_write_string(line);
     tio.flag.okPending = 0;
@@ -976,9 +1003,11 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
         if (gpx.flag.verboseMode)
             fprintf(gpx.log, "tio.waiting = %u\n", tio.waiting);
         if (!tio.waitflag.waitForCancelSync) {
+            if (tio.waitflag.waitForUnpause)
+                rval = get_build_statistics(&gpx);
             // if we're waiting for the queue to drain, do that before checking on
             // anything else
-            if (tio.waitflag.waitForEmptyQueue || tio.waitflag.waitForButton)
+            if (rval == SUCCESS && (tio.waitflag.waitForEmptyQueue || tio.waitflag.waitForButton))
                 rval = is_ready(&gpx);
             if (rval == SUCCESS && !tio.waitflag.waitForEmptyQueue) {
                 if (tio.waitflag.waitForStart)
@@ -995,8 +1024,10 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
             fprintf(gpx.log, "tio.waiting = %u and rval = %d\n", tio.waiting, rval);
         if (rval == SUCCESS) {
             if (tio.waiting) {
-                if (gpx.flag.verboseMode)
+                if (gpx.flag.verboseMode) {
+                    tio_printf(&tio, "// echo: tio.waiting = 0x%x\n", tio.waiting);
                     fprintf(gpx.log, "o");
+                }
                 return gpx_write_string("M105");
             }
             tio.cur = 0;
@@ -1185,6 +1216,39 @@ static PyObject *gpx_waiting(PyObject *self, PyObject *args)
 static PyObject *gpx_build_started(PyObject *self, PyObject *args)
 {
     if (gpx.flag.programState == RUNNING_STATE)
+        Py_RETURN_TRUE;
+    else
+        Py_RETURN_FALSE;
+}
+
+// def build_paused()
+// is the build paused on the LCD?
+static PyObject *gpx_build_paused(PyObject *self, PyObject *args)
+{
+    if (!connected)
+        return PyErr_NotConnected();
+
+    int rval = get_build_statistics(&gpx);
+    // if we fail, is that a yes or a no?
+    if (rval != SUCCESS) {
+        PyErr_SetString(PyExc_IOError, "Unable to get build statistics.");
+        return NULL;
+    }
+
+    if (tio.waitflag.waitForUnpause)
+        Py_RETURN_TRUE;
+    else
+        Py_RETURN_FALSE;
+}
+
+// def listing_files()
+// are we in the middle of listing files from the SD card?
+static PyObject *gpx_listing_files(PyObject *self, PyObject *args)
+{
+    if (!connected)
+        return PyErr_NotConnected();
+
+    if (tio.flag.listingFiles)
         Py_RETURN_TRUE;
     else
         Py_RETURN_FALSE;
@@ -1564,6 +1628,8 @@ static PyMethodDef GpxMethods[] = {
     {"read_eeprom", gpx_read_eeprom, METH_VARARGS, "read_eeprom(id) Read the value identified by id from the eeprom"},
     {"write_eeprom", gpx_write_eeprom, METH_VARARGS, "write_eeprom(id, value) Write 'value' to the eeprom location identified by 'id'"},
     {"build_started", gpx_build_started, METH_VARARGS, "build_started() Returns True if a build has been started, but not yet ended"},
+    {"build_paused", gpx_build_paused, METH_VARARGS, "build_paused() Returns true if build is paused"},
+    {"listing_files", gpx_listing_files, METH_VARARGS, "listing_files() Returns true if there are still filenames to be returned of an SD card enumeration"},
     {NULL, NULL, 0, NULL} // sentinel
 };
 

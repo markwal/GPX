@@ -2449,6 +2449,7 @@ static int add_command_at(Gpx *gpx, double z, char *filament_id, unsigned nozzle
                 gpx->commandAt[i].nozzle_temperature = nozzle_temperature;
                 gpx->commandAt[i].build_platform_temperature = build_platform_temperature;
                 gpx->commandAtZ = gpx->commandAt[gpx->commandAtLength].z;
+                VERBOSE( gcodeResult(gpx, "Inserted index=%d ", i) );
             }
             // append command
             else {
@@ -2457,12 +2458,21 @@ static int add_command_at(Gpx *gpx, double z, char *filament_id, unsigned nozzle
                 gpx->commandAt[i].nozzle_temperature = nozzle_temperature;
                 gpx->commandAt[i].build_platform_temperature = build_platform_temperature;
                 gpx->commandAtZ = z;
+                VERBOSE( gcodeResult(gpx, "Appended index=%d ", i) );
+            }
+            if(gpx->flag.verboseMode && gpx->flag.logMessages) {
+                gcodeResult(gpx, "Command @ %0.2lf: ", z);
+                if(nozzle_temperature == 0 && build_platform_temperature == 0)
+                    gcodeResult(gpx, "Pause\n");
+                else
+                    gcodeResult(gpx, "Set temperature; nozzle=%u, bed=%u\n", nozzle_temperature, build_platform_temperature);
             }
             // nonzero temperature signals a temperature change, not a pause @ zPos
             // so if its the first pause @ zPos que it up
             if(nozzle_temperature == 0 && build_platform_temperature == 0 && gpx->commandAtLength == 0) {
                 if(gpx->flag.macrosEnabled) {
                     CALL( pause_at_zpos(gpx, z) );
+                    VERBOSE( gcodeResult(gpx, "Sent pause @ %0.2lf\n", z) );
                 }
                 else {
                     gpx->flag.pausePending = 1;
@@ -3584,6 +3594,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         if(gpx->flag.pausePending && gpx->flag.runMacros) {
             CALL( pause_at_zpos(gpx, gpx->commandAt[0].z) );
             gpx->flag.pausePending = 0;
+            VERBOSE( gcodeResult(gpx, "Issued next pause @ %0.2lf\n", z) );
         }
         gpx->flag.macrosEnabled = 1;
     }
@@ -4233,6 +4244,7 @@ static int get_extruder_temperature_extended(Gpx *gpx)
 {
     int rval;
 
+    CALL(get_build_statistics(gpx));
     CALL(get_extruder_temperature(gpx, 0));
     CALL(get_extruder_target_temperature(gpx, 0));
     if(gpx->machine.extruder_count > 1) {
@@ -5038,6 +5050,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                                 if(gpx->flag.pausePending && gpx->flag.runMacros) {
                                     CALL( pause_at_zpos(gpx, gpx->commandAt[0].z) );
                                     gpx->flag.pausePending = 0;
+                                    VERBOSE( gcodeResult(gpx, "Issued next pause @ %0.2lf\n", gpx->commandAt[0].z) );
                                 }
                                 gpx->flag.macrosEnabled = 1;
                             }
@@ -5604,6 +5617,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     else {
                         double z = gpx->flag.relativeCoordinates ? (gpx->current.position.z + gpx->command.z) : (gpx->command.z + conditional_z);
                         CALL( pause_at_zpos(gpx, z) );
+                        VERBOSE( gcodeResult(gpx, "Issued pause @ %0.2lf\n", z) );
                     }
                 }
                 else {

@@ -459,6 +459,17 @@ typedef long speed_t;
 
     };
 
+    // 23 - Get build statistics: build state values
+    // From sailfish sources (Host.hh)
+    enum BuildState {
+        BUILD_NONE = 0,
+        BUILD_RUNNING = 1,
+        BUILD_FINISHED_NORMALLY = 2,
+        BUILD_PAUSED = 3,
+        BUILD_CANCELED = 4,
+        BUILD_CANCELLING = 5,
+    };
+
     void gpx_initialize(Gpx *gpx, int firstTime);
     int gpx_set_machine(Gpx *gpx, const char *machine, int init);
 
