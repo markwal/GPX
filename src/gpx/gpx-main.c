@@ -357,9 +357,6 @@ int main(int argc, char * const argv[])
     char *eeprom = NULL;
     double filament_diameter = 0;
     char *buildname = PACKAGE_STRING;
-#ifdef _WIN32
-    char *otherdelim = NULL;
-#endif
     char *filename;
     speed_t baud_rate = B115200;
     int make_temp_config = 0;

@@ -6222,7 +6222,7 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
         size_t bytes;
         int retry_count = 0;
         do {
-            VERBOSESIO( fprintf(gpx->log, "port_handler write: %zu" EOL, length) );
+            VERBOSESIO( fprintf(gpx->log, "port_handler write: %lu" EOL, (unsigned long)length) );
             VERBOSESIO( hexdump(gpx->log, buffer, length) );
             // send the packet
             if((bytes = write(sio->port, buffer, length)) == -1) {

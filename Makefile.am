@@ -1,5 +1,6 @@
 # Build GPX, build GPX distributions
 # Dan Newman, February 2015
+# autotools by Mark Walker, April 2016
 #
 # mkdir build       -- create build folder, name it whatever you like
 # cd build
@@ -19,7 +20,7 @@
 EXTRA_DIST = examples scripts README.md src/shared
 SUBDIRS = src/gpx src/utils
 
-AM_CPPFLAGS = -I$(top_srcdir)/src/shared
+AM_CPPFLAGS = -Wall -I$(top_srcdir)/src/shared
 
 .PHONY : first debug release
 first debug release: all

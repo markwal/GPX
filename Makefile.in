@@ -16,6 +16,7 @@
 
 # Build GPX, build GPX distributions
 # Dan Newman, February 2015
+# autotools by Mark Walker, April 2016
 #
 # mkdir build       -- create build folder, name it whatever you like
 # cd build
@@ -103,6 +104,8 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
+build_triplet = @build@
+host_triplet = @host@
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -174,8 +177,8 @@ CTAGS = ctags
 CSCOPE = cscope
 DIST_SUBDIRS = $(SUBDIRS)
 am__DIST_COMMON = $(srcdir)/Makefile.in \
-	$(top_srcdir)/src/shared/config.h.in compile depcomp \
-	install-sh missing
+	$(top_srcdir)/src/shared/config.h.in compile config.guess \
+	config.sub depcomp install-sh missing
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -262,6 +265,7 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PLATFORM = @PLATFORM@
 POW_LIB = @POW_LIB@
 PYTHON = @PYTHON@
 SET_MAKE = @SET_MAKE@
@@ -280,14 +284,22 @@ am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
 bindir = @bindir@
+build = @build@
 build_alias = @build_alias@
+build_cpu = @build_cpu@
+build_os = @build_os@
+build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
 datarootdir = @datarootdir@
 docdir = @docdir@
 dvidir = @dvidir@
 exec_prefix = @exec_prefix@
+host = @host@
 host_alias = @host_alias@
+host_cpu = @host_cpu@
+host_os = @host_os@
+host_vendor = @host_vendor@
 htmldir = @htmldir@
 includedir = @includedir@
 infodir = @infodir@
@@ -313,7 +325,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 EXTRA_DIST = examples scripts README.md src/shared
 SUBDIRS = src/gpx src/utils
-AM_CPPFLAGS = -I$(top_srcdir)/src/shared
+AM_CPPFLAGS = -Wall -I$(top_srcdir)/src/shared
 all: all-recursive
 
 .SUFFIXES:

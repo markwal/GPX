@@ -313,7 +313,7 @@ int s3g_command_read_ext(s3g_context_t *ctx, s3g_command_t *cmd,
      if (!ctx || !buf || maxbuf == 0)
      {
 	  fprintf(stderr, "s3g_command_get(%d): Invalid call; ctx=%p, buf=%p, "
-		  "maxbuf=%lu\n", __LINE__, (void *)ctx, (void *)buf, maxbuf);
+		  "maxbuf=%lu\n", __LINE__, (void *)ctx, (void *)buf, (unsigned long)maxbuf);
 	  errno = EINVAL;
 	  return(-1);
      }

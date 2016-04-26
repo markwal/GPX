@@ -1,7 +1,7 @@
 # Build GPX utilities
 # Dan Newman, February 2015
 
-AM_CPPFLAGS = -I$(top_srcdir)/src/shared
+AM_CPPFLAGS = -Wall -I$(top_srcdir)/src/shared
 MACHINEDIR = $(top_builddir)/machine_inis
 GPXDIR = $(top_srcdir)/src/gpx
 

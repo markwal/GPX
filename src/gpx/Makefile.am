@@ -2,7 +2,7 @@
 # Dan Newman, February 2015
 #
 
-AM_CPPFLAGS = -I$(top_srcdir)/src/shared
+AM_CPPFLAGS = -Wall -Wstrict-prototypes -Wformat -Werror=format-security -I$(top_srcdir)/src/shared
 
 bin_PROGRAMS = gpx
 gpx_SOURCES = gpx.c gpx-main.c ../shared/machine_config.c ../shared/opt.c vector.c vector.h gpx.h winsio.h

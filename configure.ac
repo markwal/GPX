@@ -3,11 +3,16 @@
 
 AC_PREREQ([2.69])
 AC_INIT([gpx], [2.4.3], [https://github.com/markwal/GPX/issues],,[https://github.com/markwal/GPX])
-AM_INIT_AUTOMAKE([-Wall foreign subdir-objects])
+AM_INIT_AUTOMAKE([foreign subdir-objects])
 AM_MAINTAINER_MODE([disable])
 AM_EXTRA_RECURSIVE_TARGETS([test])
 AC_CONFIG_SRCDIR([src/gpx/gpx.c])
 AC_CONFIG_HEADERS([src/shared/config.h])
+
+# Checks for cross compiling
+AC_CANONICAL_BUILD
+AC_CANONICAL_HOST
+AC_SUBST(PLATFORM, [`$ac_aux_dir/archive-name.sh $host_os $host_cpu`])
 
 # Checks for programs.
 AC_PROG_CC
