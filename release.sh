@@ -15,10 +15,11 @@ cd linux
 ../../configure --enable-maintainer-mode $args
 make 
 make test
+make install
 make bdist
 archive=`ls gpx*.tar.gz`
 if [[ "${#archive[@]}" == "1" ]]; then
-    mv $archive ../${archive/.tar.gz/-linux.tar.gz}
+    mv $archive ..
 fi
 cd ..
 
@@ -39,10 +40,10 @@ for plat in "win32" "win64"; do
     echo "Calling configure"
     ../../configure --enable-maintainer-mode $args
     make
-    make bdist DIST_TARGETS=dist-zip
+    make bdist
     archive=`ls gpx*.zip`
     if [[ "${#archive[@]}" == "1" ]]; then
-        mv $archive ../${archive/.zip/-$plat.zip}
+        mv $archive ..
     fi
     cd ..
 done

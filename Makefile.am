@@ -34,19 +34,27 @@ remove_bdistdir = \
       || { sleep 5 && rm -rf "$(bdistdir)"; }; \
   else :; fi
 
-bdistdir:
+BINARIES = $(builddir)/src/gpx/gpx$(EXEEXT) $(builddir)/src/utils/machines$(EXEEXT) $(builddir)/src/utils/s3gdump$(EXEEXT)
+
+$(builddir)/machine_inis:
+	$(MKDIR_P) $(builddir)/machine_inis/
+	machines $(builddir)/machine_inis/
+
+bdistdir: $(BINARIES) $(builddir)/machine_inis 
 	$(MKDIR_P) $(bdistdir)
-	cp -r $(srcdir)/examples $(bdistdir)
-	cp -r $(srcdir)/machines $(bdistdir)
-	cp -r $(srcdir)/scripts $(bdistdir)
 if HAVE_SIGNOSX
-	$(SIGNOSX) $(builddir)/src/gpx/gpx$(EXEEXT)
-	$(SIGNOSX) $(builddir)/src/utils/machines$(EXEEXT)
-	$(SIGNOSX) $(builddir)/src/utils/s3gdump$(EXEEXT)
+	list='$(BINARIES)'; \
+	for file in $$list; do \
+	    $(SIGNOSX) $$file; \
+	done
 endif
-	cp $(builddir)/src/gpx/gpx$(EXEEXT) $(bdistdir)
-	cp $(builddir)/src/utils/machines$(EXEEXT) $(bdistdir)
-	cp $(builddir)/src/utils/s3gdump$(EXEEXT) $(bdistdir)
+	@list='$(BINARIES)'; \
+	for file in $$list; do \
+	    cp $$file $(bdistdir); \
+	done
+	cp -r $(srcdir)/examples $(bdistdir)
+	cp -r $(builddir)/machine_inis $(bdistdir)
+	cp -r $(srcdir)/scripts $(bdistdir)
 	chmod -R a+rwx $(bdistdir)
 
 bdist-gzip: bdistdir

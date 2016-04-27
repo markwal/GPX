@@ -335,6 +335,7 @@ remove_bdistdir = \
       || { sleep 5 && rm -rf "$(bdistdir)"; }; \
   else :; fi
 
+BINARIES = $(builddir)/src/gpx/gpx$(EXEEXT) $(builddir)/src/utils/machines$(EXEEXT) $(builddir)/src/utils/s3gdump$(EXEEXT)
 all: all-recursive
 
 .SUFFIXES:
@@ -814,17 +815,23 @@ uninstall-am:
 .PHONY : first debug release bdistdir bdist
 first debug release: all
 
-bdistdir:
+$(builddir)/machine_inis:
+	$(MKDIR_P) $(builddir)/machine_inis/
+	machines $(builddir)/machine_inis/
+
+bdistdir: $(BINARIES) $(builddir)/machine_inis 
 	$(MKDIR_P) $(bdistdir)
+@HAVE_SIGNOSX_TRUE@	list='$(BINARIES)'; \
+@HAVE_SIGNOSX_TRUE@	for file in $$list; do \
+@HAVE_SIGNOSX_TRUE@	    $(SIGNOSX) $$file; \
+@HAVE_SIGNOSX_TRUE@	done
+	@list='$(BINARIES)'; \
+	for file in $$list; do \
+	    cp $$file $(bdistdir); \
+	done
 	cp -r $(srcdir)/examples $(bdistdir)
-	cp -r $(srcdir)/machines $(bdistdir)
+	cp -r $(builddir)/machine_inis $(bdistdir)
 	cp -r $(srcdir)/scripts $(bdistdir)
-@HAVE_SIGNOSX_TRUE@	$(SIGNOSX) $(builddir)/src/gpx/gpx$(EXEEXT)
-@HAVE_SIGNOSX_TRUE@	$(SIGNOSX) $(builddir)/src/utils/machines$(EXEEXT)
-@HAVE_SIGNOSX_TRUE@	$(SIGNOSX) $(builddir)/src/utils/s3gdump$(EXEEXT)
-	cp $(builddir)/src/gpx/gpx$(EXEEXT) $(bdistdir)
-	cp $(builddir)/src/utils/machines$(EXEEXT) $(bdistdir)
-	cp $(builddir)/src/utils/s3gdump$(EXEEXT) $(bdistdir)
 	chmod -R a+rwx $(bdistdir)
 
 bdist-gzip: bdistdir
