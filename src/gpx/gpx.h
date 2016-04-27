@@ -359,6 +359,7 @@ typedef long speed_t;
         unsigned bytes_in;
         struct {
             unsigned retryBufferOverflow: 1;
+            unsigned shortRetryBufferOverflowOnly : 1;
         } flag;
 
         union {

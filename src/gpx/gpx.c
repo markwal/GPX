@@ -61,6 +61,18 @@
 
 #undef MACHINE_ARRAY
 
+void short_sleep(long nsec)
+{
+#ifdef HAS_NANOSLEEP
+    // some old mingw32 compiler, in particular the cross compiler still in use
+    // on MacOS, lack nanosleep
+    struct timespec ts = {0, nsec};
+    nanosleep(&ts, NULL);
+#else
+    usleep(nsec / 1000);
+#endif
+}
+
 // send a result to the result handler or log it if there isn't one
 static int gcodeResult(Gpx *gpx, const char *fmt, ...)
 {
@@ -177,6 +189,15 @@ static double get_home_feedrate(Gpx *gpx, int flag);
 static int pause_at_zpos(Gpx *gpx, float z_positon);
 
 // initialization of global variables
+
+// 02 - Get available buffer size
+char buffer_size_query[] = {
+    0xD5,   // start byte
+    1,      // length
+    2,      // query command
+    0       // crc
+};
+static unsigned char calculate_crc(unsigned char *addr, long len);
 
 void gpx_initialize(Gpx *gpx, int firstTime)
 {
@@ -370,6 +391,9 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     // LOGGING
 
     if(firstTime) gpx->log = stderr;
+
+    // CANNED COMMANDS
+    buffer_size_query[3] = calculate_crc((unsigned char *)buffer_size_query + 2, 1);
 }
 
 // PRINT STATE
@@ -6180,14 +6204,6 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
     }
 }
 
-// 02 - Get available buffer size
-
-char buffer_size_query[] = {
-    0xD5,   // start byte
-    1,      // length
-    2,      // query command
-    0       // crc
-};
 
 #if defined(_WIN32) || defined(_WIN64)
 // windows has more simultaneous timeout values, so we don't need select
@@ -6298,29 +6314,46 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
 
                     // 0x82 - Action buffer overflow, entire packet discarded
                 case 0x82:
-		{
                     if(!sio->flag.retryBufferOverflow)
                         goto L_ABORT;
-#ifdef HAS_NANOSLEEP
-// mingw32 cross compiler lacks nanosleep()
-// mingw32 env. on Windows has nanosleep()
-		    struct timespec ts = {0, 100000000}; // 0.1 s
-#endif
+
+                    // first, harass the bot in a tight loop in case we're
+                    // doing lots of short movements. On the one hand, we're
+                    // making it worse by making the bot take time on serial
+                    // i/o. On the other we want to make sure we send the next
+                    // command into the buffer as soon as possible so we don't
+                    // get a zit because of a sleep on our side
+                    //
+                    // twenty times, check for room every 10ms
+                    int i;
+                    for(i = 0; i < 20; i++) {
+                        short_sleep(10000000); // 10ms
+
+                        // query buffer size
+                        CALL( port_handler(gpx, sio, buffer_size_query, 4) );
+
+                        // if we now have room, let's go again
+                        if (sio->response.bufferSize >= length)
+                            goto L_REPEATSEND;
+                    }
+
+                    if(sio->flag.shortRetryBufferOverflowOnly) {
+                        rval = 0x82; // recursion cleared it, put it back
+                        goto L_ABORT;
+                    }
+
+                    // now, wait until we've got room for the command, checking
+                    // every 1/10 second
                     do {
-                        // wait for 1/10 seconds
-#ifdef HAS_NANOSLEEP
-			nanosleep(&ts, NULL);
-#else
-			usleep(100000);
-#endif
+                        short_sleep(100000000); // 100ms = 100000000ns
                         // query buffer size
                         buffer_size_query[3] = calculate_crc((unsigned char *)buffer_size_query + 2, 1);
                         CALL( port_handler(gpx, sio, buffer_size_query, 4) );
                         // loop until buffer has space for the next command
                     } while(sio->response.bufferSize < length);
+L_REPEATSEND:
                     // we just did all the waiting we needed, skip the 2 second timeout
                     continue;
-		}
 
                     // 0x83 - CRC mismatch, packet discarded. (retry)
                 case 0x83:
@@ -6390,6 +6423,7 @@ int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port,
     sio.bytes_out = 0;
     sio.bytes_in = 0;
     sio.flag.retryBufferOverflow = 1;
+    sio.flag.shortRetryBufferOverflowOnly = 0;
     int logMessages = gpx->flag.logMessages;
 
     if(file_in && file_in != stdin) {

@@ -921,7 +921,8 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
 
     tio.sio.in = NULL;
     tio.sio.bytes_out = tio.sio.bytes_in = 0;
-    tio.sio.flag.retryBufferOverflow = 0;
+    tio.sio.flag.retryBufferOverflow = 1;
+    tio.sio.flag.shortRetryBufferOverflowOnly = 1;
     connected = 1;
 
     fprintf(gpx.log, "gpx connected to %s at %ld using %s and %s\n", port, baudrate, inipath, logpath);
