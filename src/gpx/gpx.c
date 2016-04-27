@@ -63,7 +63,7 @@
 
 void short_sleep(long nsec)
 {
-#ifdef HAS_NANOSLEEP
+#ifdef HAVE_NANOSLEEP
     // some old mingw32 compiler, in particular the cross compiler still in use
     // on MacOS, lack nanosleep
     struct timespec ts = {0, nsec};
@@ -72,6 +72,20 @@ void short_sleep(long nsec)
     usleep(nsec / 1000);
 #endif
 }
+
+void long_sleep(time_t sec)
+{
+#ifdef HAVE_NANOSLEEP
+    struct timespec ts = {sec, 0};
+    nanosleep(&ts, NULL);
+#else
+    usleep(sec * 1000);
+#endif
+}
+
+// Define some elapsed times in terms of nanoseconds
+#define NS_100MS (100000000L)
+#define NS_10MS  (10000000L)
 
 // send a result to the result handler or log it if there isn't one
 static int gcodeResult(Gpx *gpx, const char *fmt, ...)
@@ -6327,7 +6341,7 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                     // twenty times, check for room every 10ms
                     int i;
                     for(i = 0; i < 20; i++) {
-                        short_sleep(10000000); // 10ms
+                        short_sleep(NS_10MS);
 
                         // query buffer size
                         CALL( port_handler(gpx, sio, buffer_size_query, 4) );
@@ -6345,7 +6359,7 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                     // now, wait until we've got room for the command, checking
                     // every 1/10 second
                     do {
-                        short_sleep(100000000); // 100ms = 100000000ns
+                        short_sleep(NS_100MS);
                         // query buffer size
                         buffer_size_query[3] = calculate_crc((unsigned char *)buffer_size_query + 2, 1);
                         CALL( port_handler(gpx, sio, buffer_size_query, 4) );
@@ -6405,7 +6419,7 @@ L_REPEATSEND:
             }
 L_RETRY:
             // wait for 2 seconds
-            sleep(2);
+            long_sleep(2);
         } while(++retry_count < 5);
     }
 
