@@ -2999,7 +2999,7 @@ fi
 ac_config_headers="$ac_config_headers src/shared/config.h"
 
 
-# Checks for cross compiling
+# Checks for cross compiling and arbitrary platform specifics
 # Make sure we can run config.sub.
 $SHELL "$ac_aux_dir/config.sub" sun4 >/dev/null 2>&1 ||
   as_fn_error $? "cannot run $SHELL $ac_aux_dir/config.sub" "$LINENO" 5
@@ -3073,7 +3073,19 @@ case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 
 PLATFORM=`$ac_aux_dir/archive-name.sh $host_os $host_cpu`
 
-BDIST_TARGET=`if [[ "$PLATFORM" =~ win.* ]]; then echo "bdist-zip"; elif [[ "$PLATFORM" == "osx" ]]; then echo "bdist-dmg"; else echo "bdist-gzip"; fi`
+case $PLATFORM in
+    win*)
+        BDIST_TARGET="bdist-zip"
+        CFLAGS="$CFLAGS -pthread"
+        LDFLAGS="$LDFLAGS -static -static-libgcc -pthread"
+        ;;
+    osx)
+        BDIST_TARGET="bdist-dmg"
+        ;;
+    *)
+        BDIST_TARGET="bdist-gzip"
+        ;;
+esac
 
 
 # Checks for programs.

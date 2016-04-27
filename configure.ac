@@ -9,11 +9,24 @@ AM_EXTRA_RECURSIVE_TARGETS([test])
 AC_CONFIG_SRCDIR([src/gpx/gpx.c])
 AC_CONFIG_HEADERS([src/shared/config.h])
 
-# Checks for cross compiling
+# Checks for cross compiling and arbitrary platform specifics
 AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 AC_SUBST(PLATFORM, [`$ac_aux_dir/archive-name.sh $host_os $host_cpu`])
-AC_SUBST(BDIST_TARGET, [`if [[[ "$PLATFORM" =~ win.* ]]]; then echo "bdist-zip"; elif [[[ "$PLATFORM" == "osx" ]]]; then echo "bdist-dmg"; else echo "bdist-gzip"; fi`])
+case $PLATFORM in
+    win*)
+        BDIST_TARGET="bdist-zip"
+        CFLAGS="$CFLAGS -pthread"
+        LDFLAGS="$LDFLAGS -static -static-libgcc -pthread"
+        ;;
+    osx)
+        BDIST_TARGET="bdist-dmg"
+        ;;
+    *)
+        BDIST_TARGET="bdist-gzip"
+        ;;
+esac
+AC_SUBST(BDIST_TARGET)
 
 # Checks for programs.
 AC_PROG_CC
