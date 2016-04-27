@@ -228,6 +228,7 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BDIST_TARGET = @BDIST_TARGET@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
@@ -326,6 +327,14 @@ top_srcdir = @top_srcdir@
 EXTRA_DIST = examples scripts README.md src/shared
 SUBDIRS = src/gpx src/utils
 AM_CPPFLAGS = -Wall -I$(top_srcdir)/src/shared
+bdistdir = $(PACKAGE)-$(VERSION)-$(PLATFORM)
+remove_bdistdir = \
+  if test -d "$(bdistdir)"; then \
+    find "$(bdistdir)" -type d ! -perm -200 -exec chmod u+w {} ';' \
+      && rm -rf "$(bdistdir)" \
+      || { sleep 5 && rm -rf "$(bdistdir)"; }; \
+  else :; fi
+
 all: all-recursive
 
 .SUFFIXES:
@@ -484,7 +493,6 @@ cscopelist-am: $(am__tagged_files)
 distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 	-rm -f cscope.out cscope.in.out cscope.po.out cscope.files
-@HAVE_SIGNOSX_FALSE@dist-hook:
 
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
@@ -543,9 +551,6 @@ distdir: $(DISTFILES)
 	      || exit 1; \
 	  fi; \
 	done
-	$(MAKE) $(AM_MAKEFLAGS) \
-	  top_distdir="$(top_distdir)" distdir="$(distdir)" \
-	  dist-hook
 	-test -n "$(am__skip_mode_fix)" \
 	|| find "$(distdir)" -type d ! -perm -755 \
 		-exec chmod u+rwx,go+rx {} \; -o \
@@ -790,8 +795,8 @@ uninstall-am:
 .PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am \
 	am--refresh check check-am clean clean-cscope clean-generic \
 	cscope cscopelist-am ctags ctags-am dist dist-all dist-bzip2 \
-	dist-gzip dist-hook dist-lzip dist-shar dist-tarZ dist-xz \
-	dist-zip distcheck distclean distclean-generic distclean-hdr \
+	dist-gzip dist-lzip dist-shar dist-tarZ dist-xz dist-zip \
+	distcheck distclean distclean-generic distclean-hdr \
 	distclean-tags distcleancheck distdir distuninstallcheck dvi \
 	dvi-am html html-am info info-am install install-am \
 	install-data install-data-am install-dvi install-dvi-am \
@@ -806,28 +811,42 @@ uninstall-am:
 .PRECIOUS: Makefile
 
 
-.PHONY : first debug release
+.PHONY : first debug release bdistdir bdist
 first debug release: all
 
-@HAVE_SIGNOSX_TRUE@dist-hook:
+bdistdir:
+	$(MKDIR_P) $(bdistdir)
+	cp -r $(srcdir)/examples $(bdistdir)
+	cp -r $(srcdir)/machines $(bdistdir)
+	cp -r $(srcdir)/scripts $(bdistdir)
 @HAVE_SIGNOSX_TRUE@	$(SIGNOSX) $(builddir)/src/gpx/gpx$(EXEEXT)
 @HAVE_SIGNOSX_TRUE@	$(SIGNOSX) $(builddir)/src/utils/machines$(EXEEXT)
 @HAVE_SIGNOSX_TRUE@	$(SIGNOSX) $(builddir)/src/utils/s3gdump$(EXEEXT)
+	cp $(builddir)/src/gpx/gpx$(EXEEXT) $(bdistdir)
+	cp $(builddir)/src/utils/machines$(EXEEXT) $(bdistdir)
+	cp $(builddir)/src/utils/s3gdump$(EXEEXT) $(bdistdir)
+	chmod -R a+rwx $(bdistdir)
 
-.PHONY : binaries
-binaries: distdir
-	cp $(builddir)/src/gpx/gpx$(EXEEXT) $(distdir)
-	cp $(builddir)/src/utils/machines$(EXEEXT) $(distdir)
-	cp $(builddir)/src/utils/s3gdump$(EXEEXT) $(distdir)
+bdist-gzip: bdistdir
+	tardir=$(bdistdir) && $(am__tar) | GZIP=$(GZIP_ENV) gzip -c >$(bdistdir).tar.gz
+	$(remove_bdistdir)
 
-.PHONY : bdist
+bdist-xz: bdistdir
+	tardir=$(bdistdir) && $(am__tar) | XZ_OPT=$${XZ_OPT--e} xz -c >$(bdistdir).tar.xz
+	$(remove_bdistdir)
+
+bdist-zip: bdistdir
+	-rm -f $(bdistdir).zip
+	zip -rq $(bdistdir).zip $(bdistdir)
+	$(remove_bdistdir)
+
+@HAVE_CREATEDMG_TRUE@dist-dmg: bdistdir
+@HAVE_CREATEDMG_TRUE@	$(CREATEDMG) $(bdistdir) $(bdistdir).dmg
+@HAVE_CREATEDMG_TRUE@	$(remove_bdistdir)
+
 bdist:
-	$(MAKE) $(AM_MAKEFLAGS) binaries $(DIST_TARGETS) am__post_remove_distdir='@:'
-	$(am__post_remove_distdir)
-
-@HAVE_CREATEDMG_TRUE@dist-dmg: binaries
-@HAVE_CREATEDMG_TRUE@	$(CREATEDMG) $(distdir) $(distdir).dmg
-@HAVE_CREATEDMG_TRUE@	$(am__post_remove_distdir)
+	$(MAKE) $(AM_MAKEFLAGS) $(BDIST_TARGET) remove_bdistdir='@:'
+	$(remove_bdistdir)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

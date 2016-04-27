@@ -22,29 +22,53 @@ SUBDIRS = src/gpx src/utils
 
 AM_CPPFLAGS = -Wall -I$(top_srcdir)/src/shared
 
-.PHONY : first debug release
+.PHONY : first debug release bdistdir bdist
 first debug release: all
 
+bdistdir = $(PACKAGE)-$(VERSION)-$(PLATFORM)
+
+remove_bdistdir = \
+  if test -d "$(bdistdir)"; then \
+    find "$(bdistdir)" -type d ! -perm -200 -exec chmod u+w {} ';' \
+      && rm -rf "$(bdistdir)" \
+      || { sleep 5 && rm -rf "$(bdistdir)"; }; \
+  else :; fi
+
+bdistdir:
+	$(MKDIR_P) $(bdistdir)
+	cp -r $(srcdir)/examples $(bdistdir)
+	cp -r $(srcdir)/machines $(bdistdir)
+	cp -r $(srcdir)/scripts $(bdistdir)
 if HAVE_SIGNOSX
-dist-hook:
 	$(SIGNOSX) $(builddir)/src/gpx/gpx$(EXEEXT)
 	$(SIGNOSX) $(builddir)/src/utils/machines$(EXEEXT)
 	$(SIGNOSX) $(builddir)/src/utils/s3gdump$(EXEEXT)
 endif
+	cp $(builddir)/src/gpx/gpx$(EXEEXT) $(bdistdir)
+	cp $(builddir)/src/utils/machines$(EXEEXT) $(bdistdir)
+	cp $(builddir)/src/utils/s3gdump$(EXEEXT) $(bdistdir)
+	chmod -R a+rwx $(bdistdir)
 
-.PHONY : binaries
-binaries: distdir
-	cp $(builddir)/src/gpx/gpx$(EXEEXT) $(distdir)
-	cp $(builddir)/src/utils/machines$(EXEEXT) $(distdir)
-	cp $(builddir)/src/utils/s3gdump$(EXEEXT) $(distdir)
+bdist-gzip: bdistdir
+	tardir=$(bdistdir) && $(am__tar) | GZIP=$(GZIP_ENV) gzip -c >$(bdistdir).tar.gz
+	$(remove_bdistdir)
 
-.PHONY : bdist
-bdist:
-	$(MAKE) $(AM_MAKEFLAGS) binaries $(DIST_TARGETS) am__post_remove_distdir='@:'
-	$(am__post_remove_distdir)
+bdist-xz: bdistdir
+	tardir=$(bdistdir) && $(am__tar) | XZ_OPT=$${XZ_OPT--e} xz -c >$(bdistdir).tar.xz
+	$(remove_bdistdir)
+
+bdist-zip: bdistdir
+	-rm -f $(bdistdir).zip
+	zip -rq $(bdistdir).zip $(bdistdir)
+	$(remove_bdistdir)
 
 if HAVE_CREATEDMG
-dist-dmg: binaries
-	$(CREATEDMG) $(distdir) $(distdir).dmg
-	$(am__post_remove_distdir)
+dist-dmg: bdistdir
+	$(CREATEDMG) $(bdistdir) $(bdistdir).dmg
+	$(remove_bdistdir)
 endif
+
+bdist:
+	$(MAKE) $(AM_MAKEFLAGS) $(BDIST_TARGET) remove_bdistdir='@:'
+	$(remove_bdistdir)
+

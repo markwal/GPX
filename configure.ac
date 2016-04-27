@@ -13,6 +13,7 @@ AC_CONFIG_HEADERS([src/shared/config.h])
 AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 AC_SUBST(PLATFORM, [`$ac_aux_dir/archive-name.sh $host_os $host_cpu`])
+AC_SUBST(BDIST_TARGET, [`if [[[ "$PLATFORM" =~ win.* ]]]; then echo "bdist-zip"; elif [[[ "$PLATFORM" == "osx" ]]]; then echo "bdist-dmg"; else echo "bdist-gzip"; fi`])
 
 # Checks for programs.
 AC_PROG_CC

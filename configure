@@ -663,6 +663,7 @@ CPPFLAGS
 LDFLAGS
 CFLAGS
 CC
+BDIST_TARGET
 PLATFORM
 host_os
 host_vendor
@@ -3071,6 +3072,8 @@ case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 
 
 PLATFORM=`$ac_aux_dir/archive-name.sh $host_os $host_cpu`
+
+BDIST_TARGET=`if [[ "$PLATFORM" =~ win.* ]]; then echo "bdist-zip"; elif [[ "$PLATFORM" == "osx" ]]; then echo "bdist-dmg"; else echo "bdist-gzip"; fi`
 
 
 # Checks for programs.
