@@ -238,8 +238,11 @@ static void clear_state_for_cancel(void)
     gpx.axis.positionKnown = 0;
     gpx.excess.a = 0;
     gpx.excess.b = 0;
-    if (tio.waiting)
+    if (tio.waiting) {
         tio.flag.waitClearedByCancel = 1;
+        if(gpx.flag.verboseMode)
+            fprintf(gpx.log, "setting waitClearedByCancel");
+    }
     tio.waiting = 0;
     tio.waitflag.waitForEmptyQueue = 1;
     tio.flag.getPosWhenReady = 0;
@@ -685,6 +688,8 @@ static int debug_printf(const char *fmt, ...)
 // return the translation or set the error context and return NULL if failure
 static PyObject *gpx_return_translation(int rval)
 {
+    int waiting = tio.waiting;
+
     // ENDED -> READY
     if (gpx.flag.programState > RUNNING_STATE)
         gpx.flag.programState = READY_STATE;
@@ -693,10 +698,16 @@ static PyObject *gpx_return_translation(int rval)
     // if we're waiting for something and we haven't produced any output
     // give back current temps
     if (rval == SUCCESS && tio.waiting && tio.cur == 0) {
+        if(gpx.flag.verboseMode)
+            fprintf(gpx.log, "implicit M105\n");
         strncpy(gpx.buffer.in, "M105", sizeof(gpx.buffer.in));
         rval = gpx_convert_line(&gpx, gpx.buffer.in);
+        if(gpx.flag.verboseMode)
+            fprintf(gpx.log, "implicit M105 rval = %d\n", rval);
     }
 
+    if(gpx.flag.verboseMode)
+        fprintf(gpx.log, "gpx_return_translation rval = %d\n", rval);
     fflush(gpx.log);
     switch (rval) {
         case SUCCESS:
@@ -747,6 +758,8 @@ static PyObject *gpx_return_translation(int rval)
             if (tio.waitflag.waitForBotCancel) {
                 // ah, we told the bot to abort, and this 0x89 means that it did
                 tio.waitflag.waitForBotCancel = 0;
+                if(gpx.flag.verboseMode)
+                    fprintf(gpx.log, "cleared waitForBotCancel\n");
                 break;
             }
 
@@ -781,8 +794,17 @@ static PyObject *gpx_return_translation(int rval)
             return NULL;
     }
 
-    if (tio.cur > 0 && tio.translation[tio.cur - 1] == '\n')
-        tio.translation[tio.cur - 1] = 0;
+    // if the rval cleared the wait state, we need an ok
+    if(waiting && !tio.waiting) {
+        if(gpx.flag.verboseMode)
+            fprintf(gpx.log, "add ok for wait cleared\n");
+        if (tio.cur > 0 && tio.translation[tio.cur - 1] != '\n')
+            tio_printf(&tio, "\n");
+        tio_printf(&tio, "ok");
+    }
+    else if (tio.cur > 0 && tio.translation[tio.cur - 1] == '\n')
+        tio.translation[--tio.cur] = 0;
+
     fflush(gpx.log);
     return Py_BuildValue("s", tio.translation);
 }
@@ -797,6 +819,9 @@ static PyObject *gpx_write_string(const char *s)
     strncpy(gpx.buffer.in, s, sizeof(gpx.buffer.in));
     int rval = gpx_convert_line(&gpx, gpx.buffer.in);
 
+    if (gpx.flag.verboseMode)
+        fprintf(gpx.log, "gpx_return_translation rval = %d\n", rval);
+
     if (tio.flag.okPending) {
         tio_printf(&tio, "ok");
         // ok means: I'm ready for another command, not necessarily that everything worked
@@ -807,6 +832,7 @@ static PyObject *gpx_write_string(const char *s)
     tio.flag.okPending = 0;
     if (waiting && gpx.flag.verboseMode)
         fprintf(gpx.log, "leaving gpx_write_string %d\n", tio.waiting);
+    fflush(gpx.log);
 
     return gpx_return_translation(rval);
 }
@@ -1036,6 +1062,8 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
         }
     }
     else if (tio.flag.waitClearedByCancel) {
+        if(gpx.flag.verboseMode)
+            fprintf(gpx.log, "adding ok for wait cleared by cancel\n");
         tio.flag.waitClearedByCancel = 0;
         tio_printf(&tio, "ok");
     }
@@ -1206,7 +1234,7 @@ static PyObject *gpx_waiting(PyObject *self, PyObject *args)
     if (!connected)
         return PyErr_NotConnected();
 
-    if (tio.waiting)
+    if (tio.waiting || tio.flag.waitClearedByCancel)
         Py_RETURN_TRUE;
     else
         Py_RETURN_FALSE;
