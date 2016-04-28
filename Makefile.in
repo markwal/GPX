@@ -853,7 +853,7 @@ bdist-zip: bdistdir
 	zip -rq $(bdistdir).zip $(bdistdir)
 	$(remove_bdistdir)
 
-@HAVE_CREATEDMG_TRUE@dist-dmg: bdistdir
+@HAVE_CREATEDMG_TRUE@bdist-dmg: bdistdir
 @HAVE_CREATEDMG_TRUE@	$(CREATEDMG) $(bdistdir) $(bdistdir).dmg
 @HAVE_CREATEDMG_TRUE@	$(remove_bdistdir)
 

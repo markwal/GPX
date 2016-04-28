@@ -71,7 +71,7 @@ bdist-zip: bdistdir
 	$(remove_bdistdir)
 
 if HAVE_CREATEDMG
-dist-dmg: bdistdir
+bdist-dmg: bdistdir
 	$(CREATEDMG) $(bdistdir) $(bdistdir).dmg
 	$(remove_bdistdir)
 endif
