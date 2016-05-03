@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([gpx], [2.5.1], [https://github.com/markwal/GPX/issues],,[https://github.com/markwal/GPX])
+AC_INIT([gpx], [2.5.2], [https://github.com/markwal/GPX/issues],,[https://github.com/markwal/GPX])
 AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AM_MAINTAINER_MODE([disable])
@@ -18,7 +18,7 @@ case $PLATFORM in
     win*)
         BDIST_TARGET="bdist-zip"
         CFLAGS="$CFLAGS -pthread"
-        LDFLAGS="$LDFLAGS -static -static-libgcc -pthread"
+        LDFLAGS="$LDFLAGS -static -static-libgcc -lpthread"
         ;;
     osx)
         BDIST_TARGET="bdist-dmg"
