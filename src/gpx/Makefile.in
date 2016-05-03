@@ -268,7 +268,6 @@ pdfdir = @pdfdir@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
-runstatedir = @runstatedir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 srcdir = @srcdir@
@@ -277,12 +276,11 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-AM_CPPFLAGS = -Wall -Wstrict-prototypes -Wformat -Werror=format-security -I$(top_srcdir)/src/shared
+AM_CPPFLAGS = -Wall -Wstrict-prototypes -Wformat -Werror=format-security -DSERIAL_SUPPORT -I$(top_srcdir)/src/shared
 gpx_SOURCES = gpx.c gpx-main.c ../shared/machine_config.c \
 	../shared/opt.c vector.c vector.h gpx.h winsio.h \
 	$(am__append_1)
 gpx_LDADD = -lm
-gpx_DEFS = -DSERIAL_SUPPORT
 all: all-am
 
 .SUFFIXES:
