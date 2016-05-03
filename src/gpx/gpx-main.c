@@ -66,19 +66,20 @@ static char temp_config_name[24];
 static void exit_handler(void)
 {
     // close open files
-    if(file_in != stdin) {
+    if(file_in != stdin && file_in != NULL) {
         fclose(file_in);
-        if(file_out != stdout) {
-            if(ferror(file_out)) {
-                perror("Error writing to output file");
-            }
-            fclose(file_out);
-	    file_out = NULL;
+        file_in = NULL;
+    }
+    if(file_out != stdout && file_out != NULL) {
+        if(ferror(file_out)) {
+            perror("Error writing to output file");
         }
-        if(file_out2) {
-            fclose(file_out2);
-	    file_out2 = NULL;
-        }
+        fclose(file_out);
+        file_out = NULL;
+    }
+    if(file_out2 != NULL) {
+        fclose(file_out2);
+        file_out2 = NULL;
     }
 
     // 23 February 2015
