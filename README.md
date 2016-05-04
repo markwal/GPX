@@ -30,7 +30,15 @@ If you'd prefer an installer, you may want to install GPX via
 ## Mac
 
 * Download a release .dmg file from [GPX releases](https://github.com/markwal/GPX/releases)
-* Open up the .dmg file and drag the gpx application to /Applications
+* Open up the .dmg file and drag the gpx application to /usr/local/bin or somewhere on your PATH
+
+*or* via *homebrew*:
+
+`brew install gpx`
+
+*or* with a GUI:
+
+[GpxUi](https://markwal.github.io/GpxUi)
 
 # Installing from source
 
