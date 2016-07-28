@@ -523,6 +523,16 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
             // Query 24 - Get build statistics
         case 24:
+            if (tio->waitflag.waitForBotCancel) {
+                switch (tio->sio.response.build.status) {
+                    case BUILD_RUNNING:
+                    case BUILD_PAUSED:
+                    case BUILD_CANCELLING:
+                        break;
+                    default:
+                        tio->waitflag.waitForBotCancel = 0;
+                }
+            }
             if (tio->waitflag.waitForStart || ((gpx->command.flag & M_IS_SET) && (gpx->command.m == 27))) {
                 // M27 response
                 time_t t;
@@ -1037,7 +1047,7 @@ static PyObject *gpx_readnext(PyObject *self, PyObject *args)
             if (rval == SUCCESS && (tio.waitflag.waitForEmptyQueue || tio.waitflag.waitForButton))
                 rval = is_ready(&gpx);
             if (rval == SUCCESS && !tio.waitflag.waitForEmptyQueue) {
-                if (tio.waitflag.waitForStart)
+                if (tio.waitflag.waitForStart || tio.waitflag.waitForBotCancel)
                     rval = get_build_statistics(&gpx);
                 if (rval == SUCCESS && tio.waitflag.waitForPlatform)
                     rval = is_build_platform_ready(&gpx, 0);
