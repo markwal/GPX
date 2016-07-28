@@ -538,7 +538,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     case BUILD_NONE:
                         // this is a matter of Not SD printing *yet* when we just
                         // kicked off the print, let's give it a moment
-                        tio_printf(tio, "\nNot SD printing");
+                        tio_printf(tio, "\nNot SD printing\n");
                         break;
                     case BUILD_RUNNING:
                         tio->sec = 0;
@@ -546,7 +546,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                         tio_printf(tio, "\nSD printing byte on line %u/0", tio->sio.response.build.lineNumber);
                         break;
                     case BUILD_CANCELED:
-                        tio_printf(tio, "\nSD printing cancelled. ");
+                        tio_printf(tio, "\nSD printing cancelled.\n");
                         tio->waiting = 0;
                         tio->flag.getPosWhenReady = 0;
                         // fall through
@@ -554,10 +554,10 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                         tio_printf(tio, "\nDone printing file\n");
                         break;
                     case BUILD_PAUSED:
-                        tio_printf(tio, "\nSD printing paused at line %u", tio->sio.response.build.lineNumber);
+                        tio_printf(tio, "\nSD printing paused at line %u\n", tio->sio.response.build.lineNumber);
                         break;
                     case BUILD_CANCELLING:
-                        tio_printf(tio, "\nSD printing sleeping at line %u", tio->sio.response.build.lineNumber);
+                        tio_printf(tio, "\nSD printing sleeping at line %u\n", tio->sio.response.build.lineNumber);
                         break;
                 }
             }
