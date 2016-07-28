@@ -551,7 +551,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                         tio->flag.getPosWhenReady = 0;
                         // fall through
                     case BUILD_FINISHED_NORMALLY:
-                        tio_printf(tio, "\nDone printing file");
+                        tio_printf(tio, "\nDone printing file\n");
                         break;
                     case BUILD_PAUSED:
                         tio_printf(tio, "\nSD printing paused at line %u", tio->sio.response.build.lineNumber);
