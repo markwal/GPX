@@ -171,18 +171,23 @@ int gpx_set_machine(Gpx *gpx, const char *machine_type, int init)
         memcpy(&gpx->machine, machine, sizeof(Machine));
         VERBOSE( fprintf(gpx->log, "Loading machine definition: %s" EOL, machine->desc) );
         if(gpx->iniPath != NULL) {
-            // if there's a gpx->iniPath + "/" + machine->type + ".ini" load it
+            // if there's a gpx->iniPath + "/" + machine_type + ".ini" load it
             // here recursively
             char machineIni[1024];
             machineIni[0] = 0;
-            int i = snprintf(machineIni, sizeof(machineIni), "%s/%s.ini", gpx->iniPath, machine->type);
+            int i = snprintf(machineIni, sizeof(machineIni), "%s/%s.ini", gpx->iniPath, machine_type);
+            VERBOSE( fprintf(gpx->log, "snprintf is %d.\n", i) );
             if(i > 0 && i < sizeof(machineIni)) {
                 if(access(machineIni, R_OK) == SUCCESS) {
                     VERBOSE( fprintf(gpx->log, "Using custom machine definition from: %s" EOL, machineIni) );
                     ini_parse(gpx, machineIni, gpx_set_property);
                 }
-                else if(errno != ENOENT)
+                else if(errno != ENOENT) {
                     VERBOSE( fprintf(gpx->log, "Unable to load custom machine definition errno = %d\n", errno) );
+                }
+                else {
+                    VERBOSE( fprintf(gpx->log, "Unable to access: %s" EOL, machineIni) );
+                }
             }
         }
     }

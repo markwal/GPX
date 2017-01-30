@@ -926,6 +926,9 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
     }
 #endif
 
+    gpx.flag.verboseSioMode = gpx.flag.verboseMode = verbose;
+    gpx.flag.logMessages = 1;
+
     // load the config
     if (inipath != NULL)
     {
@@ -935,9 +938,6 @@ static PyObject *gpx_connect(PyObject *self, PyObject *args)
         if (lineno > 0)
             fprintf(gpx.log, "(line %u) Configuration syntax error in %s: unrecognized parameters\n", lineno, inipath);
     }
-
-    gpx.flag.verboseSioMode = gpx.flag.verboseMode = verbose;
-    gpx.flag.logMessages = 1;
 
     // open the port
     speed_t speed = speed_from_long(&baudrate);
