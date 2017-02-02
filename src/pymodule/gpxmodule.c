@@ -113,7 +113,7 @@ long sttb_find_nocase(Sttb *psttb, char *s)
 // an action. Any of the three can initiate, but all need to complete before
 // we're back to normal.
 // 1. The host control loop needs to stop sending new commands and will send
-// (@clear_cancel) when to acknowledge that it is no longer sending new commands
+// (@clear_cancel) to acknowledge that it is no longer sending new commands
 // from the cancelled job
 // 2. The host event handler loop is asynchronous with the control loop will
 // send an out of order M112 to cancel.  This is done to interrupt any long
@@ -768,8 +768,14 @@ static PyObject *gpx_return_translation(int rval)
             if (tio.waitflag.waitForBotCancel) {
                 // ah, we told the bot to abort, and this 0x89 means that it did
                 tio.waitflag.waitForBotCancel = 0;
+                tio.waitflag.waitForCancelSync = 0;
                 if(gpx.flag.verboseMode)
                     fprintf(gpx.log, "cleared waitForBotCancel\n");
+                break;
+            }
+            if (tio.waitflag.waitForCancelSync) {
+                // already got (@clear_cancel) so we don't need to wait for it
+                tio.waitflag.waitForCancelSync = 0;
                 break;
             }
 
@@ -1382,9 +1388,9 @@ static PyObject *gpx_stop(PyObject *self, PyObject *args)
 
     rval = extended_stop(&gpx, halt_steppers, clear_queue);
 
-    if (!tio.flag.cancelPending) {
+    if (rval != 0x89)
         tio.waitflag.waitForCancelSync = 0;
-    }
+
     if (rval != SUCCESS)
         return gpx_return_translation(rval);
     gpx.flag.sd_paused = 0;
@@ -1420,9 +1426,9 @@ static PyObject *gpx_abort(PyObject *self, PyObject *args)
     if (rval == ESIOTIMEOUT)
         rval = SUCCESS;
 
-    if (!tio.flag.cancelPending) {
+    if (rval != 0x89)
         tio.waitflag.waitForCancelSync = 0;
-    }
+
     if (rval != SUCCESS) {
         if (gpx.flag.verboseMode) fprintf(gpx.log, "abort_immediately rval = %d\n", rval);
         return gpx_return_translation(rval);
