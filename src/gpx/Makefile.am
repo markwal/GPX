@@ -5,7 +5,7 @@
 AM_CPPFLAGS = -Wall -Wstrict-prototypes -Wformat -Werror=format-security -DSERIAL_SUPPORT -I$(top_srcdir)/src/shared
 
 bin_PROGRAMS = gpx
-gpx_SOURCES = gpx.c gpx-main.c ../shared/machine_config.c ../shared/opt.c vector.c vector.h gpx.h winsio.h
+gpx_SOURCES = gpx.c gpx-main.c gpxresp.c ../shared/machine_config.c ../shared/opt.c vector.c vector.h gpx.h winsio.h
 if HAVE_WINDOWS_H
 gpx_SOURCES += winsio.c
 endif

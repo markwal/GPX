@@ -32,22 +32,6 @@
 
 #include <unistd.h>
 
-#if defined(SERIAL_SUPPORT)
-#if !defined(_WIN32) && !defined(_WIN64)
-#include <termios.h>
-#else
-#include "winsio.h"
-#endif
-#define USE_GPX_SIO_OPEN
-#else
-typedef long speed_t;
-#define B115200 115200
-#define B57600  57600
-#define NO_SERIAL_SUPPORT_MSG "Serial I/O and USB printing is not supported " \
-     "by this build of GPX"
-#endif
-
-
 #include "gpx.h"
 #include "machine_config.h"
 
@@ -138,9 +122,10 @@ static void usage(int err)
     fputs("GNU General Public License for more details." EOL, fp);
 
     fputs(EOL "Usage:" EOL, fp);
-    fputs("gpx [-CFIdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
+    fputs("gpx [-CFIdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-D NEWPORT] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
     fputs(EOL "Options:" EOL, fp);
     fputs("\t-C\tcreate temporary file with a copy of the machine configuration" EOL, fp);
+    fputs("\t-D\trun in daemon mode and create the named virtual port" EOL, fp);
     fputs("\t-F\twrite X3G on-wire framing data to output file" EOL, fp);
     fputs("\t-I\tignore default .ini files" EOL, fp);
     fputs("\t-N\tdisable writing of the X3G header (start build notice)," EOL, fp);
@@ -354,6 +339,7 @@ int main(int argc, char * const argv[])
     int standard_io = 0;
     int serial_io = 0;
     int truncate_filename = 0;
+    char *daemon_port = NULL;
     char *config = NULL;
     char *eeprom = NULL;
     double filament_diameter = 0;
@@ -380,7 +366,7 @@ int main(int argc, char * const argv[])
     // the ini file from the default locations and whether to be verbose about it
     // we need to load the ini file before parsing the rest so that the command line
     // overrides the default ini in the standard case
-    while ((c = getopt(argc, argv, "CFIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CD:FIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
         switch (c) {
             case 'I':
                 ignore_default_ini = 1;
@@ -415,13 +401,28 @@ int main(int argc, char * const argv[])
     // error message should they be attempted when the code
     // is compiled without serial I/O support.
 
-    while ((c = getopt(argc, argv, "CFIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CD:FIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
         switch (c) {
 	    case 'C':
 		 // Write config data to a temp file
 		 // Write output to stdout
 		 make_temp_config = 1;
 		 break;
+            case 'D':
+                 // Run in daemon mode - implies serial mode to the printer and
+                 // then gcode input and reprap responses to other processes are
+                 // via a two-way pipe to emulate a RepRap printer on the specified
+                 // port
+                 daemon_port = optarg;
+#if !defined(SERIAL_SUPPORT)
+                 fprintf(stderr, NO_SERIAL_SUPPORT_MSG EOL);
+                 usage(1);
+                 goto done;
+#else
+                 serial_io = 1;
+                 gpx.flag.framingEnabled = 1;
+#endif
+                break;
 	    case 'F':
 		 force_framing = ITEM_FRAMING_ENABLE;
 		 break;
@@ -642,7 +643,29 @@ int main(int argc, char * const argv[])
 
     // OPEN FILES AND PORTS FOR INPUT AND OUTPUT
 
-    if(standard_io) {
+    if(daemon_port != NULL) {
+        if(standard_io) {
+            fprintf(stderr, "Command line error: daemon mode incompatible with standard i/o");
+            usage(1);
+            goto done;
+        }
+        if(argc == 0) {
+            fprintf(stderr, "Command line error: port required for serial I/O in daemon mode");
+            usage(1);
+            goto done;
+        }
+
+        // create the bi-directional virtual port for other processes
+        // and read and write from there until somebody tells us to quit
+        gpx_daemon(&gpx, daemon_port, argv[0], baud_rate);
+        goto done;
+    }
+    else if(standard_io) {
+        if(daemon_port != NULL) {
+            fprintf(stderr, "Using standard in/out is incompatible with daemon mode");
+            usage(1);
+            goto done;
+        }
         if(serial_io) {
             if(argc > 0) {
                 filename = argv[0];

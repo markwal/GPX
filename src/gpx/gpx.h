@@ -37,6 +37,20 @@ extern "C" {
 #include "vector.h"
 #include "config.h"
 
+#if defined(SERIAL_SUPPORT)
+#if !defined(_WIN32) && !defined(_WIN64)
+#include <termios.h>
+#else
+#include "winsio.h"
+#endif
+#else
+typedef long speed_t;
+#define B115200 115200
+#define B57600  57600
+#define NO_SERIAL_SUPPORT_MSG "Serial I/O and USB printing is not supported " \
+     "by this build of GPX"
+#endif
+
 #define HOST_VERSION 50
 
 #define END_OF_FILE 1
@@ -50,6 +64,7 @@ extern "C" {
 // EOSERROR means error code is in errno
 #define EOSERROR -6
 #define ESIOTIMEOUT -7
+#define ESIOBADBAUD -8
 
 // Item codes for passing control options
 #define ITEM_FRAMING_ENABLE 1
@@ -88,11 +103,14 @@ typedef long speed_t;
 
 #ifdef _WIN32
 #   define PATH_DELIM '\\'
-#   define EOL "\r\n"
+#   define EOL "\n"
 #else
 #   define PATH_DELIM '/'
 #   define EOL "\n"
 #endif
+
+#define SHOW(FN) if(gpx->flag.logMessages) {FN;}
+#define VERBOSE(FN) if(gpx->flag.verboseMode && gpx->flag.logMessages) {FN;}
 
 // x3g axes bitfields
 
@@ -460,6 +478,89 @@ typedef long speed_t;
 
     };
 
+
+// Note on cancellation states
+// So, there are a few things that are tricky about cancellation. First, we need
+// three different threads of execution to know that there is a cancel and take
+// an action. Any of the three can initiate, but all need to complete before
+// we're back to normal.
+// 1. The host control loop needs to stop sending new commands and will send
+// (@clear_cancel) when to acknowledge that it is no longer sending new commands
+// from the cancelled job
+// 2. The host event handler loop is asynchronous with the control loop will
+// send an out of order M112 to cancel.  This is done to interrupt any long
+// running operations that the control loop will just wait for (like homing or
+// heating).  It should do nothing when the printer initiates a cancel.
+// 3. The printer itself can initiate a cancel by returning 0x89 from a serial
+// communication.  It may do this, for example, because the user used the LCD to
+// cancel the print. Complicating matters is that it will also return 0x89 to
+// acknowledge that it has complied with a host request to cancel and it takes
+// suprisingly long time for it to do that.
+//
+// so we have three bits that get set to say we're still waiting for one of the
+// threads, more than one may be set simultaneously
+// flag.cancelPending - waiting for the control loop to send (@clear_cancel)
+//      marking the end of the send stream
+// waitflag.waitForCancelSync - waiting for the event loop to send the M112 via
+//      gpx_abort
+// waitflag.waitForBotCancel - waiting for the bot to reply with 0x89
+//
+// two may be set simultaneously
+
+// In addition, on cancel we need to wait for the bot to quiesce (if clear build
+// EEPROM is set) and discover our position again.
+
+    // Sttb - string table
+    // need one of these to hang onto the filename list so that we can emulate
+    // case insensitivty since some host software expects that of gcode M23
+    typedef struct tSttb
+    {
+        char **rgs;         // array of pointers
+        size_t cb;          // count of bytes - allocated size of rgs
+        size_t cb_expand;   // count of bytes to expand by each expansion
+        long cs;            // count of strings currently stored Assert(cs * sizeof(char *) <= cb)
+    } Sttb;
+
+    // Tio - translated serial io
+    // wraps Sio and adds translation output buffer
+    // translation is reprap style response
+    typedef struct tTio
+    {
+        char translation[BUFFER_MAX + 1];
+        size_t cur;
+        Sio sio;
+        union {
+            unsigned flags;
+            struct {
+                unsigned listingFiles:1;      // in the middle of an M20 response
+                unsigned getPosWhenReady:1;   // waiting for queue to drain to get position
+                unsigned cancelPending:1;     // we're eating everything until the host says it has stopped sending stuff (@clear_cancel)
+                unsigned okPending:1;         // we want the ok to come at the end of the response
+                unsigned waitClearedByCancel:1; // recheck wait state
+            } flag;
+        };
+        union {
+            unsigned waiting;
+            struct {
+                unsigned waitForPlatform:1;
+                unsigned waitForExtruderA:1;
+                unsigned waitForExtruderB:1;
+                unsigned waitForButton:1;
+                unsigned waitForStart:1;
+                unsigned waitForEmptyQueue:1;
+                unsigned waitForCancelSync:1;  // the host came through (@clear_cancel) before the M112 so we're still waiting to send the abort
+                unsigned waitForBotCancel:1;   // we told the bot to cancel, so we're waiting for an 0x89 response
+                unsigned waitForBuffer:1;      // the firmware's buffer is full
+                unsigned waitForUnpause:1;     // the bot is paused
+            } waitflag;
+        };
+        Sttb sttb;
+        time_t sec;
+        Point5d position_response; // last synchronized get extended position response
+        Gpx *gpx;
+        FILE *upstream;
+    } Tio;
+
     // 23 - Get build statistics: build state values
     // From sailfish sources (Host.hh)
     enum BuildState {
@@ -477,15 +578,14 @@ typedef long speed_t;
     int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* value);
     int gpx_load_config(Gpx *gpx, const char *filename);
 
-#ifdef USE_GPX_SIO_OPEN
     int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port);
-#endif
     int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length);
 
     void gpx_register_callback(Gpx *gpx, int (*callbackHandler)(Gpx *gpx, void *callbackData, char *buffer, size_t length), void *callbackData);
 
     void gpx_start_convert(Gpx *gpx, char *buildName, int item_code, ...);
 
+    int gpx_daemon(Gpx *gpx, const char *daemon_port, const char *printer_port, speed_t baudrate);
     int gpx_convert_line(Gpx *gpx, char *gcode_line);
     int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2);
     int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port, int item_code, ...);
@@ -536,6 +636,17 @@ typedef long speed_t;
     int read_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long *value);
     int write_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float value);
     int read_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float *value);
+
+    Tio *tio_initialize(Gpx *gpx);
+    void tio_cleanup(Tio *tio);
+    int tio_printf(Tio *tio, char const* fmt, ...);
+    int tio_log_printf(Tio *tio, char const* fmt, ...);
+    int gpx_connect(Gpx *gpx, const char *printer_port, speed_t speed);
+    int gpx_return_translation(Gpx *gpx, int rval);
+    int gpx_write_string_core(Gpx *gpx, const char *s);
+    int gpx_write_string(Gpx *gpx, const char *s);
+    int gcodeResult(Gpx *gpx, const char *fmt, ...);
+
 #ifdef __eeprominfo_h__
     EepromMapping *find_any_eeprom_mapping(Gpx *, char *name);
 #endif

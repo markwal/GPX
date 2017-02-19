@@ -44,8 +44,6 @@
 #define A 0
 #define B 1
 
-#define SHOW(FN) if(gpx->flag.logMessages) {FN;}
-#define VERBOSE(FN) if(gpx->flag.verboseMode && gpx->flag.logMessages) {FN;}
 #define VERBOSESIO(FN) if(gpx->flag.verboseSioMode) {FN;}
 #define CALL(FN) if((rval = FN) != SUCCESS) return rval
 
@@ -88,7 +86,7 @@ void long_sleep(time_t sec)
 #define NS_10MS  (10000000L)
 
 // send a result to the result handler or log it if there isn't one
-static int gcodeResult(Gpx *gpx, const char *fmt, ...)
+int gcodeResult(Gpx *gpx, const char *fmt, ...)
 {
     int result = 0;
     va_list args;
@@ -850,6 +848,7 @@ static Point5d delta_steps(Gpx *gpx,Point5d deltaMM)
 #define QUERY_COMMAND_OFFSET 4
 #define EEPROM_LENGTH_OFFSET 5
 
+#ifdef FUTURE
 // 00 - Get version
 
 static int get_version(Gpx *gpx)
@@ -886,6 +885,7 @@ static int get_buffer_size(Gpx *gpx)
 
     return end_frame(gpx);
 }
+#endif // FUTURE
 
 // 03 - Clear buffer (same as 07 and 17)
 
@@ -928,6 +928,7 @@ int pause_resume(Gpx *gpx)
 
 // 10 - Extruder Query Commands
 
+#ifdef FUTURE
 // Query 00 - Query firmware version information
 
 static int get_extruder_version(Gpx *gpx, unsigned extruder_id)
@@ -950,6 +951,7 @@ static int get_extruder_version(Gpx *gpx, unsigned extruder_id)
 
     return end_frame(gpx);
 }
+#endif // FUTURE
 
 // Query 02 - Get extruder temperature
 
@@ -1071,6 +1073,7 @@ int is_build_platform_ready(Gpx *gpx, unsigned extruder_id)
     return end_frame(gpx);
 }
 
+#ifdef FUTURE
 // Query 36 - Get extruder status
 
 static int get_extruder_status(Gpx *gpx, unsigned extruder_id)
@@ -1110,6 +1113,7 @@ static int get_PID_state(Gpx *gpx, unsigned extruder_id)
 
     return end_frame(gpx);
 }
+#endif // FUTURE
 
 // 11 - Is ready
 
@@ -1218,6 +1222,7 @@ static int select_filename(Gpx *gpx, char *filename)
     return SUCCESS;
 }
 
+#ifdef FUTURE
 // 17 - Reset
 
 static int reset(Gpx *gpx)
@@ -1231,6 +1236,7 @@ static int reset(Gpx *gpx)
 
     return end_frame(gpx);
 }
+#endif // FUTURE
 
 // 18 - Get next filename
 
@@ -1246,6 +1252,7 @@ int get_next_filename(Gpx *gpx, unsigned restart)
     return end_frame(gpx);
 }
 
+#ifdef FUTURE
 // 20 - Get build name
 
 static int get_build_name(Gpx *gpx)
@@ -1256,6 +1263,7 @@ static int get_build_name(Gpx *gpx)
 
     return end_frame(gpx);
 }
+#endif // FUTURE
 
 // 21 - Get extended position
 
@@ -1974,6 +1982,7 @@ static int set_beep(Gpx *gpx, unsigned frequency, unsigned milliseconds)
 #define RESET_ON_TIMEOUT 0x02   // reset on timeout
 #define CLEAR_ON_PRESS  0x04    // clear screen on button press
 
+#ifdef FUTURE
 static int wait_for_button(Gpx *gpx, int button, unsigned timeout, int button_options)
 {
     begin_frame(gpx);
@@ -1991,6 +2000,7 @@ static int wait_for_button(Gpx *gpx, int button, unsigned timeout, int button_op
 
     return end_frame(gpx);
 }
+#endif // FUTURE
 
 // 149 - Display message to LCD
 
@@ -2089,6 +2099,7 @@ static int queue_song(Gpx *gpx, unsigned song_id)
     return end_frame(gpx);
 }
 
+#ifdef FUTURE
 // 152 - Reset to factory defaults
 
 static int factory_defaults(Gpx *gpx)
@@ -2102,6 +2113,7 @@ static int factory_defaults(Gpx *gpx)
 
     return end_frame(gpx);
 }
+#endif // FUTURE
 
 
 // 153 - Build start notification
@@ -2366,6 +2378,7 @@ static int set_acceleration(Gpx *gpx, int state)
     return end_frame(gpx);
 }
 
+#ifdef FUTURE
 // 157 - Stream Version
 
 static int stream_version(Gpx *gpx)
@@ -2413,6 +2426,7 @@ static int stream_version(Gpx *gpx)
     }
     return SUCCESS;
 }
+#endif // FUTURE
 
 // 158 - Pause @ zPos
 
@@ -3234,6 +3248,7 @@ EepromType eepromTypeFromTypeName(char *type_name)
 
 // PARSER PRE-PROCESSOR
 
+#ifdef FUTURE
 // return the length of the given file in bytes
 
 static long get_filesize(FILE *file)
@@ -3244,6 +3259,7 @@ static long get_filesize(FILE *file)
     fseek(file, 0L, SEEK_SET);
     return filesize;
 }
+#endif // FUTURE
 
 // clean up the gcode command for processing
 
