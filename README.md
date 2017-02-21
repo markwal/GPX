@@ -59,8 +59,8 @@ sudo make install
 
 # Copyright
 
-Copyright (c) 2013 WHPThomas, All rights reserved.  
-Additional changes Copyright (c) 2014, 2015 DNewman, MWalker  
+Copyright (c) 2013 WHPThomas, All rights reserved.
+Additional changes Copyright (c) 2014, 2015 DNewman, MWalker
 All rights reserved.
 
 This program is free software; you can redistribute it and/or modify
@@ -90,7 +90,7 @@ Options:
 	-q	quiet mode
 	-r	Reprap GCODE flavor
 	-t	truncate filename (DOS 8.3 format)
-	-v	verose mode
+	-v	verbose mode
 	-w	rewrite 5d extrusion values
 CONFIG: the filename of a custom machine definition (ini file)
 EEPROM: the filename of an eeprom settings definition (ini file)
