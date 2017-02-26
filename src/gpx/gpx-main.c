@@ -156,7 +156,7 @@ static void usage(int err)
     fputs("\t-s\tenable USB serial I/O and send x3G output to 3D printer" EOL, fp);
 #endif
     fputs("\t-t\ttruncate filename (DOS 8.3 format)" EOL, fp);
-    fputs("\t-v\tverose mode" EOL, fp);
+    fputs("\t-v\tverbose mode" EOL, fp);
     fputs("\t-w\trewrite 5d extrusion values" EOL, fp);
 #if defined(SERIAL_SUPPORT)
     fputs(EOL "BAUDRATE: the baudrate for serial I/O (default is 115200)" EOL, fp);
