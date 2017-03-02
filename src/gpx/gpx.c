@@ -5442,6 +5442,11 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 CALL( get_extended_position(gpx) );
                 break;
 
+                // M115 - Get firmware version and capabilities
+            case 115:
+                CALL( get_advanced_version_number(gpx) );
+                break;
+
                 // M126 - Turn blower fan on (valve open)
             case 126: {
                 int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;

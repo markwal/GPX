@@ -539,16 +539,29 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             // 27 - Get advanced version number
         case 27: {
             char *variant = "Unknown";
+            char *variant_url = variant;
             switch(tio->sio.response.firmware.variant) {
                 case 0x01:
                     variant = "Makerbot";
+                    variant_url = "https://support.makerbot.com/learn/earlier-products/replicator-original/updating-firmware-for-the-makerbot-replicator-via-replicatorg_13302";
                     break;
                 case 0x80:
                     variant = "Sailfish";
+                    variant_url = "http://www.sailfishfirmware.com";
                     break;
             }
-            tio_printf(tio, " %s v%u.%u", variant, tio->sio.response.firmware.version / 100, tio->sio.response.firmware.version % 100);
+            if ((gpx->command.flag & M_IS_SET) && gpx->command.m == 115) {
+                // protocol version means the version of the RepRap protocol we're emulating
+                // not the version of the x3g protocol we're talking
+                tio_printf(tio, " PROTOCOL_VERSION:0.1 FIRMWARE_NAME:%s FIRMWARE_VERSION:%u.%u FIRMWARE_URL:%s MACHINE_TYPE:%s EXTRUDER_COUNT:%u\n",
+                        variant, tio->sio.response.firmware.version / 100, tio->sio.response.firmware.version %100,
+                        variant_url, gpx->machine.type, gpx->machine.extruder_count);
+            }
+            else {
+                tio_printf(tio, " %s v%u.%u", variant, tio->sio.response.firmware.version / 100, tio->sio.response.firmware.version % 100);
+            }
             break;
+            }
 
             // 135 - wait for extruder
         case 135:
@@ -598,7 +611,6 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             VERBOSE( fprintf(gpx->log, "waiting for button\n") );
             tio->waitflag.waitForButton = 1;
             break;
-        }
     }
 
     return rval;
