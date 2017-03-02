@@ -646,6 +646,7 @@ typedef long speed_t;
     int gpx_write_string_core(Gpx *gpx, const char *s);
     int gpx_write_string(Gpx *gpx, const char *s);
     int gcodeResult(Gpx *gpx, const char *fmt, ...);
+    speed_t speed_from_long(long *baudrate);
 
 #ifdef __eeprominfo_h__
     EepromMapping *find_any_eeprom_mapping(Gpx *, char *name);

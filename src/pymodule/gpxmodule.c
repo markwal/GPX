@@ -120,54 +120,6 @@ static PyObject *py_write_string(const char *s)
     return py_return_translation(gpx_write_string_core(&gpx, s));
 }
 
-// convert from a long int value to a speed_t constant
-// on error, sets python error state and returns B0
-speed_t speed_from_long(long *baudrate)
-{
-    speed_t speed = B0;
-
-    // TODO Baudrate warning for Replicator 2/2X with 57600?  Throw maybe?
-    switch(*baudrate) {
-        case 4800:
-            speed=B4800;
-            break;
-        case 9600:
-            speed=B9600;
-            break;
-#ifdef B14400
-        case 14400:
-            speed=B14400;
-            break;
-#endif
-        case 19200:
-            speed=B19200;
-            break;
-#ifdef B28800
-        case 28800:
-            speed=B28800;
-            break;
-#endif
-        case 38400:
-            speed=B38400;
-            break;
-        case 57600:
-            speed=B57600;
-            break;
-            // TODO auto detect speed when 0?
-        case 0: // 0 means default of 115200
-            *baudrate=115200;
-        case 115200:
-            speed=B115200;
-            break;
-        default:
-            sprintf(gpx.buffer.out, "Unsupported baud rate '%ld'\n", *baudrate);
-            fprintf(gpx.log, "%s", gpx.buffer.out);
-            PyErr_SetString(PyExc_ValueError, gpx.buffer.out);
-            break;
-    }
-    return speed;
-}
-
 // def connect(port, baudrate, inipath, logpath)
 static PyObject *py_connect(PyObject *self, PyObject *args)
 {
