@@ -150,7 +150,6 @@ Tio *tio_initialize(Gpx *gpx)
     tio.sec = 0;
     tio.gpx = gpx;
     sttb_init(&tio.sttb, 10);
-    gpx_initialize(gpx, 1);
     gpx->axis.positionKnown = 0;
     gpx->flag.M106AlwaysValve = 1;
     return &tio;
@@ -896,18 +895,25 @@ static int gpx_create_daemon_port(Gpx *gpx, const char *daemon_port)
     snprintf(upstream_port, l, "%s_u", daemon_port);
 
     snprintf(gpx->buffer.in, sizeof(gpx->buffer.in),
-            "socat -d -d -lf /var/log/gpx_socat.log pty,mode=777,rawer,link=%s pty,mode=777,rawer,link=%s",
+            "socat -d -d pty,mode=777,raw,echo=0,link=%s pty,mode=777,raw,echo=0,link=%s",
             upstream_port, daemon_port);
+    VERBOSE( fprintf(gpx->log, "Spawning socat: %s\n", gpx->buffer.in); )
 
     if ((socat_stdin = popen(gpx->buffer.in, "r")) == NULL) {
         fprintf(gpx->log, "Error: Unable to create virtual port (launching socat failed). errno = %d\n", errno);
         rval = EOSERROR;
         goto Exit;
     }
-    pclose(socat_stdin);
+    sleep(2); // TODO markwal: wait until pty appears
 
-    if ((tio.upstream = fopen(upstream_port, "w+")) == NULL) {
-        fprintf(gpx->log, "Error: Unable to open upstream port (%s)\n", upstream_port);
+    if ((tio.upstream_w = open(upstream_port, O_WRONLY)) == -1) {
+        fprintf(gpx->log, "Error: Unable to open upstream write port (%s) errno = %d\n", upstream_port, errno);
+        rval = EOSERROR;
+        goto Exit;
+    }
+
+    if ((tio.upstream_r = open(upstream_port, O_RDONLY)) == -1) {
+        fprintf(gpx->log, "Error: Unable to open upstream read port (%s) errno = %d\n", upstream_port, errno);
         rval = EOSERROR;
         goto Exit;
     }
@@ -932,7 +938,38 @@ int gpx_daemon(Gpx *gpx, const char *daemon_port, const char *printer_port, spee
         return rval;
     }
 
-    while(fgets(gpx->buffer.in, BUFFER_MAX, tio.upstream) != NULL) {
+    /*
+    fd_set rfds;
+    FD_ZERO(&rfds);
+    FD_SET(fileno(tio.upstream), &rfds);
+
+    for(;;) {
+        VERBOSE( fprintf(gpx->log, "waiting on tio.upstream\n"); )
+        rval = select(1, &rfds, NULL, NULL, NULL); // block until there are bytes to read
+        VERBOSE( fprintf(gpx->log, "select returned\n"); )
+        if(rval != SUCCESS) {
+            VERBOSE( fprintf(gpx->log, "select failed. rval = %d\n", rval); )
+            break;
+        }
+    size_t size = fread(gpx->buffer.in, 1, 1, tio.upstream);
+    VERBOSE(fprintf(gpx->log, "fread returned %d.\n", size);)
+    */
+
+    const char *start = "start\nok\n";
+    write(tio.upstream_w, start, strlen(start));
+    for (;;) {
+        char *p = gpx->buffer.in;
+        int remaining = BUFFER_MAX;
+        for(; remaining; remaining--, p++) {
+            if(read(tio.upstream_r, p, 1) != 1) {
+                VERBOSE( fprintf(gpx->log, "read upstream failed. errno = %d\n", errno); )
+                return EOSERROR;
+            }
+            if(*p == '\n')
+                break;
+        }
+        *p = '\0';
+        VERBOSE( fprintf(gpx->log, "read a line: %s\n", gpx->buffer.in); )
         // detect input buffer overflow and ignore overflow input
         if(overflow) {
             if(strlen(gpx->buffer.in) != BUFFER_MAX - 1) {
@@ -955,7 +992,12 @@ int gpx_daemon(Gpx *gpx, const char *daemon_port, const char *printer_port, spee
         tio.flag.okPending = !tio.waiting;
         rval = gpx_write_string(gpx, gpx->buffer.in);
         tio.flag.okPending = 0;
-        fputs(tio.translation, tio.upstream);
+        tio_printf(&tio, "\n");
+        VERBOSE( fprintf(gpx->log, "write: %s\n", tio.translation); )
+        int len = strlen(tio.translation);
+        if(len != write(tio.upstream_w, tio.translation, strlen(tio.translation))) {
+            VERBOSE( fprintf(gpx->log, "write on upstream failed to write all bytes.  errno = %d.\n", errno) );
+        }
     }
 
     VERBOSE( fprintf(gpx->log, "fgets on upstream failed.  errno = %d\n", errno); )

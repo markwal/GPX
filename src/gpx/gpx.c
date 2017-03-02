@@ -174,7 +174,6 @@ int gpx_set_machine(Gpx *gpx, const char *machine_type, int init)
             char machineIni[1024];
             machineIni[0] = 0;
             int i = snprintf(machineIni, sizeof(machineIni), "%s/%s.ini", gpx->iniPath, machine_type);
-            VERBOSE( fprintf(gpx->log, "snprintf is %d.\n", i) );
             if(i > 0 && i < sizeof(machineIni)) {
                 if(access(machineIni, R_OK) == SUCCESS) {
                     VERBOSE( fprintf(gpx->log, "Using custom machine definition from: %s" EOL, machineIni) );

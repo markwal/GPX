@@ -904,5 +904,6 @@ PyMODINIT_FUNC initgpx(void)
     Py_INCREF(pyerrUnknownFirmware);
     PyModule_AddObject(m, "UnknownFirmware", pyerrUnknownFirmware);
 
+    gpx_initialize(&gpx, 1);
     tio = tio_initialize(&gpx);
 }
