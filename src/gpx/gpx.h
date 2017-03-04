@@ -558,8 +558,7 @@ typedef long speed_t;
         time_t sec;
         Point5d position_response; // last synchronized get extended position response
         Gpx *gpx;
-        int upstream_r;
-        int upstream_w;
+        int upstream;
     } Tio;
 
     // 23 - Get build statistics: build state values

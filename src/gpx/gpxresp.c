@@ -20,11 +20,15 @@
 //  along with this program; if not, write to the Free Software Foundation,
 //  Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+#define _XOPEN_SOURCE 700
+#define _BSD_SOURCE
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <unistd.h>
+#include <strings.h>
 #include <string.h>
 #include <time.h>
 #include <errno.h>
@@ -882,9 +886,59 @@ int gpx_connect(Gpx *gpx, const char *printer_port, speed_t speed)
 
 static int gpx_create_daemon_port(Gpx *gpx, const char *daemon_port)
 {
+    // create the master/slave psuedo-terminal pair
+    if ((tio.upstream = posix_openpt(O_RDWR|O_NOCTTY)) < 0) {
+        fprintf(gpx->log, "Error: Unable to create psuedo terminal (posix_openpt failed). errno = %d\n", errno);
+        return EOSERROR;
+    }
+
+    // grant and unlock
+    if (grantpt(tio.upstream) < 0) {
+        fprintf(gpx->log, "Warning: Unable to grant psuedo terminal. errno = %d\n", errno);
+    }
+    if (unlockpt(tio.upstream) < 0) {
+        fprintf(gpx->log, "Warning: Unable to unlock psuedo terminal. errno = %d\n", errno);
+    }
+
+    // figure out the slave end's name
+    char *pn = NULL;
+    if ((pn = ptsname(tio.upstream)) == NULL) {
+        fprintf(gpx->log, "Error: Unable to create virtual port (ptsname returned NULL). errno = %d\n", errno);
+        return EOSERROR;
+    }
+    fprintf(gpx->log, "Created virtual port: %s.\n", pn);
+
+    // create the requested "daemon_port" as a symlink to the slave end
+    if (unlink(daemon_port) < 0 && errno != ENOENT) {
+        fprintf(gpx->log, "Error: %s already exists and can't be removed. errno = %d\n", daemon_port, errno);
+        return EOSERROR;
+    }
+    if (symlink(pn, daemon_port) < 0) {
+        fprintf(gpx->log, "Error: Unable to create the virtual port symlink (%s). errno = %d\n", daemon_port, errno);
+        return EOSERROR;
+    }
+
+    // attempt to set it to raw
+    struct termios ti;
+    if(tcgetattr(tio.upstream, &ti) < 0) {
+        fprintf(gpx->log, "Warn: Unable to get virtual port attributes. errno = %d\n", errno);
+    }
+    else {
+        cfmakeraw(&ti);
+        if(tcsetattr(tio.upstream, TCSANOW, &ti) < 0) {
+            fprintf(gpx->log, "Warn: Unable to set virtual port attributes. errno = %d\n", errno);
+        }
+    }
+
+    return SUCCESS;
+}
+
+#ifdef USE_SOCAT
+static int gpx_create_daemon_port(Gpx *gpx, const char *daemon_port)
+{
     int rval = SUCCESS;
     char *upstream_port = NULL;
-    FILE *socat_stdin = NULL;
+    FILE *socat_stdout = NULL;
 
     size_t l = strlen(daemon_port) + 3;
     if ((upstream_port = malloc(l)) == NULL) {
@@ -899,21 +953,15 @@ static int gpx_create_daemon_port(Gpx *gpx, const char *daemon_port)
             upstream_port, daemon_port);
     VERBOSE( fprintf(gpx->log, "Spawning socat: %s\n", gpx->buffer.in); )
 
-    if ((socat_stdin = popen(gpx->buffer.in, "r")) == NULL) {
+    if ((socat_stdout = popen(gpx->buffer.in, "r")) == NULL) {
         fprintf(gpx->log, "Error: Unable to create virtual port (launching socat failed). errno = %d\n", errno);
         rval = EOSERROR;
         goto Exit;
     }
     sleep(2); // TODO markwal: wait until pty appears
 
-    if ((tio.upstream_w = open(upstream_port, O_WRONLY)) == -1) {
+    if ((tio.upstream = open(upstream_port, O_RDWR)) == -1) {
         fprintf(gpx->log, "Error: Unable to open upstream write port (%s) errno = %d\n", upstream_port, errno);
-        rval = EOSERROR;
-        goto Exit;
-    }
-
-    if ((tio.upstream_r = open(upstream_port, O_RDONLY)) == -1) {
-        fprintf(gpx->log, "Error: Unable to open upstream read port (%s) errno = %d\n", upstream_port, errno);
         rval = EOSERROR;
         goto Exit;
     }
@@ -923,6 +971,7 @@ Exit:
         free(upstream_port);
     return rval;
 }
+#endif
 
 int gpx_daemon(Gpx *gpx, const char *daemon_port, const char *printer_port, speed_t speed)
 {
@@ -951,19 +1000,19 @@ int gpx_daemon(Gpx *gpx, const char *daemon_port, const char *printer_port, spee
             VERBOSE( fprintf(gpx->log, "select failed. rval = %d\n", rval); )
             break;
         }
+    }
     size_t size = fread(gpx->buffer.in, 1, 1, tio.upstream);
     VERBOSE(fprintf(gpx->log, "fread returned %d.\n", size);)
     */
 
     const char *start = "start\nok\n";
-    write(tio.upstream_w, start, strlen(start));
+    write(tio.upstream, start, strlen(start));
     for (;;) {
         char *p = gpx->buffer.in;
         int remaining = BUFFER_MAX;
         for(; remaining; remaining--, p++) {
-            if(read(tio.upstream_r, p, 1) != 1) {
+            while (read(tio.upstream, p, 1) != 1) {
                 VERBOSE( fprintf(gpx->log, "read upstream failed. errno = %d\n", errno); )
-                return EOSERROR;
             }
             if(*p == '\n')
                 break;
@@ -995,7 +1044,7 @@ int gpx_daemon(Gpx *gpx, const char *daemon_port, const char *printer_port, spee
         tio_printf(&tio, "\n");
         VERBOSE( fprintf(gpx->log, "write: %s\n", tio.translation); )
         int len = strlen(tio.translation);
-        if(len != write(tio.upstream_w, tio.translation, strlen(tio.translation))) {
+        if(len != write(tio.upstream, tio.translation, strlen(tio.translation))) {
             VERBOSE( fprintf(gpx->log, "write on upstream failed to write all bytes.  errno = %d.\n", errno) );
         }
     }

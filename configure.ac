@@ -62,7 +62,7 @@ AC_TYPE_UINT8_T
 
 # Checks for library functions.
 AC_FUNC_STRTOD
-AC_CHECK_FUNCS([atexit memmove memset select sqrt strcasecmp strchr strdup strerror strrchr strtol nanosleep])
+AC_CHECK_FUNCS([atexit memmove memset select sqrt strcasecmp strchr strdup strerror strrchr strtol nanosleep posix_openpt grantpt unlockpt])
 
 AC_CONFIG_FILES([Makefile
                  src/gpx/Makefile
