@@ -585,7 +585,7 @@ typedef long speed_t;
 
     void gpx_start_convert(Gpx *gpx, char *buildName, int item_code, ...);
 
-    int gpx_daemon(Gpx *gpx, const char *daemon_port, const char *printer_port, speed_t baudrate);
+    int gpx_daemon(Gpx *gpx, int create_daemon_port, const char *daemon_port, const char *printer_port, speed_t baudrate);
     int gpx_convert_line(Gpx *gpx, char *gcode_line);
     int gpx_convert(Gpx *gpx, FILE *file_in, FILE *file_out, FILE *file_out2);
     int gpx_convert_and_send(Gpx *gpx, FILE *file_in, int sio_port, int item_code, ...);
@@ -647,6 +647,8 @@ typedef long speed_t;
     int gpx_write_string(Gpx *gpx, const char *s);
     int gcodeResult(Gpx *gpx, const char *fmt, ...);
     speed_t speed_from_long(long *baudrate);
+
+    void short_sleep(long nsec);
 
 #ifdef __eeprominfo_h__
     EepromMapping *find_any_eeprom_mapping(Gpx *, char *name);

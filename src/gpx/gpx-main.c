@@ -122,10 +122,11 @@ static void usage(int err)
     fputs("GNU General Public License for more details." EOL, fp);
 
     fputs(EOL "Usage:" EOL, fp);
-    fputs("gpx [-CFIdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-D NEWPORT] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
+    fputs("gpx [-CFIdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-D NEWPORT] [-E EXISTINGPORT] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
     fputs(EOL "Options:" EOL, fp);
     fputs("\t-C\tcreate temporary file with a copy of the machine configuration" EOL, fp);
     fputs("\t-D\trun in daemon mode and create the named virtual port" EOL, fp);
+    fputs("\t-E\trun in daemon mode and open the named psuedo-terminal" EOL, fp);
     fputs("\t-F\twrite X3G on-wire framing data to output file" EOL, fp);
     fputs("\t-I\tignore default .ini files" EOL, fp);
     fputs("\t-N\tdisable writing of the X3G header (start build notice)," EOL, fp);
@@ -347,6 +348,7 @@ int main(int argc, char * const argv[])
     char *filename;
     speed_t baud_rate = B115200;
     int make_temp_config = 0;
+    int create_daemon_port = 0;
 
     // Blank the temporary config file name.  If it isn't blank
     //   on exit and an error has occurred, then it is deleted
@@ -401,7 +403,7 @@ int main(int argc, char * const argv[])
     // error message should they be attempted when the code
     // is compiled without serial I/O support.
 
-    while ((c = getopt(argc, argv, "CD:FIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CD:E:FIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
         switch (c) {
 	    case 'C':
 		 // Write config data to a temp file
@@ -409,6 +411,10 @@ int main(int argc, char * const argv[])
 		 make_temp_config = 1;
 		 break;
             case 'D':
+                 create_daemon_port = 1;
+                 // fallthrough
+            case 'E':
+                 //
                  // Run in daemon mode - implies serial mode to the printer and
                  // then gcode input and reprap responses to other processes are
                  // via a two-way pipe to emulate a RepRap printer on the specified
@@ -645,24 +651,24 @@ int main(int argc, char * const argv[])
 
     if(daemon_port != NULL) {
         if(standard_io) {
-            fprintf(stderr, "Command line error: daemon mode incompatible with standard i/o");
+            fprintf(stderr, "Command line error: daemon mode incompatible with standard i/o\n");
             usage(1);
             goto done;
         }
         if(argc == 0) {
-            fprintf(stderr, "Command line error: port required for serial I/O in daemon mode");
+            fprintf(stderr, "Command line error: port required for serial I/O in daemon mode\n");
             usage(1);
             goto done;
         }
 
         // create the bi-directional virtual port for other processes
         // and read and write from there until somebody tells us to quit
-        gpx_daemon(&gpx, daemon_port, argv[0], baud_rate);
+        gpx_daemon(&gpx, create_daemon_port, daemon_port, argv[0], baud_rate);
         goto done;
     }
     else if(standard_io) {
         if(daemon_port != NULL) {
-            fprintf(stderr, "Using standard in/out is incompatible with daemon mode");
+            fprintf(stderr, "Using standard in/out is incompatible with daemon mode\n");
             usage(1);
             goto done;
         }
