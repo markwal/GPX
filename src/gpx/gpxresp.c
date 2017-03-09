@@ -21,7 +21,7 @@
 //  Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #define _XOPEN_SOURCE 700
-#define _BSD_SOURCE
+#define _DEFAULT_SOURCE
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
