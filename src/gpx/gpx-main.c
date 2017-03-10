@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include <unistd.h>
 
@@ -122,7 +123,7 @@ static void usage(int err)
     fputs("GNU General Public License for more details." EOL, fp);
 
     fputs(EOL "Usage:" EOL, fp);
-    fputs("gpx [-CFIdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-D NEWPORT] [-E EXISTINGPORT] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
+    fputs("gpx [-CFIdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-L LOGFILE] [-D NEWPORT] [-E EXISTINGPORT] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
     fputs(EOL "Options:" EOL, fp);
     fputs("\t-C\tcreate temporary file with a copy of the machine configuration" EOL, fp);
     fputs("\t-D\trun in daemon mode and create the named virtual port" EOL, fp);
@@ -135,6 +136,7 @@ static void usage(int err)
     fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, fp);
     fputs("\t-i\tenable stdin and stdout support for command line pipes" EOL, fp);
     fputs("\t-l\tlog to file" EOL, fp);
+    fputs("\t-L\tlog to named [LOGFILE] file" EOL, fp);
     fputs("\t-p\toverride build percentage" EOL, fp);
     fputs("\t-q\tquiet mode" EOL, fp);
     fputs("\t-r\tReprap GCODE flavor" EOL, fp);
@@ -198,6 +200,7 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
     if(sio_port)
 	 *sio_port = -1;
 
+    fprintf(gpx->log, "Opening port: %s.\n", filename);
     // open and configure the serial port
     if((port = open(filename, O_RDWR | O_NOCTTY | O_NONBLOCK)) < 0) {
         perror("Error opening port");
@@ -210,6 +213,7 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
     }
 
     if(tcgetattr(port, &tp) < 0) {
+        fprintf(stderr, "errno = %d", errno);
         perror("Error getting port attributes");
 	return 0;
     }
@@ -345,6 +349,7 @@ int main(int argc, char * const argv[])
     char *eeprom = NULL;
     double filament_diameter = 0;
     char *buildname = PACKAGE_STRING;
+    char *logname = NULL;
     char *filename;
     speed_t baud_rate = B115200;
     int make_temp_config = 0;
@@ -368,13 +373,15 @@ int main(int argc, char * const argv[])
     // the ini file from the default locations and whether to be verbose about it
     // we need to load the ini file before parsing the rest so that the command line
     // overrides the default ini in the standard case
-    while ((c = getopt(argc, argv, "CD:FIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CD:E:FIL:N:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
         switch (c) {
             case 'I':
                 ignore_default_ini = 1;
                 break;
             case 'l':
                 gpx.flag.verboseMode = 1;
+                // fallthrough
+            case 'L': // does not imply verbose unlike -l
                 log_to_file = 1;
                 break;
             case 'v':
@@ -403,7 +410,7 @@ int main(int argc, char * const argv[])
     // error message should they be attempted when the code
     // is compiled without serial I/O support.
 
-    while ((c = getopt(argc, argv, "CD:E:FIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CD:E:FIL:N:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
         switch (c) {
 	    case 'C':
 		 // Write config data to a temp file
@@ -434,6 +441,9 @@ int main(int argc, char * const argv[])
 		 break;
             case 'I':
                  break; // handled in first getopt loop
+            case 'L':
+                logname = optarg;
+                break;
 	    case 'N':
 		 if(optarg[0] == 'h' || optarg[1] == 'h')
 		      gpx_set_start(&gpx, 0);
@@ -574,7 +584,7 @@ int main(int argc, char * const argv[])
 
     // LOG TO FILE
 
-    if(log_to_file && argc > 0) {
+    if(log_to_file && logname == NULL && argc > 0) {
         filename = (argc > 1 && !serial_io) ? argv[1] : argv[0];
         // or use the input filename with a .log extension
         char *dot = strrchr(filename, '.');
@@ -595,11 +605,15 @@ int main(int argc, char * const argv[])
         *filename++ = 'g';
         *filename++ = '\0';
         filename = gpx.buffer.out;
+        logname = filename;
+    }
 
-        if((gpx.log = fopen(filename, "w+")) == NULL) {
+    if(logname != NULL) {
+        if((gpx.log = fopen(logname, "w+")) == NULL) {
             gpx.log = stderr;
             perror("Error opening log");
         }
+        fprintf(gpx.log, "GPX started.\n");
     }
 
     // READ CONFIGURATION
