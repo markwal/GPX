@@ -278,7 +278,7 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
             }
 
             // power output (x3g can't tell us)
-            tio_printf(tio, " @:0 B@:0\n");
+            tio_printf(tio, " @:0 B@:0");
             break;
 
             // Query 35 - Is build platform ready?
@@ -981,6 +981,7 @@ static void gpx_write_upstream_translation(Gpx *gpx)
         VERBOSE( fprintf(gpx->log, "write on upstream failed to write all bytes.  errno = %d.\n", errno) );
     }
     tio.translation[tio.cur = 0] = 0;
+    fflush(gpx->log);
 }
 
 #ifdef HAVE_POLL_H
