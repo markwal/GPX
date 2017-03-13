@@ -44,7 +44,7 @@ AM_CONDITIONAL([HAVE_DIFF], [test -n "$DIFF"])
 # Checks for libraries.
 
 # Checks for header files.
-AC_CHECK_HEADERS([fcntl.h float.h inttypes.h limits.h stdint.h stdlib.h string.h unistd.h])
+AC_CHECK_HEADERS([fcntl.h float.h inttypes.h limits.h stdint.h stdlib.h string.h unistd.h poll.h])
 AC_CHECK_HEADERS([windows.h], [HAVE_WINDOWS_H=yes])
 AM_CONDITIONAL([HAVE_WINDOWS_H], [test -n "$HAVE_WINDOWS_H"])
 AM_CONDITIONAL([CROSS_COMPILING], [test "$cross_compiling" != no]) 

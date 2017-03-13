@@ -32,7 +32,9 @@
 #include <string.h>
 #include <time.h>
 #include <errno.h>
+#ifdef HAVE_POLL_H
 #include <poll.h>
+#endif
 
 #include "gpx.h"
 
@@ -887,6 +889,7 @@ int gpx_connect(Gpx *gpx, const char *printer_port, speed_t speed)
 
 static int gpx_create_daemon_port(Gpx *gpx, const char *daemon_port)
 {
+#ifdef HAVE_POSIX_OPENPT
     // create the master/slave psuedo-terminal pair
     if ((tio.upstream = posix_openpt(O_RDWR|O_NOCTTY)) < 0) {
         fprintf(gpx->log, "Error: Unable to create psuedo terminal (posix_openpt failed). errno = %d\n", errno);
@@ -932,6 +935,10 @@ static int gpx_create_daemon_port(Gpx *gpx, const char *daemon_port)
     }
 
     return SUCCESS;
+#else // !HAVE_POSIX_OPENPT
+    fprintf(gpx->log, "Error: Daemon port (psuedo-terminal) not supported in this build of GPX.\n");
+    return ERROR;
+#endif // !HAVE_POSIX_OPENPT
 }
 
 static void gpx_write_upstream_translation(Gpx *gpx)
@@ -944,6 +951,7 @@ static void gpx_write_upstream_translation(Gpx *gpx)
     tio.translation[tio.cur = 0] = 0;
 }
 
+#ifdef HAVE_POLL_H
 static int wait_for_hup_clear(Gpx *gpx, int fd)
 {
     for (;;) {
@@ -959,6 +967,13 @@ static int wait_for_hup_clear(Gpx *gpx, int fd)
         short_sleep(250000000L);
     }
 }
+#else // !HAVE_POLL_H
+static int wait_for_hup_clear(Gpx *gpx, int fd)
+{
+    short_sleep(500000000L);
+    return SUCCESS;
+}
+#endif // !HAVE_POLL_H
 
 int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *printer_port, speed_t speed)
 {
