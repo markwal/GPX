@@ -4302,6 +4302,7 @@ static int get_extruder_temperature_extended(Gpx *gpx)
 {
     int rval;
 
+    // Warning: The tio callback handler depends on this call order
     CALL(get_build_statistics(gpx));
     CALL(get_extruder_temperature(gpx, 0));
     CALL(get_extruder_target_temperature(gpx, 0));

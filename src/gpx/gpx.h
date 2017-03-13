@@ -521,6 +521,13 @@ typedef long speed_t;
         long cs;            // count of strings currently stored Assert(cs * sizeof(char *) <= cb)
     } Sttb;
 
+    // Tr - temperature reading for tool or bed
+    typedef struct tTr
+    {
+        unsigned temperature;
+        unsigned target;
+    } Tr;
+
     // Tio - translated serial io
     // wraps Sio and adds translation output buffer
     // translation is reprap style response
@@ -557,6 +564,8 @@ typedef long speed_t;
         Sttb sttb;
         time_t sec;
         Point5d position_response; // last synchronized get extended position response
+        Tr tool_tr[2];
+        Tr bed_tr;
         Gpx *gpx;
         int upstream;
     } Tio;

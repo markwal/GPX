@@ -218,11 +218,13 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
 
             // Query 02 - Get extruder temperature
         case 2:
-            // like T0:170
-            tio_printf(tio, " T");
-            if (gpx->machine.extruder_count > 1)
-                tio_printf(tio, "%u", extruder_id);
-            tio_printf(tio, ":%u", tio->sio.response.temperature);
+            // accumulate for later
+            if (extruder_id < 2)
+                tio->tool_tr[extruder_id].temperature = tio->sio.response.temperature;
+            else {
+                tio->cur = 0;
+                tio_printf(tio, "Error: Bot responded with unknown extruder_id %d.\n", extruder_id);
+            }
             break;
 
             // Query 22 - Is extruder ready
@@ -246,14 +248,37 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
                 else
                     tio->waitflag.waitForExtruderA = 0;
             }
-            tio_printf(tio, " /%u", tio->sio.response.temperature);
+
+            // accumulate for later
+            if (extruder_id < 2)
+                tio->tool_tr[extruder_id].target = tio->sio.response.temperature;
+            else {
+                tio->cur = 0;
+                tio_printf(tio, "Error: Bot responded with unknown extruder_id %d.\n", extruder_id);
+            }
             break;
 
             // Query 33 - Get build platform target temperature
         case 33:
+            tio->bed_tr.target = tio->sio.response.temperature;
             if (tio->waiting && !tio->waitflag.waitForEmptyQueue && tio->sio.response.temperature == 0)
                 tio->waitflag.waitForPlatform = 0;
-            tio_printf(tio, " /%u", tio->sio.response.temperature);
+
+            // current extruder temps
+            tio_printf(tio, " T:%u /%u", tio->tool_tr[gpx->current.extruder].temperature, tio->tool_tr[gpx->current.extruder].target);
+
+            // bed temps
+            tio_printf(tio, " B:%u /%u", tio->bed_tr.temperature, tio->bed_tr.target);
+
+            // all extruder temps
+            if (gpx->machine.extruder_count > 1) {
+                int i;
+                for(i = 0; i < gpx->machine.extruder_count; i++)
+                    tio_printf(tio, " T%u:%u /%u", i, tio->tool_tr[i].temperature, tio->tool_tr[i].target);
+            }
+
+            // power output (x3g can't tell us)
+            tio_printf(tio, " @:0 B@:0\n");
             break;
 
             // Query 35 - Is build platform ready?
@@ -475,6 +500,13 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 
             // Query 24 - Get build statistics
         case 24:
+            if ((gpx->command.flag & M_IS_SET) && (gpx->command.m == 105)) {
+                // this is a bit ugly since it assumes get build stats is the first thing M105 does
+                // really we should remove this encapsulation of the callback structure and let the encoder clear the
+                // state
+                memset(&tio->tool_tr, 0, sizeof(tio->tool_tr));
+                memset(&tio->bed_tr, 0, sizeof(tio->bed_tr));
+            }
             if (tio->waitflag.waitForBotCancel) {
                 switch (tio->sio.response.build.status) {
                     case BUILD_RUNNING:
