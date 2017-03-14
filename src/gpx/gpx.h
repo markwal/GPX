@@ -588,6 +588,7 @@ typedef long speed_t;
     int gpx_load_config(Gpx *gpx, const char *filename);
 
     int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port);
+    int ready_to_read(int fd);
     int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length);
 
     void gpx_register_callback(Gpx *gpx, int (*callbackHandler)(Gpx *gpx, void *callbackData, char *buffer, size_t length), void *callbackData);

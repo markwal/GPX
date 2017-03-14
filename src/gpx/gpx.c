@@ -5292,7 +5292,6 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 break;
 
                 // M108 - Set extruder motor 5D 'simulated' RPM
-                // toolchange for ReplicatorG
             case 108:
 #if ENABLE_SIMULATED_RPM
                 if(gpx->command.flag & R_IS_SET) {
@@ -5306,11 +5305,16 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 else
 #endif
                 if(gpx->command.flag & T_IS_SET) {
+                    // M108 - toolchange for ReplicatorG
                     if(!gpx->flag.dittoPrinting && gpx->target.extruder != gpx->current.extruder) {
                         int timeout = gpx->command.flag & P_IS_SET ? (int)gpx->command.p : MAX_TIMEOUT;
                         CALL( do_tool_change(gpx, timeout) );
                         command_emitted++;
                     }
+                }
+                else if(gpx->flag.sioConnected) {
+                    // M108 - cancel heating for Marlin
+                    CALL( abort_immediately(gpx) );
                 }
 #if ENABLE_SIMULATED_RPM
                 else {

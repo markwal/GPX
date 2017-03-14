@@ -35,6 +35,9 @@
 #ifdef HAVE_POLL_H
 #include <poll.h>
 #endif
+#ifndef _WIN32
+#include <sys/select.h>
+#endif
 
 #include "gpx.h"
 
@@ -237,7 +240,8 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
 
             // Query 30 - Get build platform temperature
         case 30:
-            tio_printf(tio, " B:%u", tio->sio.response.temperature);
+            // accumulate for later (after build platform target temperature)
+            tio->bed_tr.temperature = tio->sio.response.temperature;
             break;
 
             // Query 32 - Get extruder target temperature
@@ -591,7 +595,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             if ((gpx->command.flag & M_IS_SET) && gpx->command.m == 115) {
                 // protocol version means the version of the RepRap protocol we're emulating
                 // not the version of the x3g protocol we're talking
-                tio_printf(tio, " PROTOCOL_VERSION:0.1 FIRMWARE_NAME:%s FIRMWARE_VERSION:%u.%u FIRMWARE_URL:%s MACHINE_TYPE:%s EXTRUDER_COUNT:%u\n",
+                tio_printf(tio, " PROTOCOL_VERSION:0.1 FIRMWARE_NAME:%s FIRMWARE_VERSION:%u.%u FIRMWARE_URL:%s MACHINE_TYPE:%s EXTRUDER_COUNT:%u",
                         variant, tio->sio.response.firmware.version / 100, tio->sio.response.firmware.version %100,
                         variant_url, gpx->machine.type, gpx->machine.extruder_count);
             }
@@ -889,6 +893,45 @@ speed_t speed_from_long(long *baudrate)
     return speed;
 }
 
+int gpx_do_wait(Gpx *gpx)
+{
+    int rval = SUCCESS;
+
+    if (gpx->flag.verboseMode)
+        fprintf(gpx->log, "tio.waiting = %u\n", tio.waiting);
+    if (!tio.waitflag.waitForCancelSync) {
+        if (tio.waitflag.waitForUnpause)
+            rval = get_build_statistics(gpx);
+        // if we're waiting for the queue to drain, do that before checking on
+        // anything else
+        if (rval == SUCCESS && (tio.waitflag.waitForEmptyQueue || tio.waitflag.waitForButton))
+            rval = is_ready(gpx);
+        if (rval == SUCCESS && !tio.waitflag.waitForEmptyQueue) {
+            if (tio.waitflag.waitForStart || tio.waitflag.waitForBotCancel)
+                rval = get_build_statistics(gpx);
+            if (rval == SUCCESS && tio.waitflag.waitForPlatform)
+                rval = is_build_platform_ready(gpx, 0);
+            if (rval == SUCCESS && tio.waitflag.waitForExtruderA)
+                rval = is_extruder_ready(gpx, 0);
+            if (rval == SUCCESS && tio.waitflag.waitForExtruderB)
+                rval = is_extruder_ready(gpx, 1);
+        }
+    }
+    if (gpx->flag.verboseMode)
+        fprintf(gpx->log, "tio.waiting = %u and rval = %d\n", tio.waiting, rval);
+    if (rval == SUCCESS) {
+        if (tio.waiting) {
+            if (gpx->flag.verboseMode) {
+                tio_printf(&tio, "// echo: tio.waiting = 0x%x\n", tio.waiting);
+            }
+            return gpx_write_string_core(gpx, "M105");
+        }
+        tio.cur = 0;
+        tio_printf(&tio, "ok");
+    }
+    return rval;
+}
+
 int gpx_connect(Gpx *gpx, const char *printer_port, speed_t speed)
 {
     // open the port
@@ -1008,6 +1051,21 @@ static int wait_for_hup_clear(Gpx *gpx, int fd)
 }
 #endif // !HAVE_POLL_H
 
+#ifndef _WIN32
+int ready_to_read(int fd)
+{
+    fd_set rfds;
+    FD_ZERO(&rfds);
+    FD_SET(tio.upstream, &rfds);
+
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+
+    return (select(1, &rfds, NULL, NULL, &timeout) > 0);
+}
+#endif
+
 int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *printer_port, speed_t speed)
 {
     int rval = SUCCESS;
@@ -1037,6 +1095,15 @@ int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *p
         char *p = gpx->buffer.in;
         int remaining = BUFFER_MAX;
         for(; remaining; remaining--, p++) {
+            while (tio.waiting) {
+                rval = gpx_do_wait(gpx);
+                if(rval != SUCCESS)
+                    fprintf(gpx->log, "wait test failed. gpx_do_wait returned %d.", rval);
+                if(tio.cur > 0)
+                    gpx_write_upstream_translation(gpx);
+                if(ready_to_read(tio.upstream))
+                    break;
+            }
             while ((bytes_read = read(tio.upstream, p, 1)) != 1) {
                 if (bytes_read < 0) {
                     switch (errno) {
@@ -1090,8 +1157,12 @@ int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *p
             get_next_filename(gpx, 0);
             gpx_write_upstream_translation(gpx);
         }
+        if (tio.flag.waitClearedByCancel) {
+            if(gpx->flag.verboseMode)
+                fprintf(gpx->log, "adding ok for wait cleared by cancel\n");
+            tio.flag.waitClearedByCancel = 0;
+            tio_printf(&tio, "ok");
+            gpx_write_upstream_translation(gpx);
+        }
     }
-
-    VERBOSE( fprintf(gpx->log, "fgets on upstream failed.  errno = %d\n", errno); )
-    return EOSERROR;
 }

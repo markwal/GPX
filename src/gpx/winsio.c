@@ -86,3 +86,14 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_por
     if(gpx->flag.verboseMode) fprintf(gpx->log, "Communicating via: %s" EOL, filename);
     return 1;
 }
+
+int ready_to_read(int fd)
+{
+    HANDLE h = (HANDLE)_get_osfhandle(fd);
+    if (h == INVALID_HANDLE_VALUE)
+        return 0;
+
+    DWORD errors;
+    COMSTAT stat;
+    return (ClearCommError(h, &errors, &stat) && stat.cbInQue > 0);
+}
