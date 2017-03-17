@@ -5500,6 +5500,13 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gpx->excess.a = 0;
                     gpx->excess.b = 0;
 
+                    if(gpx->command.flag & X_IS_SET)
+                        gpx->current.position.x = 0;
+                    if(gpx->command.flag & Y_IS_SET)
+                        gpx->current.position.y = 0;
+                    if(gpx->command.flag & Z_IS_SET)
+                        gpx->current.position.z = 0;
+
                     // since we always emit relative extruder moves, let's pretend
                     // that M132 always returns 0 for the extruders, this will prevent
                     // confusion later when the gcode only uses E and we continue
