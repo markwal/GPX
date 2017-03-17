@@ -81,9 +81,6 @@ void long_sleep(time_t sec)
 #endif
 }
 
-// Define some elapsed times in terms of nanoseconds
-#define NS_100MS (100000000L)
-#define NS_10MS  (10000000L)
 
 // send a result to the result handler or log it if there isn't one
 int gcodeResult(Gpx *gpx, const char *fmt, ...)
@@ -6365,15 +6362,16 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
 
                     // 0x82 - Action buffer overflow, entire packet discarded
                 case 0x82:
+                    VERBOSE( fprintf(gpx->log, "(retry %u) Action buffer overflow\n", retry_count) );
                     if(!sio->flag.retryBufferOverflow)
                         goto L_ABORT;
 
                     // first, harass the bot in a tight loop in case we're
                     // doing lots of short movements. On the one hand, we're
                     // making it worse by making the bot take time on serial
-                    // i/o. On the other we want to make sure we send the next
-                    // command into the buffer as soon as possible so we don't
-                    // get a zit because of a sleep on our side
+                    // i/o. On the other hand we want to make sure we send the
+                    // next command into the buffer as soon as possible so we
+                    // don't get a zit because of a sleep on our side
                     //
                     // twenty times, check for room every 10ms
                     int i;
@@ -6400,9 +6398,11 @@ int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length)
                         // query buffer size
                         buffer_size_query[3] = calculate_crc((unsigned char *)buffer_size_query + 2, 1);
                         CALL( port_handler(gpx, sio, buffer_size_query, 4) );
+                        i++;
                         // loop until buffer has space for the next command
                     } while(sio->response.bufferSize < length);
 L_REPEATSEND:
+                    VERBOSE( fprintf(gpx->log, "(%u) Query buffer size: %u\n", i, sio->response.bufferSize) );
                     // we just did all the waiting we needed, skip the 2 second timeout
                     continue;
 

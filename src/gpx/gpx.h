@@ -94,6 +94,14 @@ typedef long speed_t;
 
 #define MAX_TIMEOUT 0xFFFF
 
+// Define some elapsed times in terms of nanoseconds
+
+#define NS_500MS (500000000L)
+#define NS_250MS (250000000L)
+#define NS_100MS (100000000L)
+#define NS_10MS  (10000000L)
+
+
 #if !defined(SPEED_T_DEFINED)
 #if defined(_WIN32) || defined(_WIN64)
 typedef long speed_t;

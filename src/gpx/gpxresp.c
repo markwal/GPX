@@ -945,7 +945,7 @@ int gpx_connect(Gpx *gpx, const char *printer_port, speed_t speed)
     tio.sio.in = NULL;
     tio.sio.bytes_out = tio.sio.bytes_in = 0;
     tio.sio.flag.retryBufferOverflow = 1;
-    tio.sio.flag.shortRetryBufferOverflowOnly = 1;
+    tio.sio.flag.shortRetryBufferOverflowOnly = 0;
 
     // set up gpx
     gpx_start_convert(gpx, "", 0);
@@ -1018,7 +1018,8 @@ static int gpx_create_daemon_port(Gpx *gpx, const char *daemon_port)
 
 static void gpx_write_upstream_translation(Gpx *gpx)
 {
-    VERBOSE( fprintf(gpx->log, "write: %s\n", tio.translation); )
+    tio_printf(&tio, "\n");
+    VERBOSE( fprintf(gpx->log, "write: %s", tio.translation); )
     int len = strlen(tio.translation);
     if(len != write(tio.upstream, tio.translation, strlen(tio.translation))) {
         VERBOSE( fprintf(gpx->log, "write on upstream failed to write all bytes.  errno = %d.\n", errno) );
@@ -1030,7 +1031,8 @@ static void gpx_write_upstream_translation(Gpx *gpx)
 #ifdef HAVE_POLL_H
 static int wait_for_hup_clear(Gpx *gpx, int fd)
 {
-    for (;;) {
+    int send_ok = 0;
+    for (;;send_ok = 1) {
         struct pollfd ufd;
         ufd.fd = fd;
         ufd.events = POLLHUP;
@@ -1042,6 +1044,8 @@ static int wait_for_hup_clear(Gpx *gpx, int fd)
             return SUCCESS;
         short_sleep(250000000L);
     }
+    tio_printf("ok");
+    gpx_write_upstream_translation(gpx);
 }
 #else // !HAVE_POLL_H
 static int wait_for_hup_clear(Gpx *gpx, int fd)
@@ -1087,14 +1091,14 @@ int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *p
     if ((rval = gpx_connect(gpx, printer_port, speed)) != SUCCESS) {
         return rval;
     }
+    gpx_write_upstream_translation(gpx);
 
-    const char *start = "start\nok\n";
-    write(tio.upstream, start, strlen(start));
     int bytes_read;
     for (;;) {
         char *p = gpx->buffer.in;
         int remaining = BUFFER_MAX;
         for(; remaining; remaining--, p++) {
+            tio.waitflag.waitForBuffer = 0;
             while (tio.waiting) {
                 rval = gpx_do_wait(gpx);
                 if(rval != SUCCESS)
@@ -1116,9 +1120,6 @@ int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *p
                             fprintf(gpx->log, "read upstream failed. errno = %d, %s\n", errno, strerror(errno));
                             return EOSERROR;
                     }
-                    // TODO: EIO -> wait for !HUP
-                    // EINTR loop
-                    // everything else, bail?
                     VERBOSE( fprintf(gpx->log, "read upstream failed. errno = %d, %s\n", errno, strerror(errno)); )
                 }
                 else {
@@ -1146,17 +1147,15 @@ int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *p
                 tio_printf(&tio, "(line %u) Buffer overflow: input exceeds %u character limit, remaining characters in line will be ignored" EOL, gpx->lineNumber, BUFFER_MAX);
         }
 
-        tio.waitflag.waitForBuffer = 0; // maybe clear this every time?
         tio.flag.okPending = !tio.waiting;
         rval = gpx_write_string(gpx, gpx->buffer.in);
-        tio.flag.okPending = 0;
-        tio_printf(&tio, "\n");
 
         gpx_write_upstream_translation(gpx);
         while(tio.flag.listingFiles) {
             get_next_filename(gpx, 0);
             gpx_write_upstream_translation(gpx);
         }
+
         if (tio.flag.waitClearedByCancel) {
             if(gpx->flag.verboseMode)
                 fprintf(gpx->log, "adding ok for wait cleared by cancel\n");
