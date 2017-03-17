@@ -837,6 +837,24 @@ static Point5d delta_steps(Gpx *gpx,Point5d deltaMM)
     return deltaSteps;
 }
 
+static void set_unknown_axes(Gpx *gpx, int flag)
+{
+    gpx->axis.positionKnown &= ~(flag & gpx->axis.mask);
+
+    // we don't know where the bot is and most likely 0 is wrong
+    // but always setting it at least makes any errors very deterministic
+    if(flag & X_IS_SET)
+        gpx->current.position.x = 0;
+    if(flag & Y_IS_SET)
+        gpx->current.position.y = 0;
+    if(flag & Z_IS_SET)
+        gpx->current.position.z = 0;
+    if(flag & A_IS_SET)
+        gpx->current.position.a = 0;
+    if(flag & B_IS_SET)
+        gpx->current.position.b = 0;
+}
+
 // X3G QUERIES
 
 #define COMMAND_OFFSET 2
@@ -888,7 +906,7 @@ static int get_buffer_size(Gpx *gpx)
 int clear_buffer(Gpx *gpx)
 {
     begin_frame(gpx);
-    gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);
+    set_unknown_axes(gpx, gpx->axis.mask);
     gpx->excess.a = 0;
     gpx->excess.b = 0;
 
@@ -902,7 +920,7 @@ int clear_buffer(Gpx *gpx)
 int abort_immediately(Gpx *gpx)
 {
     begin_frame(gpx);
-    gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);
+    set_unknown_axes(gpx, gpx->axis.mask);
     gpx->excess.a = 0;
     gpx->excess.b = 0;
 
@@ -1224,7 +1242,7 @@ static int select_filename(Gpx *gpx, char *filename)
 static int reset(Gpx *gpx)
 {
     begin_frame(gpx);
-    gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);
+    set_unknown_axes(gpx->axis.mask);
     gpx->excess.a = 0;
     gpx->excess.b = 0;
 
@@ -1279,7 +1297,7 @@ int extended_stop(Gpx *gpx, unsigned halt_steppers, unsigned clear_queue)
     unsigned flag = 0;
     if(halt_steppers) flag |= 0x1;
     if(clear_queue) flag |= 0x2;
-    gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);
+    set_unknown_axes(gpx, gpx->axis.mask);
     gpx->excess.a = 0;
     gpx->excess.b = 0;
 
@@ -3344,7 +3362,7 @@ static char *normalize_comment(char *p) {
  GCODE_FLAVOR:= S+ ('makerbot' | 'reprap')
  */
 
-#define MACRO_IS(token) (strcmp(token, macro) == 0)
+#define MACRO_IS(token) (strcasecmp(token, macro) == 0)
 #define NAME_IS(n) (strcasecmp(name, n) == 0)
 
 static int parse_macro(Gpx *gpx, const char* macro, char *p)
@@ -3664,6 +3682,12 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         // REVIEW can't be both header and footer at the same time, so I don't
         // think this can ever be executed, what was it supposed to be for?
         gpx->flag.macrosEnabled = 0;
+    }
+    else if(MACRO_IS("open_start_gcode") || MACRO_IS("open_end_gcode")) {
+        gpx->flag.macrosEnabled = 0;
+    }
+    else if(MACRO_IS("close_start_gcode") || MACRO_IS("close_end_gcode")) {
+        gpx->flag.macrosEnabled = 1;
     }
     // ;@load_eeprom_map
     // Load the appropriate built-in eeprom map for the firmware flavor and version
@@ -4741,7 +4765,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     }
                 }
                 command_emitted++;
-                gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);
+                set_unknown_axes(gpx, gpx->command.flag);
                 gpx->excess.a = 0;
                 gpx->excess.b = 0;
                 break;
@@ -4844,7 +4868,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 CALL( home_axes(gpx, gpx->command.flag & XYZ_BIT_MASK, ENDSTOP_IS_MIN) );
                 command_emitted++;
                 // clear homed axes
-                gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);
+                set_unknown_axes(gpx, gpx->command.flag);
                 gpx->excess.a = 0;
                 gpx->excess.b = 0;
                 break;
@@ -4854,7 +4878,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 CALL( home_axes(gpx, gpx->command.flag & XYZ_BIT_MASK, ENDSTOP_IS_MAX) );
                 command_emitted++;
                 // clear homed axes
-                gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);
+                set_unknown_axes(gpx, gpx->command.flag);
                 gpx->excess.a = 0;
                 gpx->excess.b = 0;
                 break;
@@ -5493,16 +5517,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     CALL( recall_home_positions(gpx) );
                     command_emitted++;
                     // clear loaded axes
-                    gpx->axis.positionKnown &= ~(gpx->command.flag & gpx->axis.mask);;
+                    set_unknown_axes(gpx, gpx->command.flag);
                     gpx->excess.a = 0;
                     gpx->excess.b = 0;
-
-                    if(gpx->command.flag & X_IS_SET)
-                        gpx->current.position.x = 0;
-                    if(gpx->command.flag & Y_IS_SET)
-                        gpx->current.position.y = 0;
-                    if(gpx->command.flag & Z_IS_SET)
-                        gpx->current.position.z = 0;
 
                     // since we always emit relative extruder moves, let's pretend
                     // that M132 always returns 0 for the extruders, this will prevent
