@@ -621,6 +621,15 @@ static int end_frame(Gpx *gpx)
     return SUCCESS;
 }
 
+// no x3g to emit, but the callback might want to look at the parsed command
+static int empty_frame(Gpx *gpx)
+{
+    if(gpx->callbackHandler) {
+        return gpx->callbackHandler(gpx, gpx->callbackData, gpx->buffer.out, 0);
+    }
+    return SUCCESS;
+}
+
 // set the build name for start_build
 
 static void set_build_name(Gpx *gpx, char *buildName)
@@ -1231,8 +1240,7 @@ static int select_filename(Gpx *gpx, char *filename)
     gpx->selectedFilename = strdup(filename);
     if(gpx->selectedFilename == NULL)
         return EOSERROR;
-    if(gpx->callbackHandler)
-        return gpx->callbackHandler(gpx, gpx->callbackData, gpx->buffer.out, 0);
+    empty_frame(gpx);
     return SUCCESS;
 }
 
@@ -5713,6 +5721,11 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                     gcodeResult(gpx, "(line %u) Syntax warning: M322 is missing Z axis" EOL, gpx->lineNumber);
                 }
                 command_emitted++;
+                break;
+
+                // M400 - Wait for current moves to finish
+            case 400:
+                empty_frame(gpx);
                 break;
 
                 // M420 - Set RGB LED value (REB - P)

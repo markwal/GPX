@@ -354,6 +354,9 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     // currently no way to ask Sailfish for the file size, that I can tell :-(
                     break;
                 }
+                case 400:
+                    tio->waitflag.waitForEmptyQueue = 1;
+                    break;
             }
         }
         return SUCCESS;
