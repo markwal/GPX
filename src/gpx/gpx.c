@@ -4347,6 +4347,7 @@ static int get_extruder_temperature_extended(Gpx *gpx)
         CALL(get_build_platform_temperature(gpx, 1));
         CALL(get_build_platform_target_temperature(gpx, 1));
     }
+    empty_frame(gpx);
     return SUCCESS;
 }
 

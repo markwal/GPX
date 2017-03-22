@@ -268,21 +268,6 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
             if (tio->waiting && !tio->waitflag.waitForEmptyQueue && tio->sio.response.temperature == 0)
                 tio->waitflag.waitForPlatform = 0;
 
-            // current extruder temps
-            tio_printf(tio, " T:%u /%u", tio->tool_tr[gpx->current.extruder].temperature, tio->tool_tr[gpx->current.extruder].target);
-
-            // bed temps
-            tio_printf(tio, " B:%u /%u", tio->bed_tr.temperature, tio->bed_tr.target);
-
-            // all extruder temps
-            if (gpx->machine.extruder_count > 1) {
-                int i;
-                for(i = 0; i < gpx->machine.extruder_count; i++)
-                    tio_printf(tio, " T%u:%u /%u", i, tio->tool_tr[i].temperature, tio->tool_tr[i].target);
-            }
-
-            // power output (x3g can't tell us)
-            tio_printf(tio, " @:0 B@:0");
             break;
 
             // Query 35 - Is build platform ready?
@@ -330,8 +315,9 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
     }
 
     if (length == 0) {
-        // we translated a command that has no translation to x3g, but there
-        // still may be something to do to emulate gcode behavior
+        // we translated a command that has no translation to x3g or is an
+        // accumulation of multiple x3g commands and there still may be
+        // something to do to emulate gcode behavior
         if (gpx->command.flag & M_IS_SET) {
             switch (gpx->command.m) {
                 case 23: { // M23 - select SD file
@@ -354,6 +340,23 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     // currently no way to ask Sailfish for the file size, that I can tell :-(
                     break;
                 }
+                case 105:
+                    // current extruder temps
+                    tio_printf(tio, " T:%u /%u", tio->tool_tr[gpx->current.extruder].temperature, tio->tool_tr[gpx->current.extruder].target);
+
+                    // bed temps
+                    tio_printf(tio, " B:%u /%u", tio->bed_tr.temperature, tio->bed_tr.target);
+
+                    // all extruder temps
+                    if (gpx->machine.extruder_count > 1) {
+                        int i;
+                        for(i = 0; i < gpx->machine.extruder_count; i++)
+                            tio_printf(tio, " T%u:%u /%u", i, tio->tool_tr[i].temperature, tio->tool_tr[i].target);
+                    }
+
+                    // power output (x3g can't tell us)
+                    tio_printf(tio, " @:0 B@:0");
+                    break;
                 case 400:
                     tio->waitflag.waitForEmptyQueue = 1;
                     break;
