@@ -1,0 +1,11 @@
+*.Po
+*.o
+*.dirstamp
+*.exe
+*.json
+*.db
+*.sqlite
+*.suo
+*.exe
+Makefile
+perl

@@ -837,7 +837,7 @@ configure:5087: $? = 0
 configure:5087: result: yes
 configure:5087: checking for select
 configure:5087: i686-w64-mingw32-gcc -o conftest.exe  -pthread   -static -static-libgcc -lpthread conftest.c  >&5
-/tmp/ccXwVoJA.o:conftest.c:(.text+0xc): undefined reference to `select'
+/tmp/ccw4QdRr.o:conftest.c:(.text+0xc): undefined reference to `select'
 collect2: error: ld returned 1 exit status
 configure:5087: $? = 1
 configure: failed program was:
