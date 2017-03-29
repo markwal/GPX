@@ -742,6 +742,7 @@ int gpx_return_translation(Gpx *gpx, int rval)
             break;
         case 0x82: // Action buffer overflow
             tio.waitflag.waitForBuffer = 1;
+            tio.cur = 0;
             tio_printf(&tio, "Status: Buffer full");
             break;
         case 0x83:
@@ -783,7 +784,7 @@ int gpx_return_translation(Gpx *gpx, int rval)
             // event (because it's anticipating this event)
             tio.flag.cancelPending = 1;
             tio_clear_state_for_cancel(&tio);
-            tio_printf(&tio, "Build cancelled");
+            tio_printf(&tio, "\nBuild cancelled");
             break;
         case 0x8A:
             tio.cur = 0;
