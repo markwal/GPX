@@ -371,6 +371,7 @@ void gpx_initialize(Gpx *gpx, int firstTime)
     if(firstTime) {
         gpx->flag.loadMacros = 1;
         gpx->flag.runMacros = 1;
+        gpx->flag.ignoreAbsoluteMoves = 0;
     }
 
     if(firstTime)
@@ -2672,16 +2673,14 @@ const char *get_firmware_variant(unsigned int variant_id)
     return variant;
 }
 
-// load a built-in eeprom map based on the firmware variant and version
-int load_eeprom_map(Gpx *gpx)
+// find a built-in eeprom map based on the firmware variant and version
+EepromMap *find_eeprom_map(Gpx *gpx)
 {
-    int rval = SUCCESS;
-    
-    if(!gpx->flag.sioConnected || gpx->sio == NULL) {
-        gcodeResult(gpx, "(line %u) Serial not connected: can't detect which eeprom map without asking the bot" EOL, gpx->lineNumber);
-        return ERROR;
+    int rval = get_advanced_version_number(gpx);
+    if(rval != SUCCESS) {
+        gcodeResult(gpx, "(line %u) Unable to load eeprom map: bot didn't reply to version number query: %d.\n", gpx->lineNumber, rval);
+        return NULL;
     }
-    CALL( get_advanced_version_number(gpx) );
 
     int i;
     EepromMap *pem = eepromMaps;
@@ -2689,15 +2688,42 @@ int load_eeprom_map(Gpx *gpx)
         if(gpx->sio->response.firmware.variant == pem->variant &&
                 gpx->sio->response.firmware.version >= pem->versionMin &&
                 gpx->sio->response.firmware.version <= pem->versionMax) {
-            gpx->eepromMap = pem;
-            gcodeResult(gpx, "EEPROM map loaded for firmware %s version %d.\n", get_firmware_variant(pem->variant), gpx->sio->response.firmware.version);
-            return SUCCESS;
+            return pem;
         }
     }
+    return NULL;
+}
+
+// load a built-in eeprom map based on the firmware variant and version
+int load_eeprom_map(Gpx *gpx)
+{
+    if(!gpx->flag.sioConnected || gpx->sio == NULL) {
+        gcodeResult(gpx, "(line %u) Serial not connected: can't detect which eeprom map without asking the bot" EOL, gpx->lineNumber);
+        return ERROR;
+    }
+
+    EepromMap *pem = find_eeprom_map(gpx);
+    if(pem != NULL) {
+        gpx->eepromMap = pem;
+        gcodeResult(gpx, "EEPROM map loaded for firmware %s version %d.\n", get_firmware_variant(pem->variant), gpx->sio->response.firmware.version);
+        return SUCCESS;
+    }
+
     gcodeResult(gpx, "(line %u) Unable to find a matching eeprom map for firmware %s version = %u\n",
             gpx->lineNumber, get_firmware_variant(gpx->sio->response.firmware.variant),
             gpx->sio->response.firmware.version);
     return ERROR;
+}
+
+static int find_in_eeprom_map(EepromMap *map, char *name)
+{
+    EepromMapping *pem = map->eepromMappings;
+    int iem;
+    for(iem = 0; iem < map->eepromMappingCount; iem++, pem++) {
+        if(strcmp(name, pem->id) == 0)
+            return iem;
+    }
+    return -1;
 }
 
 // find an eeprom mapping entry from the builtin mapping table
@@ -2706,13 +2732,7 @@ static int find_builtin_eeprom_mapping(Gpx *gpx, char *name)
     if(gpx->eepromMap == NULL)
         return -1;
 
-    int iem;
-    EepromMapping *pem = gpx->eepromMap->eepromMappings;
-    for(iem = 0; iem < gpx->eepromMap->eepromMappingCount; iem++, pem++) {
-        if(strcmp(name, pem->id) == 0)
-            return iem;
-    }
-    return -1;
+    return find_in_eeprom_map(gpx->eepromMap, name);
 }
 
 // find an existing EEPROM mapping
@@ -2987,7 +3007,7 @@ static int calculate_target_position(Gpx *gpx, Ptr5d delta, int *relative)
         if(gpx->flag.relativeCoordinates) {
             delta->x = gpx->command.x * userScale;
             gpx->target.position.x += delta->x;
-            *relative = !!(gpx->axis.positionKnown & X_IS_SET);
+            *relative |= !!(gpx->axis.positionKnown & X_IS_SET);
         }
         else {
             gpx->target.position.x = (gpx->command.x + userOffset.x) * userScale;
@@ -3001,7 +3021,7 @@ static int calculate_target_position(Gpx *gpx, Ptr5d delta, int *relative)
         if(gpx->flag.relativeCoordinates) {
             delta->y = gpx->command.y * userScale;
             gpx->target.position.y += delta->y;
-            *relative = !!(gpx->axis.positionKnown & Y_IS_SET);
+            *relative |= !!(gpx->axis.positionKnown & Y_IS_SET);
         }
         else {
             gpx->target.position.y = (gpx->command.y + userOffset.y) * userScale;
@@ -3015,7 +3035,7 @@ static int calculate_target_position(Gpx *gpx, Ptr5d delta, int *relative)
         if(gpx->flag.relativeCoordinates) {
             delta->z = gpx->command.z * userScale;
             gpx->target.position.z += delta->z;
-            *relative = !!(gpx->axis.positionKnown & Z_IS_SET);
+            *relative |= !!(gpx->axis.positionKnown & Z_IS_SET);
         }
         else {
             gpx->target.position.z = (gpx->command.z + userOffset.z) * userScale;
@@ -3808,6 +3828,12 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
         }
         else if(NAME_IS("overheat")) {
             return 0x8B;
+        }
+        else if(NAME_IS("verboseon")) {
+            gpx->flag.verboseMode = 1;
+        }
+        else if(NAME_IS("verboseoff")) {
+            gpx->flag.verboseMode = 0;
         }
     }
     return SUCCESS;
@@ -4611,6 +4637,10 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 // G0 - Rapid Positioning
             case 0: {
                 double feedrate = 0.0;
+
+                if(!gpx->flag.relativeCoordinates && gpx->flag.ignoreAbsoluteMoves)
+                    break;
+
                 CALL( calculate_target_position(gpx, &delta, &relative) );
                 if(!(gpx->command.flag & F_IS_SET)) {
                     if(gpx->command.flag & X_IS_SET) delta.x = fabs(delta.x);
@@ -4646,6 +4676,8 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // G1 - Coordinated Motion
             case 1:
+                if(!gpx->flag.relativeCoordinates && gpx->flag.ignoreAbsoluteMoves)
+                    break;
                 CALL( calculate_target_position(gpx, &delta, &relative) );
                 CALL( queue_ext_point(gpx, 0.0, &delta, relative) );
                 update_current_position(gpx);
@@ -4827,6 +4859,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 
                 // G92 - Define current position on axes
             case 92: {
+                if(gpx->command.flag & XYZ_BIT_MASK) {
+                    gpx->flag.ignoreAbsoluteMoves = 0;
+                }
                 double userScale = gpx->flag.macrosEnabled ? gpx->user.scale : 1.0;
                 if(gpx->command.flag & X_IS_SET) gpx->current.position.x = gpx->command.x * userScale;
                 if(gpx->command.flag & Y_IS_SET) gpx->current.position.y = gpx->command.y * userScale;
@@ -5523,6 +5558,9 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 // M132 - Load Current Position from EEPROM
             case 132:
                 if(gpx->command.flag & AXES_BIT_MASK) {
+                    if(gpx->command.flag & XYZ_BIT_MASK) {
+                        gpx->flag.ignoreAbsoluteMoves = 0;
+                    }
                     CALL( recall_home_positions(gpx) );
                     command_emitted++;
                     // clear loaded axes
@@ -5754,7 +5792,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
     }
     // X,Y,Z,A,B,E,F
     else if(gpx->command.flag & (AXES_BIT_MASK | F_IS_SET)) {
-        if(!(gpx->command.flag & COMMENT_IS_SET)) {
+        if(!(gpx->command.flag & COMMENT_IS_SET) && (gpx->flag.relativeCoordinates || !gpx->flag.ignoreAbsoluteMoves)) {
             CALL( calculate_target_position(gpx, &delta, &relative) );
             CALL( queue_ext_point(gpx, 0.0, &delta, relative) );
             update_current_position(gpx);

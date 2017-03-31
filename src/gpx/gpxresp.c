@@ -201,6 +201,7 @@ void tio_clear_state_for_cancel(Tio *tio)
     tio->waiting = 0;
     tio->waitflag.waitForEmptyQueue = 1;
     tio->flag.getPosWhenReady = 0;
+    tio->gpx->flag.ignoreAbsoluteMoves = tio->flag.clear_on_estop_set;
 }
 
 // wrap port_handler and translate to the expect gcode response
@@ -389,7 +390,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
         case 7:
             // 17 - reset
         case 17:
-            tio->waiting = 0;
+            tio_clear_state_for_cancel(tio);
             tio->waitflag.waitForBotCancel = 1;
             break;
 
@@ -525,6 +526,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                         break;
                     default:
                         tio->waitflag.waitForBotCancel = 0;
+                        break;
                 }
             }
             if (tio->waitflag.waitForStart || ((gpx->command.flag & M_IS_SET) && (gpx->command.m == 27))) {
@@ -964,6 +966,24 @@ int gpx_connect(Gpx *gpx, const char *printer_port, speed_t speed)
 
     fprintf(gpx->log, "gpx connected to %s\n", printer_port);
 
+    // if the user has CLEAR_FOR_ESTOP set, then we shouldn't send absolute moves
+    // to the bot after cancel (ESTOP) until a new coordinate system is defined
+    // with G92 or M132.
+    tio.flag.clear_on_estop_set = 0;
+    EepromMap *map = find_eeprom_map(gpx);
+    if (map != NULL) {
+        gpx->eepromMap = map;
+        EepromMapping *mapping = find_any_eeprom_mapping(gpx, "CLEAR_FOR_ESTOP");
+        gpx->eepromMap = NULL;
+        if (mapping != NULL) {
+            unsigned char b = 0;
+            int rval = read_eeprom_8(gpx, gpx->sio, mapping->address, &b);
+            if (rval == SUCCESS) {
+                tio.flag.clear_on_estop_set = 1;
+            }
+        }
+    }
+
     tio.cur = 0;
     tio_printf(&tio, "start\n");
     return SUCCESS;
@@ -1107,7 +1127,7 @@ int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *p
         for(; remaining; remaining--, p++) {
             tio.waitflag.waitForBuffer = 0;
             while (tio.waiting) {
-                rval = gpx_do_wait(gpx);
+                rval = gpx_return_translation(gpx, gpx_do_wait(gpx));
                 if(rval != SUCCESS)
                     fprintf(gpx->log, "wait test failed. gpx_do_wait returned %d.", rval);
                 if(tio.cur > 0)

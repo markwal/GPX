@@ -34,21 +34,9 @@ static PyObject *pyerrUnknownFirmware;
 
 static void clear_state_for_cancel(void)
 {
-    gpx.flag.programState = READY_STATE;
-    gpx.axis.positionKnown = 0;
-    gpx.excess.a = 0;
-    gpx.excess.b = 0;
-    if (tio->waiting) {
-        tio->flag.waitClearedByCancel = 1;
-        if(gpx.flag.verboseMode)
-            fprintf(gpx.log, "setting waitClearedByCancel");
-    }
-    tio->waiting = 0;
-    tio->waitflag.waitForEmptyQueue = 1;
-    tio->flag.getPosWhenReady = 0;
+    tio_clear_state_for_cancel(&tio);
     tio->cur = 0;
     tio->translation[0] = 0;
-    tio->sec = 0;
 }
 
 // wrap port_handler and translate to the expect gcode response

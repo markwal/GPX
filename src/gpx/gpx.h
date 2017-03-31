@@ -343,6 +343,7 @@ typedef long speed_t;
             unsigned framingEnabled:1;  // enable framming of packets with header and crc
             unsigned sioConnected:1;    // connected to the bot
             unsigned sd_paused:1;       // printing from sd paused
+            unsigned ignoreAbsoluteMoves:1; // until a coordinate system is defined via G92 or M132
         } flag;
 
 
@@ -552,6 +553,7 @@ typedef long speed_t;
                 unsigned cancelPending:1;     // we're eating everything until the host says it has stopped sending stuff (@clear_cancel)
                 unsigned okPending:1;         // we want the ok to come at the end of the response
                 unsigned waitClearedByCancel:1; // recheck wait state
+                unsigned clear_on_estop_set:1;// eeprom says that the bot clears on estop, so no abs moves until G92/M132 after cancel
             } flag;
         };
         union {
@@ -641,6 +643,7 @@ typedef long speed_t;
     int set_position(Gpx *gpx);
     int set_build_progress(Gpx *gpx, unsigned percent);
     int end_build(Gpx *gpx);
+    EepromMap *find_eeprom_map(Gpx *gpx);
     int load_eeprom_map(Gpx *gpx);
     int read_eeprom(Gpx *gpx, unsigned address, unsigned length);
     int write_eeprom(Gpx *gpx, unsigned address, char *data, unsigned length);
