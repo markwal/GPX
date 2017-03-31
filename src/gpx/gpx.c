@@ -4748,8 +4748,12 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 }
                 break;
 
-                // G21 - Use Milimeters as Units (IGNORED)
-                // G71 - Use Milimeters as Units (IGNORED)
+                // G15 - Use cartesian coordinates
+            case 15:
+                break;  // yep, it's all we do, currently
+
+                // G21 - Use Millimeters as Units (IGNORED)
+                // G71 - Use Millimeters as Units (IGNORED)
             case 21:
             case 71:
                 break;
