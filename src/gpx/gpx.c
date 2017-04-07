@@ -3826,14 +3826,25 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             gcodeResult(gpx, "current.percent: %d\%\n", gpx->current.percent);
             gcodeResult(gpx, "total.time: %lf\n", gpx->total.time);
         }
+        // @debug overheat
+        // generate an overheat failure result
         else if(NAME_IS("overheat")) {
             return 0x8B;
         }
+        // @debug verboseon
+        // turn on verboseMode
         else if(NAME_IS("verboseon")) {
             gpx->flag.verboseMode = 1;
         }
+        // @debug verboseoff
+        // turn off verboseMode
         else if(NAME_IS("verboseoff")) {
             gpx->flag.verboseMode = 0;
+        }
+        // @debug iostatus
+        // pass to io callback to output i/o state
+        else if(NAME_IS("iostatus")) {
+            gcodeResult(gpx, "@iostatus");
         }
     }
     return SUCCESS;

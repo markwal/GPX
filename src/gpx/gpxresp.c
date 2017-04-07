@@ -669,7 +669,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
 {
     int len = 0;
-    if (!strcmp(fmt, "@clear_cancel")) {
+    if (!strcasecmp(fmt, "@clear_cancel")) {
         if (!tio->flag.cancelPending && gpx->flag.programState == RUNNING_STATE) {
             // cancel gcode came through before cancel event
             VERBOSE( fprintf(gpx->log, "got @clear_cancel, waiting for abort call\n") );
@@ -681,12 +681,21 @@ static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
         }
         return 0;
     }
+    else if (!strcasecmp(fmt, "@iostatus")) {
+        len = tio_printf(tio, "listingFiles: %u\n", tio->flag.listingFiles);
+        len += tio_printf(tio, "getPosWhenReady: %u\n", tio->flag.getPosWhenReady);
+        len += tio_printf(tio, "cancelPending: %u\n", tio->flag.cancelPending);
+        len += tio_printf(tio, "okPending: %u\n", tio->flag.okPending);
+        len += tio_printf(tio, "waitClearedByCancel: %u\n", tio->flag.waitClearedByCancel);
+        len += tio_printf(tio, "clear_on_estop_set: %u\n", tio->flag.clear_on_estop_set);
+        return len;
+    }
     if (tio->flag.okPending) {
         tio->flag.okPending = 0;
         tio_printf(tio, "ok");
         // ok means: I'm ready for another command, not necessarily that everything worked
     }
-    if (tio->cur > 0 && tio->translation[tio->cur - 1] != '\n') 
+    if (tio->cur > 0 && tio->translation[tio->cur - 1] != '\n')
        len = tio_printf(tio, "\n"); 
     return len + tio_printf(tio, "// echo: ") + tio_vprintf(tio, fmt, ap);
 }
@@ -1068,11 +1077,14 @@ static int wait_for_hup_clear(Gpx *gpx, int fd)
             return EOSERROR;
         }
         if (!(ufd.revents & POLLHUP))
-            return SUCCESS;
+            break;
         short_sleep(250000000L);
     }
-    tio_printf("ok");
-    gpx_write_upstream_translation(gpx);
+    if (send_ok) {
+        tio_printf("ok");
+        gpx_write_upstream_translation(gpx);
+    }
+    return SUCCESS;
 }
 #else // !HAVE_POLL_H
 static int wait_for_hup_clear(Gpx *gpx, int fd)
@@ -1093,7 +1105,7 @@ int ready_to_read(int fd)
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
 
-    return (select(1, &rfds, NULL, NULL, &timeout) > 0);
+    return (select(tio.upstream + 1, &rfds, NULL, NULL, &timeout) > 0);
 }
 #endif
 
@@ -1124,17 +1136,21 @@ int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *p
     for (;;) {
         char *p = gpx->buffer.in;
         int remaining = BUFFER_MAX;
+
+        // simulate wait loop, if we are waiting
+        tio.waitflag.waitForBuffer = 0;
+        while (tio.waiting) {
+            rval = gpx_return_translation(gpx, gpx_do_wait(gpx));
+            if(rval != SUCCESS)
+                fprintf(gpx->log, "wait test failed. gpx_do_wait returned %d.", rval);
+            if(tio.cur > 0)
+                gpx_write_upstream_translation(gpx);
+            if(ready_to_read(tio.upstream))
+                break;
+        }
+
+        // read a line
         for(; remaining; remaining--, p++) {
-            tio.waitflag.waitForBuffer = 0;
-            while (tio.waiting) {
-                rval = gpx_return_translation(gpx, gpx_do_wait(gpx));
-                if(rval != SUCCESS)
-                    fprintf(gpx->log, "wait test failed. gpx_do_wait returned %d.", rval);
-                if(tio.cur > 0)
-                    gpx_write_upstream_translation(gpx);
-                if(ready_to_read(tio.upstream))
-                    break;
-            }
             while ((bytes_read = read(tio.upstream, p, 1)) != 1) {
                 if (bytes_read < 0) {
                     switch (errno) {
@@ -1158,6 +1174,7 @@ int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *p
         }
         *p = '\0';
         VERBOSE( fprintf(gpx->log, "read a line: %s\n", gpx->buffer.in); )
+
         // detect input buffer overflow and ignore overflow input
         if(overflow) {
             if(strlen(gpx->buffer.in) != BUFFER_MAX - 1) {
