@@ -162,6 +162,7 @@ Tio *tio_initialize(Gpx *gpx)
     sttb_init(&tio.sttb, 10);
     gpx->axis.positionKnown = 0;
     gpx->flag.M106AlwaysValve = 1;
+    tio.upstream = -1;
     return &tio;
 }
 
@@ -670,15 +671,15 @@ static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
 {
     int len = 0;
     if (!strcasecmp(fmt, "@clear_cancel")) {
-        if (!tio->flag.cancelPending && gpx->flag.programState == RUNNING_STATE) {
+        if (tio->upstream == -1 && !tio->flag.cancelPending && gpx->flag.programState == RUNNING_STATE) {
             // cancel gcode came through before cancel event
             VERBOSE( fprintf(gpx->log, "got @clear_cancel, waiting for abort call\n") );
             tio->waitflag.waitForCancelSync = 1;
         }
         else {
-            tio->flag.cancelPending = 0;
             tio->waitflag.waitForEmptyQueue = 1;
         }
+        tio->flag.cancelPending = 0;
         return 0;
     }
     else if (!strcasecmp(fmt, "@iostatus")) {
