@@ -196,7 +196,7 @@ static void usage(int err)
 
 // Should never be called in practice but code is less grotty (less #ifdef's)
 // if we simply provide this stub
-static void sio_open(const char *filename, speed_t baud_rate, int open_delay)
+static void sio_open(const char *filename, speed_t baud_rate)
 {
      perror(NO_SERIAL_SUPPORT_MSG);
      exit(1);
@@ -206,7 +206,7 @@ static void sio_open(const char *filename, speed_t baud_rate, int open_delay)
 
 #if !defined(_WIN32) && !defined(_WIN64)
 int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
-		 int *sio_port, int open_delay)
+		 int *sio_port)
 {
     struct termios tp;
     int port;
@@ -275,8 +275,8 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
 	return 0;
     }
 
-    if(open_delay > 0) {
-		sleep(open_delay);
+    if(gpx->open_delay > 0) {
+		sleep(gpx->open_delay);
 	}
     if(tcflush(port, TCIOFLUSH) < 0) {
         perror("Error flushing port");
@@ -291,9 +291,9 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
 }
 #endif
 
-void sio_open(const char *filename, speed_t baud_rate, int open_delay)
+void sio_open(const char *filename, speed_t baud_rate)
 {
-    if (!gpx_sio_open(&gpx, filename, baud_rate, &sio_port, open_delay))
+    if (!gpx_sio_open(&gpx, filename, baud_rate, &sio_port))
         exit(-1);
 }
 
@@ -365,7 +365,6 @@ int main(int argc, char * const argv[])
     char *filename;
     speed_t baud_rate = B115200;
     int make_temp_config = 0;
-	int open_delay = 2;
 
     // Blank the temporary config file name.  If it isn't blank
     //   on exit and an error has occurred, then it is deleted
@@ -558,7 +557,7 @@ int main(int argc, char * const argv[])
                 gpx.user.offset.z = strtod(optarg, NULL);
                 break;
             case 'W':
-                open_delay = strtod(optarg, NULL);
+                gpx.open_delay = strtod(optarg, NULL);
                 break;
             case '?':
 		usage(0);
@@ -654,7 +653,7 @@ int main(int argc, char * const argv[])
         if(serial_io) {
             if(argc > 0) {
                 filename = argv[0];
-                sio_open(filename, baud_rate, open_delay);
+                sio_open(filename, baud_rate);
             }
             else {
                 fputs("Command line error: port required for serial I/O" EOL, stderr);
@@ -746,7 +745,7 @@ int main(int argc, char * const argv[])
         if(dot) *dot = 0;
 
         if(serial_io) {
-            sio_open(filename, baud_rate, open_delay);
+            sio_open(filename, baud_rate);
         }
         else {
 	    if(filename[0] != '-' || filename[1] != '-' || filename[2] != '\0') {

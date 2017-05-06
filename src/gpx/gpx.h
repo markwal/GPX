@@ -237,6 +237,8 @@ typedef long speed_t;
             char *ptr;
         } buffer;
 
+        int open_delay;
+
         // DATA
 
         Machine machine;        // machine definition
@@ -478,7 +480,7 @@ typedef long speed_t;
     int gpx_load_config(Gpx *gpx, const char *filename);
 
 #ifdef USE_GPX_SIO_OPEN
-    int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port, int open_delay);
+    int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port);
 #endif
     int port_handler(Gpx *gpx, Sio *sio, char *buffer, size_t length);
 
