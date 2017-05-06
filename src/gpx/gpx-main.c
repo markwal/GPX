@@ -138,13 +138,15 @@ static void usage(int err)
     fputs("GNU General Public License for more details." EOL, fp);
 
     fputs(EOL "Usage:" EOL, fp);
-    fputs("gpx [-CFIdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
+    fputs("gpx [-CFIdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-b BAUDRATE] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] [-W S] IN [OUT]" EOL, fp);
     fputs(EOL "Options:" EOL, fp);
     fputs("\t-C\tcreate temporary file with a copy of the machine configuration" EOL, fp);
     fputs("\t-F\twrite X3G on-wire framing data to output file" EOL, fp);
     fputs("\t-I\tignore default .ini files" EOL, fp);
     fputs("\t-N\tdisable writing of the X3G header (start build notice)," EOL, fp);
     fputs("\t  \ttail (end build notice), or both" EOL, fp);
+	fputs("\t-W\twait S seconds after opening the serial connection" EOL, fp);
+	fputs("\t  \tbefore reading or writing (default is 2 seconds)" EOL, fp);
     fputs("\t-d\tsimulated ditto printing" EOL, fp);
     fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, fp);
     fputs("\t-i\tenable stdin and stdout support for command line pipes" EOL, fp);
@@ -194,7 +196,7 @@ static void usage(int err)
 
 // Should never be called in practice but code is less grotty (less #ifdef's)
 // if we simply provide this stub
-static void sio_open(const char *filename, speed_t baud_rate)
+static void sio_open(const char *filename, speed_t baud_rate, int open_delay)
 {
      perror(NO_SERIAL_SUPPORT_MSG);
      exit(1);
@@ -204,7 +206,7 @@ static void sio_open(const char *filename, speed_t baud_rate)
 
 #if !defined(_WIN32) && !defined(_WIN64)
 int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
-		 int *sio_port)
+		 int *sio_port, int open_delay)
 {
     struct termios tp;
     int port;
@@ -273,7 +275,9 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
 	return 0;
     }
 
-    sleep(2);
+    if(open_delay > 0) {
+		sleep(open_delay);
+	}
     if(tcflush(port, TCIOFLUSH) < 0) {
         perror("Error flushing port");
 	return 0;
@@ -287,9 +291,9 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
 }
 #endif
 
-void sio_open(const char *filename, speed_t baud_rate)
+void sio_open(const char *filename, speed_t baud_rate, int open_delay)
 {
-    if (!gpx_sio_open(&gpx, filename, baud_rate, &sio_port))
+    if (!gpx_sio_open(&gpx, filename, baud_rate, &sio_port, open_delay))
         exit(-1);
 }
 
@@ -361,6 +365,7 @@ int main(int argc, char * const argv[])
     char *filename;
     speed_t baud_rate = B115200;
     int make_temp_config = 0;
+	int open_delay = 2;
 
     // Blank the temporary config file name.  If it isn't blank
     //   on exit and an error has occurred, then it is deleted
@@ -552,6 +557,9 @@ int main(int argc, char * const argv[])
             case 'z':
                 gpx.user.offset.z = strtod(optarg, NULL);
                 break;
+            case 'W':
+                open_delay = strtod(optarg, NULL);
+                break;
             case '?':
 		usage(0);
 		rval = SUCCESS;
@@ -646,7 +654,7 @@ int main(int argc, char * const argv[])
         if(serial_io) {
             if(argc > 0) {
                 filename = argv[0];
-                sio_open(filename, baud_rate);
+                sio_open(filename, baud_rate, open_delay);
             }
             else {
                 fputs("Command line error: port required for serial I/O" EOL, stderr);
@@ -738,7 +746,7 @@ int main(int argc, char * const argv[])
         if(dot) *dot = 0;
 
         if(serial_io) {
-            sio_open(filename, baud_rate);
+            sio_open(filename, baud_rate, open_delay);
         }
         else {
 	    if(filename[0] != '-' || filename[1] != '-' || filename[2] != '\0') {
