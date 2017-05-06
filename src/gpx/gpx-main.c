@@ -123,7 +123,7 @@ static void usage(int err)
     fputs("GNU General Public License for more details." EOL, fp);
 
     fputs(EOL "Usage:" EOL, fp);
-    fputs("gpx [-CFIdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-L LOGFILE] [-D NEWPORT] [-E EXISTINGPORT] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] IN [OUT]" EOL, fp);
+    fputs("gpx [-CFIdgilpqr" SERIAL_MSG1 "tvw] " SERIAL_MSG2 "[-L LOGFILE] [-D NEWPORT] [-E EXISTINGPORT] [-c CONFIG] [-e EEPROM] [-f DIAMETER] [-m MACHINE] [-N h|t|ht] [-n SCALE] [-x X] [-y Y] [-z Z] [-W S] IN [OUT]" EOL, fp);
     fputs(EOL "Options:" EOL, fp);
     fputs("\t-C\tcreate temporary file with a copy of the machine configuration" EOL, fp);
     fputs("\t-D\trun in daemon mode and create the named virtual port" EOL, fp);
@@ -132,6 +132,8 @@ static void usage(int err)
     fputs("\t-I\tignore default .ini files" EOL, fp);
     fputs("\t-N\tdisable writing of the X3G header (start build notice)," EOL, fp);
     fputs("\t  \ttail (end build notice), or both" EOL, fp);
+	fputs("\t-W\twait S seconds after opening the serial connection" EOL, fp);
+	fputs("\t  \tbefore reading or writing (default is 2 seconds)" EOL, fp);
     fputs("\t-d\tsimulated ditto printing" EOL, fp);
     fputs("\t-g\tMakerbot/ReplicatorG GCODE flavor" EOL, fp);
     fputs("\t-i\tenable stdin and stdout support for command line pipes" EOL, fp);
@@ -263,7 +265,9 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate,
 	return 0;
     }
 
-    sleep(2);
+    if(gpx->open_delay > 0) {
+		sleep(gpx->open_delay);
+	}
     if(tcflush(port, TCIOFLUSH) < 0) {
         perror("Error flushing port");
 	return 0;
@@ -373,7 +377,7 @@ int main(int argc, char * const argv[])
     // the ini file from the default locations and whether to be verbose about it
     // we need to load the ini file before parsing the rest so that the command line
     // overrides the default ini in the standard case
-    while ((c = getopt(argc, argv, "CD:E:FIL:N:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CD:E:FIL:N:W:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
         switch (c) {
             case 'I':
                 ignore_default_ini = 1;
@@ -410,7 +414,7 @@ int main(int argc, char * const argv[])
     // error message should they be attempted when the code
     // is compiled without serial I/O support.
 
-    while ((c = getopt(argc, argv, "CD:E:FIL:N:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CD:E:FIL:N:W:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
         switch (c) {
 	    case 'C':
 		 // Write config data to a temp file
@@ -568,6 +572,9 @@ int main(int argc, char * const argv[])
                 break;
             case 'z':
                 gpx.user.offset.z = strtod(optarg, NULL);
+                break;
+            case 'W':
+                gpx.open_delay = strtod(optarg, NULL);
                 break;
             case '?':
 		usage(0);

@@ -263,6 +263,8 @@ typedef long speed_t;
             char *ptr;
         } buffer;
 
+        int open_delay;
+
         // DATA
 
         Machine machine;        // machine definition

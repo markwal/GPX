@@ -218,6 +218,9 @@ void gpx_initialize(Gpx *gpx, int firstTime)
 
     if(!gpx) return;
 
+    // Delay to wait after opening a serial I/O connection
+    gpx->open_delay = 2;
+
     gpx->buffer.ptr = gpx->buffer.out;
     // we default to using pipes
 
