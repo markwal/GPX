@@ -385,7 +385,7 @@ int main(int argc, char * const argv[])
     // the ini file from the default locations and whether to be verbose about it
     // we need to load the ini file before parsing the rest so that the command line
     // overrides the default ini in the standard case
-    while ((c = getopt(argc, argv, "CFIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CFIN:W:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
         switch (c) {
             case 'I':
                 ignore_default_ini = 1;
@@ -420,7 +420,7 @@ int main(int argc, char * const argv[])
     // error message should they be attempted when the code
     // is compiled without serial I/O support.
 
-    while ((c = getopt(argc, argv, "CFIN:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
+    while ((c = getopt(argc, argv, "CFIN:W:b:c:de:gf:ilm:n:pqrstu:vwx:y:z:?")) != -1) {
         switch (c) {
 	    case 'C':
 		 // Write config data to a temp file
