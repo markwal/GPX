@@ -1194,8 +1194,13 @@ int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *p
 
         tio.flag.okPending = !tio.waiting;
         rval = gpx_write_string(gpx, gpx->buffer.in);
-
         gpx_write_upstream_translation(gpx);
+
+        if(rval == EOSERROR && access(printer_port, R_OK)) {
+            tio_printf(&tio, "Error: GPX shutting down, printer disconnected.\n");
+            break;
+        }
+
         while(tio.flag.listingFiles) {
             get_next_filename(gpx, 0);
             gpx_write_upstream_translation(gpx);
@@ -1209,4 +1214,6 @@ int gpx_daemon(Gpx *gpx, int create_port, const char *daemon_port, const char *p
             gpx_write_upstream_translation(gpx);
         }
     }
+
+    return rval;
 }
