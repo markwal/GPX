@@ -661,6 +661,7 @@ typedef long speed_t;
 
     Tio *tio_initialize(Gpx *gpx);
     void tio_cleanup(Tio *tio);
+    void tio_clear_state_for_cancel(Tio *tio);
     int tio_printf(Tio *tio, char const* fmt, ...);
     int tio_log_printf(Tio *tio, char const* fmt, ...);
     int gpx_connect(Gpx *gpx, const char *printer_port, speed_t speed);
