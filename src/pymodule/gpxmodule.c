@@ -34,7 +34,7 @@ static PyObject *pyerrUnknownFirmware;
 
 static void clear_state_for_cancel(void)
 {
-    tio_clear_state_for_cancel(&tio);
+    tio_clear_state_for_cancel(tio);
     tio->cur = 0;
     tio->translation[0] = 0;
 }
