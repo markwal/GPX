@@ -276,8 +276,8 @@ static Machine zyyx = {
     {18000, 850, 12, 2500, 270, 88.888889, ENDSTOP_IS_MAX}, // x axis
     {18000, 850, 12, 2500, 230, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {1170, 50, 12, 1100, 195, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 5000, 100, 96.275201870333662468889989185642, 3200, 0}, // a extruder
-    {1600, 5000, 100, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    {5000, 5000, 100, 96.275201870333662468889989185642, 3200, 0}, // a extruder
+    {5000, 5000, 100, 96.275201870333662468889989185642, 3200, 0}, // b extruder
     1.75, // nominal filament diameter
     0.97, // nominal packing density
     0.4, // nozzle diameter
@@ -294,8 +294,8 @@ static Machine zyyx_D = {
     {18000, 850, 12, 2500, 270, 88.888889, ENDSTOP_IS_MAX}, // x axis
     {18000, 850, 12, 2500, 230, 88.888889, ENDSTOP_IS_MAX}, // y axis
     {1170, 50, 12, 1100, 195, 400, ENDSTOP_IS_MIN},        // z axis
-    {1600, 5000, 100, 96.275201870333662468889989185642, 3200, 0}, // a extruder
-    {1600, 5000, 100, 96.275201870333662468889989185642, 3200, 0}, // b extruder
+    {5000, 5000, 100, 96.275201870333662468889989185642, 3200, 0}, // a extruder
+    {5000, 5000, 100, 96.275201870333662468889989185642, 3200, 0}, // b extruder
     1.75, // nominal filament diameter
     0.97, // nominal packing density
     0.4, // nozzle diameter
@@ -306,6 +306,23 @@ static Machine zyyx_D = {
     MACHINE_TYPE_ZYYX_D
 };
 
+// ZYYX 3D printer, single extruder, 18T GT2 pulleys for X and Y
+static Machine zyyx_pro = {
+    "zp", "ZYYX pro", 0, 0, 
+    {18000, 850, 12, 2500, 270, 88.888889, ENDSTOP_IS_MAX}, // x axis
+    {18000, 850, 12, 2500, 230, 88.888889, ENDSTOP_IS_MAX}, // y axis
+    {1170, 50, 12, 1100, 195, 400, ENDSTOP_IS_MIN},        // z axis
+    {5000, 5000, 100, 96.275201870333662468889989185642, 3200, 1}, // a extruder
+    {5000, 5000, 100, 96.275201870333662468889989185642, 3200, 1}, // b extruder
+    1.75, // nominal filament diameter
+    0.97, // nominal packing density
+    0.4, // nozzle diameter
+    {0, 0, 0}, // toolhead offsets
+    {0.0050, 0.0550},  // JKN
+    1,  // extruder count
+    20, // timeout
+    MACHINE_TYPE_ZYYX_PRO
+};
 
 static Machine clone_r1 = {
     "cr1", "Clone R1 Single with HBP", 0, 0,
@@ -364,6 +381,7 @@ static Machine *machines[] = {
      &thing_o_matic_7D,
      &zyyx,
      &zyyx_D,
+     &zyyx_pro,
      NULL
 };
 
