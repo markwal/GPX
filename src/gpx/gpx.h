@@ -672,6 +672,7 @@ typedef long speed_t;
     speed_t speed_from_long(long *baudrate);
 
     void short_sleep(long nsec);
+    void long_sleep(time_t sec);
 
 #ifdef __eeprominfo_h__
     EepromMapping *find_any_eeprom_mapping(Gpx *, char *name);

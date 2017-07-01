@@ -36,8 +36,7 @@
 #include "gpx.h"
 
 
-int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port,
-	int open_delay)
+int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_port)
 {
     HANDLE h = CreateFile(filename, GENERIC_READ | GENERIC_WRITE, 0, 0,
             OPEN_EXISTING, 0, 0);
@@ -74,8 +73,8 @@ int gpx_sio_open(Gpx *gpx, const char *filename, speed_t baud_rate, int *sio_por
     }
 
     // not sure best way to flush the read buffer without tcflush
-	if(open_delay > 0) {
-		sleep(open_delay);
+	if(gpx->open_delay > 0) {
+		long_sleep(gpx->open_delay);
 	}
     printf("reading bytes\n");
     unsigned char buffer[128];
