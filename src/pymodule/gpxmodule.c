@@ -156,6 +156,7 @@ static PyObject *py_connect(PyObject *self, PyObject *args)
     }
 
     int rval = gpx_connect(&gpx, port, baudrate);
+    tio->sio.flag.shortRetryBufferOverflowOnly = 1;
     switch (rval) {
         case ESIOBADBAUD:
             PyErr_SetString(PyExc_ValueError, "Unsupported baudrate");
@@ -564,9 +565,7 @@ static PyObject *py_stop(PyObject *self, PyObject *args)
     // first, ask if we are SD printing
     // delay 1ms is a queuable command that will fail if SD printing
     int sdprinting = 0;
-    tio->sio.flag.retryBufferOverflow = 1;
     rval = delay(&gpx, 1);
-    tio->sio.flag.retryBufferOverflow = 0;
     if (rval == 0x8A) // SD printing
         sdprinting = 1;
     // ignore any other response
