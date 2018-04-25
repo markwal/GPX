@@ -156,9 +156,12 @@ int gpx_set_property(Gpx *gpx, const char* section, const char* property, char* 
 
 int gpx_set_machine(Gpx *gpx, const char *machine_type, int init)
 {
+    VERBOSE( fprintf(gpx->log, "gpx_set_machine: %s" EOL, machine_type) );
     Machine *machine = gpx_find_machine(machine_type);
-    if(machine == NULL)
+    if(machine == NULL) {
         return ERROR;
+        VERBOSE( fprintf(gpx->log, "gpx_set_machine FAILED to find: %s" EOL, machine_type) );
+    }
 
     // only load/clobber the on-board machine definition if the one specified is differenti
     // or if we're initializing
@@ -4092,6 +4095,10 @@ int gpx_parse_steps_per_mm_all_axes(Gpx *gpx, char *parm);
 int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, char* value)
 {
     int rval;
+    if(strcasecmp(value, "None") == 0) {
+        gcodeResult(gpx, "(line %u) Configuration error: Ignoring configuration value '%s'" EOL, gpx->lineNumber, value);
+        return gpx->lineNumber;
+    }
     if(SECTION_IS("") || SECTION_IS("macro")) {
         if(PROPERTY_IS("slicer")
            || PROPERTY_IS("filament")
