@@ -39,6 +39,9 @@ extern "C" {
 
 #if defined(SERIAL_SUPPORT)
 #if !defined(_WIN32) && !defined(_WIN64)
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#endif
 #include <termios.h>
 #else
 #include "winsio.h"
