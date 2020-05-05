@@ -126,7 +126,6 @@ static PyObject *py_connect(PyObject *self, PyObject *args)
     const char *logpath = NULL;
     int verbose = 0;
 
-    fprintf(stderr, "py_connect\n");
 #if PY_MAJOR_VERSION < 3
     if (!PyArg_ParseTuple(args, "s|lssi", &port, &baudrate, &inipath, &logpath, &verbose))
         return NULL;
@@ -135,15 +134,11 @@ static PyObject *py_connect(PyObject *self, PyObject *args)
     PyObject *pyobj_inipath = NULL;
     PyObject *pyobj_logpath = NULL;
 
-    fprintf(stderr, "PyArg_ParseTuple\n");
     if (!PyArg_ParseTuple(args, "O&|lO&O&i", PyUnicode_FSConverter, &pyobj_port, &baudrate, PyUnicode_FSConverter, &pyobj_inipath, PyUnicode_FSConverter, &pyobj_logpath, &verbose))
         return NULL;
-    fprintf(stderr, "after PyArg_ParseTuple:\n");
     port = PyBytes_AsStringOrNull(pyobj_port);
     inipath = PyBytes_AsStringOrNull(pyobj_inipath);
     logpath = PyBytes_AsStringOrNull(pyobj_logpath);
-    fprintf(stderr, "printing results of PyBytes_AsString:\n");
-    fprintf(stderr, "PyArg_ParseTuple: %s, %s, %s\n", port, inipath, logpath);
 #endif
 
     tio_cleanup(tio);
