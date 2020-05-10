@@ -951,22 +951,22 @@ static PyObject *init_gpx_module(PyObject *m)
 
 #if PY_MAJOR_VERSION < 3
 // python calls init<modulename> when the module is loaded
-__attribute__ ((visibility ("default"))) PyMODINIT_FUNC initgpx(void);
+__attribute__ ((visibility ("default"))) PyMODINIT_FUNC initgcodex3g(void);
 
-PyMODINIT_FUNC initgpx(void)
+PyMODINIT_FUNC initgcodex3g(void)
 {
-    PyObject *m = Py_InitModule("gpx", GpxMethods);
+    PyObject *m = Py_InitModule("gcodex3g", GpxMethods);
 
     init_gpx_module(m);
 }
 #else
-__attribute__ ((visibility ("default"))) PyMODINIT_FUNC PyInit_gpx(void);
+__attribute__ ((visibility ("default"))) PyMODINIT_FUNC PyInit_gcodex3g(void);
 
-PyMODINIT_FUNC PyInit_gpx(void)
+PyMODINIT_FUNC PyInit_gcodex3g(void)
 {
     static struct PyModuleDef moduledef = {
         PyModuleDef_HEAD_INIT,
-        "gpx",
+        "gcodex3g",
         "Translates between gcode and x3g protocols",
         -1,
         GpxMethods,
