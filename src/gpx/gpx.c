@@ -2721,7 +2721,7 @@ int load_eeprom_map(Gpx *gpx)
     return ERROR;
 }
 
-static int find_in_eeprom_map(EepromMap *map, char *name)
+static int find_in_eeprom_map(EepromMap *map, const char *name)
 {
     EepromMapping *pem = map->eepromMappings;
     int iem;
@@ -2733,7 +2733,7 @@ static int find_in_eeprom_map(EepromMap *map, char *name)
 }
 
 // find an eeprom mapping entry from the builtin mapping table
-static int find_builtin_eeprom_mapping(Gpx *gpx, char *name)
+static int find_builtin_eeprom_mapping(Gpx *gpx, const char *name)
 {
     if(gpx->eepromMap == NULL)
         return -1;
@@ -2742,7 +2742,7 @@ static int find_builtin_eeprom_mapping(Gpx *gpx, char *name)
 }
 
 // find an existing EEPROM mapping
-static int find_eeprom_mapping(Gpx *gpx, char *name)
+static int find_eeprom_mapping(Gpx *gpx, const char *name)
 {
     if(gpx->eepromMappingVector == NULL)
         return -1;
@@ -2792,7 +2792,7 @@ static int add_eeprom_mapping(Gpx *gpx, char *name, EepromType et, unsigned addr
     return vector_append(gpx->eepromMappingVector, &em);
 }
 
-EepromMapping *find_any_eeprom_mapping(Gpx *gpx, char *name)
+EepromMapping *find_any_eeprom_mapping(Gpx *gpx, const char *name)
 {
     if(!gpx->flag.sioConnected || gpx->sio == NULL) {
         gcodeResult(gpx, "(line %u) Error: eeprom operation without serial connection\n", gpx->lineNumber);
@@ -3924,12 +3924,16 @@ static char* find_char_or_comment(const char* s, char c)
 }
 
 /* Version of strncpy that ensures dest (size bytes) is null-terminated. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+/* that warning warns against exactly what we're fixing here */
 static char* strncpy0(char* dest, const char* src, size_t size)
 {
     strncpy(dest, src, size);
     dest[size - 1] = '\0';
     return dest;
 }
+#pragma GCC diagnostic pop
 
 /* See documentation in header file. */
 static int ini_parse_file(Gpx* gpx, FILE* file, int (*handler)(Gpx*, const char*, const char*, char*))

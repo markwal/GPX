@@ -675,7 +675,7 @@ typedef long speed_t;
     void long_sleep(time_t sec);
 
 #ifdef __eeprominfo_h__
-    EepromMapping *find_any_eeprom_mapping(Gpx *, char *name);
+    EepromMapping *find_any_eeprom_mapping(Gpx *, const char *name);
 #endif
 #ifdef __cplusplus
 }

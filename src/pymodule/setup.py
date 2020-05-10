@@ -7,8 +7,10 @@ sources = [
 	'gpxmodule.c',
 	'../shared/machine_config.c',
 	'../shared/opt.c',
+	'../gpx/vector.c',
 	'../gpx/gpx.c',
 	'../gpx/gpx-main.c',
+	'../gpx/gpxresp.c',
 	]
 if sys.platform == 'win32':
 	sources.append('../gpx/winsio.c')
@@ -23,7 +25,7 @@ def params():
 	ext_modules = [
 		Extension('gpx',
 		sources = sources,
-		extra_compile_args = ['-DSERIAL_SUPPORT', '-fvisibility=hidden', '-I../shared', '-I../gpx'],
+		extra_compile_args = ['-DGPX_VERSION="\\"Python\\""', '-DSERIAL_SUPPORT', '-fvisibility=hidden', '-I../../build/src/shared', '-I../shared', '-I../gpx'],
 		extra_link_args = ['-fvisibility=hidden'])
 		]
 	return locals()
