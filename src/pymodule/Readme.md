@@ -17,7 +17,7 @@ python setup.py install
 #Examples
 For fun, you can boot up python and type this at the python command prompt:
 ```
-import gpx
+import gcodex3g as gpx
 # reads config from gpx.ini in current dir and writes log entries to stderr
 gpx.connect("/dev/ttyACM0", 115200, "gpx.ini")
 # play a song
