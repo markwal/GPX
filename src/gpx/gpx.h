@@ -248,6 +248,8 @@ typedef long speed_t;
 
 #define BUFFER_MAX 1023
 
+#define PROTOCOL_FILENAME_MAX 65
+
     // GPX CONTEXT
 
     typedef struct tGpx Gpx;
@@ -432,7 +434,7 @@ typedef long speed_t;
 
             struct {
                 unsigned int length;
-                char filename[65];
+                char filename[PROTOCOL_FILENAME_MAX];
                 unsigned char status;
             } sd;
 

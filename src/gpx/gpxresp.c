@@ -37,6 +37,7 @@
 #endif
 #ifndef _WIN32
 #include <sys/select.h>
+#include <iconv.h>
 #endif
 
 #include "gpx.h"
@@ -302,6 +303,40 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
     }
 }
 
+// Sailfish can return non-ASCII filenames and currently many hosts
+// expect the protocol to be ASCII. The correct solution here would be to
+// decode using the correct codepage and then teach the hosts how to deal with
+// UTF-8
+// FUTURE proper decode here (to UTF8?)
+static void sanitize_filename(char *filename)
+{
+#ifndef _WIN32
+    char buf[PROTOCOL_FILENAME_MAX];
+    iconv_t cd = iconv_open("WINDOWS-1252", "ASCII//TRANSLIT");
+    size_t inremain = strlen(filename);
+    size_t outremain = sizeof(buf) - 1;
+    char *in = filename;
+    char *out = buf;
+
+    size_t result = iconv(cd, &in, &inremain, &out, &outremain);
+    iconv_close(cd);
+    if (result >= 0) {
+        *out = 0;
+        strncpy(filename, buf, PROTOCOL_FILENAME_MAX);
+        filename[sizeof(buf) - 1] = 0;
+        return;
+    }
+    // fallthrough to strip
+    // FUTURE WIN32 equivalent APIs
+#endif
+
+    for (; *filename; filename++) {
+        if (*filename < 32) {
+            *filename = '-';
+        }
+    }
+}
+
 // translate_handler
 // Callback function for gpx_convert_and_send.  It's where we translate the
 // s3g/x3g response into a text response that mimics a reprap printer.
@@ -461,6 +496,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
                     tio->flag.listingFiles = 0;
                 }
                 else {
+                    sanitize_filename(tio->sio.response.sd.filename);
                     tio_printf(tio, "%s", tio->sio.response.sd.filename);
                     sttb_add(&tio->sttb, tio->sio.response.sd.filename);
                 }
@@ -840,7 +876,8 @@ int gpx_write_string_core(Gpx *gpx, const char *s)
     if (waiting && gpx->flag.verboseMode)
         fprintf(gpx->log, "waiting in gpx_write_string\n");
 
-    strncpy(gpx->buffer.in, s, sizeof(gpx->buffer.in));
+    strncpy(gpx->buffer.in, s, sizeof(gpx->buffer.in) - 1);
+    gpx->buffer.in[sizeof(gpx->buffer.in) - 1] = 0;
     int rval = gpx_convert_line(gpx, gpx->buffer.in);
 
     if (gpx->flag.verboseMode)

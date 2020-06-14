@@ -6219,7 +6219,7 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             sio->response.sd.status = read_8(gpx);
             /* 1+N bytes: Name of the next file, in ASCII, terminated with a null character.
                           If the operation was unsuccessful, this will be a null character */
-            strncpy0(sio->response.sd.filename, gpx->buffer.ptr, 65);
+            strncpy0(sio->response.sd.filename, gpx->buffer.ptr, PROTOCOL_FILENAME_MAX);
             VERBOSE( fprintf(gpx->log, "Get next filename: '%s' %s" EOL,
                         sio->response.sd.filename,
                         get_sd_status(sio->response.sd.status)) );
@@ -6228,7 +6228,7 @@ static void read_query_response(Gpx *gpx, Sio *sio, unsigned command, char *buff
             // 20 - Get build name
         case 20:
             // 1+N bytes: A null terminated string representing the filename of the current build.
-            strncpy0(sio->response.sd.filename, gpx->buffer.ptr, 65);
+            strncpy0(sio->response.sd.filename, gpx->buffer.ptr, PROTOCOL_FILENAME_MAX);
             VERBOSE( fprintf(gpx->log, "Get build name: '%s'" EOL, sio->response.sd.filename) );
             break;
 
