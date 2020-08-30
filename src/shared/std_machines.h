@@ -44,7 +44,8 @@ static Machine cupcake_G3 = {
     {0.0085, 0.0090},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_CUPCAKE_G3
+    MACHINE_TYPE_CUPCAKE_G3,
+    0 // has_abp
 };
 
 static Machine cupcake_G4 = {
@@ -61,7 +62,8 @@ static Machine cupcake_G4 = {
     {0.0085, 0.0090},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_CUPCAKE_G4
+    MACHINE_TYPE_CUPCAKE_G4,
+    0 // has_abp
 };
 
 static Machine cupcake_P4 = {
@@ -78,7 +80,8 @@ static Machine cupcake_P4 = {
     {0.0085, 0.0090},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_CUPCAKE_P4
+    MACHINE_TYPE_CUPCAKE_P4,
+    0 // has_abp
 };
 
 static Machine cupcake_PP = {
@@ -95,7 +98,8 @@ static Machine cupcake_PP = {
     {0.0085, 0.0090},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_CUPCAKE_PP
+    MACHINE_TYPE_CUPCAKE_PP,
+    0 // has_abp
 };
 
 static Machine thing_o_matic_6 = {
@@ -112,7 +116,26 @@ static Machine thing_o_matic_6 = {
     {0.0070, 0.0040},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_THINGOMATIC_6
+    MACHINE_TYPE_THINGOMATIC_6,
+    0 // has_abp
+};
+
+static Machine thing_o_matic_6_abp = {
+    "t6abp", "TOM Mk6 - automated build platform", 0, 0,
+    {9600, 500, 30, 500, 106, 47.058824, ENDSTOP_IS_MIN}, // x axis
+    {9600, 500, 30, 500, 120, 47.058824, ENDSTOP_IS_MIN}, // y axis
+    {1000, 150, 10, 500, 106, 200, ENDSTOP_IS_MAX},        // z axis
+    {1600, 1000, 30, 50.235478806907409, 1600, 1}, // a extruder
+    {1600, 1000, 30, 50.235478806907409, 1600, 1}, // b extruder
+    1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
+    {0, 0, 0}, // toolhead offsets
+    {0.0070, 0.0040},  // JKN
+    1,  // extruder count
+    20, // timeout
+    MACHINE_TYPE_THINGOMATIC_6,
+    1 // has_abp
 };
 
 static Machine thing_o_matic_7 = {
@@ -129,7 +152,26 @@ static Machine thing_o_matic_7 = {
     {0.0070, 0.0040},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_THINGOMATIC_7
+    MACHINE_TYPE_THINGOMATIC_7,
+    0 // has_abp
+};
+
+static Machine thing_o_matic_7_abp = {
+    "t7abp", "TOM Mk7 - automated build platform", 0, 0,
+    {9600, 500, 30, 500, 106, 47.058824, ENDSTOP_IS_MIN}, // x axis
+    {9600, 500, 30, 500, 120, 47.058824, ENDSTOP_IS_MIN}, // y axis
+    {1000, 150, 10, 500, 106, 200, ENDSTOP_IS_MAX},        // z axis
+    {1600, 1000, 30, 50.235478806907409, 1600, 1}, // a extruder
+    {1600, 1000, 30, 50.235478806907409, 1600, 1}, // b extruder
+    1.75, // nominal filament diameter
+    0.85, // nominal packing density
+    0.4, // nozzle diameter
+    {0, 0, 0}, // toolhead offsets
+    {0.0070, 0.0040},  // JKN
+    1,  // extruder count
+    20, // timeout
+    MACHINE_TYPE_THINGOMATIC_7_ABP,
+    1 // has_abp
 };
 
 static Machine thing_o_matic_7D = {
@@ -146,7 +188,8 @@ static Machine thing_o_matic_7D = {
     {0.0070, 0.0040},  // JKN
     2,  // extruder count
     20, // timeout
-    MACHINE_TYPE_THINGOMATIC_7D
+    MACHINE_TYPE_THINGOMATIC_7D,
+    0 // has_abp
 };
 
 static Machine replicator_1 = {
@@ -163,7 +206,8 @@ static Machine replicator_1 = {
     {0.0050, 0.0550},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_REPLICATOR_1
+    MACHINE_TYPE_REPLICATOR_1,
+    0 // has_abp
 };
 
 static Machine replicator_1D = {
@@ -180,7 +224,8 @@ static Machine replicator_1D = {
     {0.0050, 0.0550},  // JKN
     2,  // extruder count
     20, // timeout
-    MACHINE_TYPE_REPLICATOR_1D
+    MACHINE_TYPE_REPLICATOR_1D,
+    0 // has_abp
 };
 
 static Machine replicator_2 = {
@@ -197,7 +242,8 @@ static Machine replicator_2 = {
     {0.0050, 0.0550},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_REPLICATOR_2
+    MACHINE_TYPE_REPLICATOR_2,
+    0 // has_abp
 };
 
 static Machine replicator_2H = {
@@ -214,7 +260,8 @@ static Machine replicator_2H = {
     {0.0050, 0.0550},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_REPLICATOR_2H
+    MACHINE_TYPE_REPLICATOR_2H,
+    0 // has_abp
 };
 
 static Machine replicator_2X = {
@@ -231,7 +278,8 @@ static Machine replicator_2X = {
     {0.0050, 0.0550},  // JKN
     2,  // extruder count
     20, // timeout
-    MACHINE_TYPE_REPLICATOR_2X
+    MACHINE_TYPE_REPLICATOR_2X,
+    0 // has_abp
 };
 
 // Core-XY machine, 18 tooth GT2 timing pulleys for X and Y
@@ -249,7 +297,8 @@ static Machine core_xy = {
     {0.0050, 0.0550},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_CORE_XY
+    MACHINE_TYPE_CORE_XY,
+    0 // has_abp
 };
 
 // Core-XY machine with a slow Z axis ("sz"), 18T GT2 pulleys for X and Y
@@ -267,7 +316,8 @@ static Machine core_xysz = {
     {0.0050, 0.0550},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_CORE_XYSZ
+    MACHINE_TYPE_CORE_XYSZ,
+    0 // has_abp
 };
 
 // ZYYX 3D printer, single extruder, 18T GT2 pulleys for X and Y
@@ -285,7 +335,8 @@ static Machine zyyx = {
     {0.0050, 0.0550},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_ZYYX
+    MACHINE_TYPE_ZYYX,
+    0 // has_abp
 };
 
 // ZYYX 3D printer, dual extruders, 18T GT2 pulleys for X and Y
@@ -303,7 +354,8 @@ static Machine zyyx_D = {
     {0.0050, 0.0550},  // JKN
     2,  // extruder count
     20, // timeout
-    MACHINE_TYPE_ZYYX_D
+    MACHINE_TYPE_ZYYX_D,
+    0 // has_abp
 };
 
 // ZYYX 3D printer, single extruder, 18T GT2 pulleys for X and Y
@@ -321,7 +373,8 @@ static Machine zyyx_pro = {
     {0.0050, 0.0550},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_ZYYX_PRO
+    MACHINE_TYPE_ZYYX_PRO,
+    0 // has_abp
 };
 
 static Machine clone_r1 = {
@@ -338,7 +391,8 @@ static Machine clone_r1 = {
     {0.0050, 0.0550},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_CLONE_R1
+    MACHINE_TYPE_CLONE_R1,
+    0 // has_abp
 };
 
 
@@ -356,7 +410,8 @@ static Machine clone_r1d = {
     {0.0050, 0.0550},  // JKN
     2,  // extruder count
     20, // timeout
-    MACHINE_TYPE_CLONE_R1D
+    MACHINE_TYPE_CLONE_R1D,
+    0 // has_abp
 };
 
 
@@ -382,6 +437,8 @@ static Machine *machines[] = {
      &zyyx,
      &zyyx_D,
      &zyyx_pro,
+     &thing_o_matic_6_abp,
+     &thing_o_matic_7_abp,
      NULL
 };
 

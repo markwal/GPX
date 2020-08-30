@@ -48,6 +48,7 @@
 #define MACHINE_TYPE_CLONE_R1      17  // Clone R1 Single w/HBP
 #define MACHINE_TYPE_CLONE_R1D     18  // Clone R1 Dual w/HBP
 #define MACHINE_TYPE_ZYYX_PRO      19  // ZYYX Pro
+#define MACHINE_TYPE_THINGOMATIC_7_ABP 20 // ToM Mk7 Single w/ABP
 
 // endstop flags
 #define ENDSTOP_IS_MIN 0
@@ -89,6 +90,7 @@ typedef struct {
      unsigned extruder_count;
      unsigned timeout;
      unsigned id;
+     unsigned has_abp; // automatic build platform
 } Machine;
 
 typedef struct {

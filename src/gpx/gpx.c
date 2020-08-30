@@ -4246,6 +4246,7 @@ int gpx_set_property_inner(Gpx *gpx, const char* section, const char* property, 
         else if(PROPERTY_IS("steps_per_mm")) {
             gpx_parse_steps_per_mm_all_axes(gpx, value);
         }
+        else if(PROPERTY_IS("has_automated_build_platform")) gpx->machine.has_abp = atoi(value);
         else goto SECTION_ERROR;
     }
     else {
@@ -5308,7 +5309,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 		// In MightyBoard electronics, turn the heatsink fan on
 
             case 106:
-                if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
+                if(!gpx->machine.has_abp) {
 		    int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;
 		    if(gpx->flag.reprapFlavor || gpx->flag.M106AlwaysValve) {
 			 // Toggle valve
@@ -5351,7 +5352,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
 		// In MightyBoard electronics, turn the heatsink fan off
 
             case 107:
-                if(gpx->machine.id >= MACHINE_TYPE_REPLICATOR_1) {
+                if(!gpx->machine.has_abp) {
 		    int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 0;
 		    if(gpx->flag.reprapFlavor || gpx->flag.M106AlwaysValve) {
 			 // Toggle valve

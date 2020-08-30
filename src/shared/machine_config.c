@@ -234,6 +234,8 @@ int config_machine(Machine *m, const Machine *def, const char *mtype)
      GET_UNSIGNED(timeout,                 "timeout");
      // GET_STRING(type, free_type,           "machine_type");
      GET_STRING(desc, free_desc,           "machine_description");
+     GET_UNSIGNED(has_abp,                 "has_automated_build_platform");
+     m->has_abp = m->has_abp ? 1 : 0;
 
      return(OPT_OK);
 
@@ -267,6 +269,9 @@ void config_dump(FILE *fp, const Machine *m)
      fprintf(fp, "jkn_k2 = %g\n",            m->jkn[1]);
      fprintf(fp, "extruder_count = %u\n",    m->extruder_count);
      fprintf(fp, "timeout = %u\n",           m->timeout);
+
+     if (m->has_abp)
+         fprintf(fp, "has_automated_build_platform = %u\n", m->has_abp);
 
      fprintf(fp, "\n");
 

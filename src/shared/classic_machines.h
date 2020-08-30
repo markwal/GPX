@@ -53,7 +53,8 @@ static Machine wrong_thing_o_matic_7 = {
     {0.0070, 0.0040},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_THINGOMATIC_7
+    MACHINE_TYPE_THINGOMATIC_7,
+    0 // has_abp
 };
 
 static Machine wrong_thing_o_matic_7D = {
@@ -70,7 +71,8 @@ static Machine wrong_thing_o_matic_7D = {
     {0.0070, 0.0040},  // JKN
     2,  // extruder count
     20, // timeout
-    MACHINE_TYPE_THINGOMATIC_7D
+    MACHINE_TYPE_THINGOMATIC_7D,
+    0 // has_abp
 };
 
 static Machine wrong_replicator_1 = {
@@ -87,7 +89,8 @@ static Machine wrong_replicator_1 = {
     {0.0050, 0.0550},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_REPLICATOR_1
+    MACHINE_TYPE_REPLICATOR_1,
+    0 // has_abp
 };
 
 static Machine wrong_replicator_1D = {
@@ -104,7 +107,8 @@ static Machine wrong_replicator_1D = {
     {0.0050, 0.0550},  // JKN
     2,  // extruder count
     20, // timeout
-    MACHINE_TYPE_REPLICATOR_1D
+    MACHINE_TYPE_REPLICATOR_1D,
+    0 // has_abp
 };
 
 static Machine wrong_replicator_2 = {
@@ -121,7 +125,8 @@ static Machine wrong_replicator_2 = {
     {0.0050, 0.0550},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_REPLICATOR_2
+    MACHINE_TYPE_REPLICATOR_2,
+    0 // has_abp
 };
 
 static Machine wrong_replicator_2H = {
@@ -138,7 +143,8 @@ static Machine wrong_replicator_2H = {
     {0.0050, 0.0550},  // JKN
     1,  // extruder count
     20, // timeout
-    MACHINE_TYPE_REPLICATOR_2H
+    MACHINE_TYPE_REPLICATOR_2H,
+    0 // has_abp
 };
 
 static Machine wrong_replicator_2X = {
@@ -155,7 +161,8 @@ static Machine wrong_replicator_2X = {
     {0.0050, 0.0550},  // JKN
     2,  // extruder count
     20, // timeout
-    MACHINE_TYPE_REPLICATOR_2X
+    MACHINE_TYPE_REPLICATOR_2X,
+    0 // has_abp
 };
 
 #if defined(MACHINE_ARRAY)
