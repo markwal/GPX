@@ -30,7 +30,6 @@
 #include <unistd.h>
 #include <strings.h>
 #include <string.h>
-#include <time.h>
 #include <errno.h>
 #ifdef HAVE_POLL_H
 #include <poll.h>
@@ -425,10 +424,17 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             // 07 - Abort immediately
         case 7:
             // 17 - reset
-        case 17:
+        case 17: {
+            struct timespec ts;
+
             tio_clear_state_for_cancel(tio);
             tio->waitflag.waitForBotCancel = 1;
+            tio->secWaitForClearCancel = 0;
+            if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+                tio->secWaitForClearCancel = ts.tv_sec;
+            }
             break;
+        }
 
             // 10 - Extruder (tool) query response
         case 10: {
@@ -963,8 +969,20 @@ int gpx_do_wait(Gpx *gpx)
         if (rval == SUCCESS && (tio.waitflag.waitForEmptyQueue || tio.waitflag.waitForButton))
             rval = is_ready(gpx);
         if (rval == SUCCESS && !tio.waitflag.waitForEmptyQueue) {
-            if (tio.waitflag.waitForStart || tio.waitflag.waitForBotCancel)
+            if (tio.waitflag.waitForStart || tio.waitflag.waitForBotCancel) {
+                struct timespec ts;
+
+                if (tio.secWaitForClearCancel && clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+                    if ((tio.secWaitForClearCancel - ts.tv_sec) > 5) {
+                        tio.secWaitForClearCancel = ts.tv_sec;
+                        tio.cur = 0;
+                        tio_printf(&tio, "// echo: GPX forcing an ok due to timeout waiting for clear_cancel");
+                        tio_printf(&tio, "ok");
+                        return SUCCESS;
+                    }
+                }
                 rval = get_build_statistics(gpx);
+            }
             if (rval == SUCCESS && tio.waitflag.waitForPlatform)
                 rval = is_build_platform_ready(gpx, 0);
             if (rval == SUCCESS && tio.waitflag.waitForExtruderA)

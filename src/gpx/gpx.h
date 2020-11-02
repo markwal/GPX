@@ -34,6 +34,7 @@ extern "C" {
 #include <limits.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <time.h>
 #include "vector.h"
 #include "config.h"
 
@@ -581,6 +582,7 @@ typedef long speed_t;
         Tr bed_tr;
         Gpx *gpx;
         int upstream;
+        time_t secWaitForClearCancel;
     } Tio;
 
     // 23 - Get build statistics: build state values
