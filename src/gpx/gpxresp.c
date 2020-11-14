@@ -31,15 +31,16 @@
 #include <strings.h>
 #include <string.h>
 #include <errno.h>
-#ifdef HAVE_POLL_H
-#include <poll.h>
-#endif
 #ifndef _WIN32
 #include <sys/select.h>
 #include <iconv.h>
 #endif
 
 #include "gpx.h"
+
+#ifdef HAVE_POLL_H
+#include <poll.h>
+#endif
 
 // make a new string table
 // cs_chunk -- count of strings -- grow the string array in chunks of this many strings
@@ -197,7 +198,7 @@ void tio_clear_state_for_cancel(Tio *tio)
     if (tio->waiting) {
         tio->flag.waitClearedByCancel = 1;
         if(tio->gpx->flag.verboseMode)
-            fprintf(tio->gpx->log, "setting waitClearedByCancel");
+            fprintf(tio->gpx->log, "setting waitClearedByCancel\n");
     }
     tio->waiting = 0;
     tio->waitflag.waitForEmptyQueue = 1;
@@ -646,7 +647,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
             if ((gpx->command.flag & M_IS_SET) && gpx->command.m == 115) {
                 // protocol version means the version of the RepRap protocol we're emulating
                 // not the version of the x3g protocol we're talking
-                tio_printf(tio, " PROTOCOL_VERSION:0.1 FIRMWARE_NAME:%s FIRMWARE_VERSION:%u.%u FIRMWARE_URL:%s MACHINE_TYPE:%s EXTRUDER_COUNT:%u",
+                tio_printf(tio, " PROTOCOL_VERSION:0.1 FIRMWARE_NAME:%s FIRMWARE_VERSION:%u.%u FIRMWARE_URL:%s MACHINE_TYPE:%s EXTRUDER_COUNT:%u\nCap:EMERGENCY_PARSER:1",
                         variant, tio->sio.response.firmware.version / 100, tio->sio.response.firmware.version %100,
                         variant_url, gpx->machine.type, gpx->machine.extruder_count);
             }
@@ -712,6 +713,7 @@ static int translate_handler(Gpx *gpx, Tio *tio, char *buffer, size_t length)
 static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
 {
     int len = 0;
+    VERBOSE( fprintf(gpx->log, "translate_result: %s\n", fmt) );
     if (!strcasecmp(fmt, "@clear_cancel")) {
         if (tio->upstream == -1 && !tio->flag.cancelPending && gpx->flag.programState == RUNNING_STATE) {
             // cancel gcode came through before cancel event
@@ -721,6 +723,7 @@ static int translate_result(Gpx *gpx, Tio *tio, const char *fmt, va_list ap)
         else {
             tio->waitflag.waitForEmptyQueue = 1;
         }
+        VERBOSE( fprintf(gpx->log, "clear cancelPending\n") );
         tio->flag.cancelPending = 0;
         return 0;
     }
@@ -1137,7 +1140,7 @@ static int wait_for_hup_clear(Gpx *gpx, int fd)
         short_sleep(250000000L);
     }
     if (send_ok) {
-        tio_printf("ok");
+        tio_printf(&tio, "ok");
         gpx_write_upstream_translation(gpx);
     }
     return SUCCESS;
