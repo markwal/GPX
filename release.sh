@@ -1,10 +1,16 @@
 #!/bin/bash
 
 # This is the script to build most of the release archives that we publish to
-# github releases.  It is intended to run on a linux system though a Mac might be
-# better since the idea is to cross-compile as many as possible and the Mac can
-# do all of the builds we currently release: mac, linux, mingw32, mingw64, but
-# for now, I don't have a Mac, so this script does the other three
+# github releases.  It is intended to run on a linux system. It uses mingw to
+# cross compile for Windows, so the only build that has to be done elsewhere
+# is the Mac
+
+# In order to use this script you need to install MingW64 for command line use
+# Under WSL (Windows Subsystem for Linux) Ubuntu (Can be installed from the MS Store)
+# this command installs MingW64: sudo apt install mingw-w64
+
+# Also, gpx needs to be installed on the machine you're running this script on
+# ie after building the linux version: sudo make install
 
 echo "------------------------------------------------------------------"
 echo "Linux build first"
@@ -31,10 +37,10 @@ for plat in "win32" "win64"; do
     pwd
     case $plat in
         win32)
-            args="-host i686-w64-mingw32"
+            args="-host=i686-w64-mingw32"
             ;;
         win64)
-            args="-host x86_64-w64-mingw32"
+            args="-host=x86_64-w64-mingw32"
             ;;
     esac
     echo "Calling configure"
