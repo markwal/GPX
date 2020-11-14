@@ -939,17 +939,25 @@ speed_t speed_from_long(long *baudrate)
             speed=B28800;
             break;
 #endif
+#ifdef B38400
         case 38400:
             speed=B38400;
             break;
+#endif
+#ifdef B57600
         case 57600:
             speed=B57600;
             break;
+#endif
             // TODO auto detect speed when 0?
         case 0: // 0 means default of 115200
             *baudrate=115200;
         case 115200:
+#ifdef B115200
             speed=B115200;
+#else
+            speed=115200;
+#endif
             break;
         default:
             tio_log_printf(&tio, "Error: Unsupported baud rate '%ld'\n", *baudrate);
