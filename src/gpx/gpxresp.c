@@ -27,6 +27,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <strings.h>
 #include <string.h>
@@ -1089,6 +1091,16 @@ static int gpx_create_daemon_port(Gpx *gpx, const char *daemon_port)
         return EOSERROR;
     }
     fprintf(gpx->log, "Created virtual port: %s.\n", pn);
+
+    // get the perms on the slave end
+    struct stat st;
+    if (stat(pn, &st) == -1) {
+        fprintf(gpx->log, "Warn: Unable to retrieve permissions on psuedo-terminal %s. errno = %d\n", pn, errno);
+    }
+    // set the perms on the slave end
+    else if (chmod(pn, st.st_mode | S_IRGRP)) {
+        fprintf(gpx->log, "Warn: Unable to set permissions on psuedo-terminal %s. errno = %d\n", pn, errno);
+    }
 
     // create the requested "daemon_port" as a symlink to the slave end
     if (unlink(daemon_port) < 0 && errno != ENOENT) {
