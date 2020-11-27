@@ -35,13 +35,15 @@
 #include <errno.h>
 #ifndef _WIN32
 #include <sys/select.h>
-#include <iconv.h>
 #endif
 
 #include "gpx.h"
 
 #ifdef HAVE_POLL_H
 #include <poll.h>
+#endif
+#ifdef HAVE_ICONV
+#include <iconv.h>
 #endif
 
 // make a new string table
@@ -312,7 +314,7 @@ static void translate_extruder_query_response(Gpx *gpx, Tio *tio, unsigned query
 // FUTURE proper decode here (to UTF8?)
 static void sanitize_filename(char *filename)
 {
-#ifndef _WIN32
+#ifdef HAVE_ICONV
     char buf[PROTOCOL_FILENAME_MAX];
     iconv_t cd = iconv_open("WINDOWS-1252", "ASCII//TRANSLIT");
     size_t inremain = strlen(filename);
@@ -329,7 +331,6 @@ static void sanitize_filename(char *filename)
         return;
     }
     // fallthrough to strip
-    // FUTURE WIN32 equivalent APIs
 #endif
 
     for (; *filename; filename++) {
