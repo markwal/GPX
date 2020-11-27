@@ -42,6 +42,7 @@ AC_CHECK_PROG([DIFF], [diff], [diff -b])
 AM_CONDITIONAL([HAVE_DIFF], [test -n "$DIFF"])
 
 # Checks for libraries.
+AM_ICONV
 
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h float.h inttypes.h limits.h stdint.h stdlib.h string.h unistd.h poll.h])

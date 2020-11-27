@@ -3,6 +3,7 @@
 #
 
 AM_CPPFLAGS = -Wall -Wstrict-prototypes -Wformat -Werror=format-security -DSERIAL_SUPPORT -I$(top_srcdir)/src/shared
+LIBS = $(LIBICONV)
 
 bin_PROGRAMS = gpx
 gpx_SOURCES = gpx.c gpx-main.c gpxresp.c ../shared/machine_config.c ../shared/opt.c vector.c vector.h gpx.h winsio.h
