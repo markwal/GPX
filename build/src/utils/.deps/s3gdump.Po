@@ -1,0 +1,85 @@
+s3gdump.o: ../../../src/utils/s3gdump.c \
+ /usr/share/mingw-w64/include/stdio.h \
+ /usr/share/mingw-w64/include/crtdefs.h \
+ /usr/share/mingw-w64/include/_mingw.h \
+ /usr/share/mingw-w64/include/_mingw_mac.h \
+ /usr/share/mingw-w64/include/_mingw_secapi.h \
+ /usr/share/mingw-w64/include/vadefs.h \
+ /usr/share/mingw-w64/include/sdks/_mingw_directx.h \
+ /usr/share/mingw-w64/include/sdks/_mingw_ddk.h \
+ /usr/share/mingw-w64/include/_mingw_print_push.h \
+ /usr/share/mingw-w64/include/_mingw_off_t.h \
+ /usr/i686-w64-mingw32/include/swprintf.inl \
+ /usr/share/mingw-w64/include/sec_api/stdio_s.h \
+ /usr/share/mingw-w64/include/_mingw_print_pop.h \
+ /usr/share/mingw-w64/include/string.h \
+ /usr/share/mingw-w64/include/sec_api/string_s.h \
+ /usr/share/mingw-w64/include/unistd.h /usr/share/mingw-w64/include/io.h \
+ /usr/share/mingw-w64/include/sec_api/io_s.h \
+ /usr/share/mingw-w64/include/process.h \
+ /usr/share/mingw-w64/include/sys/types.h \
+ /usr/share/mingw-w64/include/getopt.h \
+ /usr/share/mingw-w64/include/pthread_unistd.h ../../../src/shared/s3g.h \
+ /usr/share/mingw-w64/include/inttypes.h \
+ /usr/lib/gcc/i686-w64-mingw32/4.9-win32/include/stdint.h \
+ /usr/share/mingw-w64/include/stdint.h \
+ /usr/lib/gcc/i686-w64-mingw32/4.9-win32/include/stddef.h \
+ /usr/share/mingw-w64/include/stddef.h ../../../src/shared/s3g_commands.h
+
+/usr/share/mingw-w64/include/stdio.h:
+
+/usr/share/mingw-w64/include/crtdefs.h:
+
+/usr/share/mingw-w64/include/_mingw.h:
+
+/usr/share/mingw-w64/include/_mingw_mac.h:
+
+/usr/share/mingw-w64/include/_mingw_secapi.h:
+
+/usr/share/mingw-w64/include/vadefs.h:
+
+/usr/share/mingw-w64/include/sdks/_mingw_directx.h:
+
+/usr/share/mingw-w64/include/sdks/_mingw_ddk.h:
+
+/usr/share/mingw-w64/include/_mingw_print_push.h:
+
+/usr/share/mingw-w64/include/_mingw_off_t.h:
+
+/usr/i686-w64-mingw32/include/swprintf.inl:
+
+/usr/share/mingw-w64/include/sec_api/stdio_s.h:
+
+/usr/share/mingw-w64/include/_mingw_print_pop.h:
+
+/usr/share/mingw-w64/include/string.h:
+
+/usr/share/mingw-w64/include/sec_api/string_s.h:
+
+/usr/share/mingw-w64/include/unistd.h:
+
+/usr/share/mingw-w64/include/io.h:
+
+/usr/share/mingw-w64/include/sec_api/io_s.h:
+
+/usr/share/mingw-w64/include/process.h:
+
+/usr/share/mingw-w64/include/sys/types.h:
+
+/usr/share/mingw-w64/include/getopt.h:
+
+/usr/share/mingw-w64/include/pthread_unistd.h:
+
+../../../src/shared/s3g.h:
+
+/usr/share/mingw-w64/include/inttypes.h:
+
+/usr/lib/gcc/i686-w64-mingw32/4.9-win32/include/stdint.h:
+
+/usr/share/mingw-w64/include/stdint.h:
+
+/usr/lib/gcc/i686-w64-mingw32/4.9-win32/include/stddef.h:
+
+/usr/share/mingw-w64/include/stddef.h:
+
+../../../src/shared/s3g_commands.h:

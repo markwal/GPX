@@ -1585,7 +1585,7 @@ static int set_valve(Gpx *gpx, unsigned extruder_id, unsigned state)
         // uint8: Length of the extruder command payload (N)
         write_8(gpx, 1);
 
-        // uint8: 1 to enable, 0 to disable
+        // uint8: 1 to enable, 0 to disable, or fan value 1-255.
         write_8(gpx, state);
 
         return end_frame(gpx);
@@ -5546,8 +5546,8 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
                 break;
 
                 // M126 - Turn blower fan on (valve open)
-            case 126: {
-                int state = (gpx->command.flag & S_IS_SET) ? ((unsigned)gpx->command.s ? 1 : 0) : 1;
+            case 126: {           
+                int state = (gpx->command.flag & S_IS_SET) ? (100.0f * (float)gpx->command.s / 255.0f) : 1;
                 if(gpx->flag.dittoPrinting) {
                     CALL( set_valve(gpx, B, state) );
                     CALL( set_valve(gpx, A, state) );
