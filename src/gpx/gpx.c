@@ -2115,8 +2115,9 @@ static int queue_song(Gpx *gpx, unsigned song_id)
     // song ID 0: error tone with 4 cycles
     // song ID 1: done tone
     // song ID 2: error tone with 2 cycles
+    // ... see Sailfish source for the rest.
 
-    assert(song_id <= 2);
+    assert(song_id <= 255);
 
     begin_frame(gpx);
 
@@ -5164,7 +5165,7 @@ int gpx_convert_line(Gpx *gpx, char *gcode_line)
             case 72:
                 if(gpx->command.flag & P_IS_SET) {
                     unsigned song_id = (unsigned)gpx->command.p;
-                    if(song_id > 2) song_id = 2;
+                    if(song_id > 255) song_id = 2;
                     CALL( queue_song(gpx, song_id) );
                     command_emitted++;
                 }
