@@ -29,7 +29,7 @@
 #ifndef __eeprominfo_h__
 #define __eeprominfo_h__
 
-typedef enum { et_null, et_bitfield, et_boolean, et_byte, et_ushort, et_long, et_ulong, et_fixed, et_float, et_string } EepromType;
+typedef enum { et_null, et_bitfield, et_boolean, et_byte, et_ushort, et_long, et_ulong, et_long_long, et_ulong_long, et_fixed, et_float, et_string } EepromType;
 
 typedef struct tEepromMapping {
     const char *id;

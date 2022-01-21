@@ -704,6 +704,7 @@ static PyObject *py_read_eeprom(PyObject *self, PyObject *args)
     unsigned char b;
     unsigned short us;
     unsigned long ul;
+    unsigned long long ull;
     float n;
     switch (pem->et) {
         case et_boolean:
@@ -731,6 +732,12 @@ static PyObject *py_read_eeprom(PyObject *self, PyObject *args)
         case et_ulong:
             if (read_eeprom_32(&gpx, gpx.sio, pem->address, &ul) == SUCCESS)
                 return Py_BuildValue(pem->et == et_long ? "l" : "k", ul);
+            break;
+
+        case et_long_long:
+        case et_ulong_long:
+            if (read_eeprom_64(&gpx, gpx.sio, pem->address, &ull) == SUCCESS)
+                return Py_BuildValue(pem->et == et_long_long ? "L" : "K", ull);
             break;
 
         case et_float:
@@ -795,6 +802,7 @@ static PyObject *py_write_eeprom(PyObject *self, PyObject *args)
     unsigned char b = 0;
     unsigned short us = 0;
     unsigned long ul = 0;
+    unsigned long ull = 0;
     float n = 0.0;
     char *s = NULL;
     int f = 0;
@@ -859,12 +867,36 @@ static PyObject *py_write_eeprom(PyObject *self, PyObject *args)
             value = PyNumber_Long(value);
             if (value == NULL)
                 return NULL;
-            f = PyArg_Parse(value, "L", &ul);
+            f = PyArg_Parse(value, "k", &ul);
             Py_DECREF(value);
             if (!f)
                 return NULL;
             rval = write_eeprom_32(&gpx, gpx.sio, pem->address, ul);
             gcodeResult(&gpx, "write_eeprom_32(%lu) to address %u", ul, pem->address);
+            break;
+
+        case et_long_long:
+            value = PyNumber_Long(value);
+            if (value == NULL)
+                return NULL;
+            f = PyArg_Parse(value, "L", &ull);
+            Py_DECREF(value);
+            if (!f)
+                return NULL;
+            rval = write_eeprom_64(&gpx, gpx.sio, pem->address, ull);
+            gcodeResult(&gpx, "write_eeprom_64(%lu) to address %u", ull, pem->address);
+            break;
+
+        case et_ulong_long:
+            value = PyNumber_Long(value);
+            if (value == NULL)
+                return NULL;
+            f = PyArg_Parse(value, "K", &ull);
+            Py_DECREF(value);
+            if (!f)
+                return NULL;
+            rval = write_eeprom_64(&gpx, gpx.sio, pem->address, ull);
+            gcodeResult(&gpx, "write_eeprom_64(%lu) to address %u", ull, pem->address);
             break;
 
         case et_float:
