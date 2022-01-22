@@ -31,9 +31,11 @@
 
 #include "eeprominfo.h"
 #include "sailfish_7_7.h"
+#include "sailfish_4_7.h"
 
 EepromMap eepromMaps[] = {
     { 707, 708, 0x80, eeprom_map_sailfish_7_7, (sizeof(eeprom_map_sailfish_7_7) / sizeof(EepromMapping)) },
+    { 407, 408, 0x80, eeprom_map_sailfish_4_7, (sizeof(eeprom_map_sailfish_4_7) / sizeof(EepromMapping)) },
 };
 
 #define eepromMapCount (sizeof(eepromMaps) / sizeof(EepromMap))
