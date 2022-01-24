@@ -3010,7 +3010,7 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, uint64_t 
 
         case et_long:
         case et_ulong:
-            if(hex > 2147483648) {
+            if(value > 0 && hex > 2147483648) {
                 gcodeResult(gpx, "(line %u) Error: parameter out of range for eeprom setting %s\n", gpx->lineNumber, pem->id);
                 return ERROR;
             }
@@ -3498,7 +3498,7 @@ static int parse_macro(Gpx *gpx, const char* macro, char *p)
             while(*p && (isalnum(*p) || *p == '_')) p++;
             if(*p) *p++ = 0;
         }
-        else if(isdigit(*p)) {
+        else if(isdigit(*p) || *p == '-') {
             char *t = p;
             while(*p && !isspace(*p)) p++;
             if(*(p - 1) == 'm') {
