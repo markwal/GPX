@@ -2906,12 +2906,14 @@ static int read_eeprom_name(Gpx *gpx, char *name)
         case et_ulong: {
             uint32_t ul;
             CALL( read_eeprom_32(gpx, gpx->sio, pem->address, &ul) );
+            double result;
             if(pem->et == et_long) {
-                gcodeResult(gpx, "EEPROM value %s @ 0x%x is %ld %s (0x%lx)\n", pem->id, pem->address, ul, unit, ul);
+                result = (int32_t) ul / pem->unitScaleFactor;
             }
             else {
-                gcodeResult(gpx, "EEPROM value %s @ 0x%x is %lu %s (0x%lx)\n", pem->id, pem->address, ul, unit, ul);
+                result = ul / pem->unitScaleFactor;
             }
+            gcodeResult(gpx, "EEPROM value %s @ 0x%x is %g %s (0x%lx)\n", pem->id, pem->address, result, unit, ul);
             break;
         }
 
@@ -2919,12 +2921,14 @@ static int read_eeprom_name(Gpx *gpx, char *name)
         case et_ulong_long: {
             uint64_t ull;
             CALL( read_eeprom_64(gpx, gpx->sio, pem->address, &ull) );
+            double result;
             if(pem->et == et_long_long) {
-                gcodeResult(gpx, "EEPROM value %s @ 0x%x is %lld %s (0x%llx)\n", pem->id, pem->address, ull, unit, ull);
+                result = (int64_t) ull / pem->unitScaleFactor;
             }
             else {
-                gcodeResult(gpx, "EEPROM value %s @ 0x%x is %llu %s (0x%llx)\n", pem->id, pem->address, ull, unit, ull);
+                result = ull / pem->unitScaleFactor;
             }
+            gcodeResult(gpx, "EEPROM value %s @ 0x%x is %g %s (0x%llx)\n", pem->id, pem->address, result, unit, ull);
             break;
         }
 
@@ -2971,7 +2975,7 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, uint64_t 
         }
 
         if(value != 0.0)
-            hex = (uint64_t)(int64_t)value;
+            hex = (uint64_t)(int64_t) (value * pem->unitScaleFactor);
 
     }
 

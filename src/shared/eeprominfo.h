@@ -41,6 +41,7 @@ typedef struct tEepromMapping {
     int minValue;
     int maxValue;
     const char *tooltip;
+    double unitScaleFactor;
 } EepromMapping;
 
 typedef struct tEepromMap {
