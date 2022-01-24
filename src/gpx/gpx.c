@@ -34,7 +34,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <time.h>
-#include <stdint.h>
 
 #include <libgen.h>
 
@@ -2627,7 +2626,7 @@ int read_eeprom_8(Gpx *gpx, Sio *sio, unsigned address, unsigned char *value)
     return SUCCESS;
 }
 
-int write_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short value)
+int write_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, uint16_t value)
 {
     int rval;
     gpx->buffer.ptr = sio->response.eeprom.buffer;
@@ -2636,7 +2635,7 @@ int write_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short value)
     return SUCCESS;
 }
 
-int read_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short *value)
+int read_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, uint16_t *value)
 {
     int rval;
     CALL( read_eeprom(gpx, address, 2) );
@@ -2663,7 +2662,7 @@ int read_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float *value)
     return SUCCESS;
 }
 
-int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long value)
+int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, uint32_t value)
 {
     int rval;
     gpx->buffer.ptr = sio->response.eeprom.buffer;
@@ -2672,7 +2671,7 @@ int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long value)
     return SUCCESS;
 }
 
-int read_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long *value)
+int read_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, uint32_t *value)
 {
     int rval;
     CALL( read_eeprom(gpx, address, 4) );
@@ -2681,7 +2680,7 @@ int read_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long *value)
     return SUCCESS;
 }
 
-int write_eeprom_64(Gpx *gpx, Sio *sio, unsigned address, unsigned long long value)
+int write_eeprom_64(Gpx *gpx, Sio *sio, unsigned address, uint64_t value)
 {
     int rval;
     gpx->buffer.ptr = sio->response.eeprom.buffer;
@@ -2690,7 +2689,7 @@ int write_eeprom_64(Gpx *gpx, Sio *sio, unsigned address, unsigned long long val
     return SUCCESS;
 }
 
-int read_eeprom_64(Gpx *gpx, Sio *sio, unsigned address, unsigned long long *value)
+int read_eeprom_64(Gpx *gpx, Sio *sio, unsigned address, uint64_t *value)
 {
     int rval;
     CALL( read_eeprom(gpx, address, 8) );
@@ -2890,7 +2889,7 @@ static int read_eeprom_name(Gpx *gpx, char *name)
         }
 
         case et_ushort: {
-            unsigned short us;
+            uint16_t us;
             CALL( read_eeprom_16(gpx, gpx->sio, pem->address, &us) );
             gcodeResult(gpx, "EEPROM value %s @ 0x%x is %u %s (0x%x)\n", pem->id, pem->address, us, unit, us);
             break;
@@ -2905,7 +2904,7 @@ static int read_eeprom_name(Gpx *gpx, char *name)
 
         case et_long:
         case et_ulong: {
-            unsigned long ul;
+            uint32_t ul;
             CALL( read_eeprom_32(gpx, gpx->sio, pem->address, &ul) );
             if(pem->et == et_long) {
                 gcodeResult(gpx, "EEPROM value %s @ 0x%x is %ld %s (0x%lx)\n", pem->id, pem->address, ul, unit, ul);
@@ -2918,7 +2917,7 @@ static int read_eeprom_name(Gpx *gpx, char *name)
 
         case et_long_long:
         case et_ulong_long: {
-            unsigned long ull;
+            uint64_t ull;
             CALL( read_eeprom_64(gpx, gpx->sio, pem->address, &ull) );
             if(pem->et == et_long_long) {
                 gcodeResult(gpx, "EEPROM value %s @ 0x%x is %lld %s (0x%llx)\n", pem->id, pem->address, ull, unit, ull);
@@ -2953,7 +2952,7 @@ static int read_eeprom_name(Gpx *gpx, char *name)
 }
 
 // write an eeprom value via a defined mapping
-static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned long long hex, float value)
+static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, uint64_t hex, double value)
 {
     int rval = SUCCESS;
 
@@ -2972,7 +2971,7 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
         }
 
         if(value != 0.0)
-            hex = (unsigned long long)value;
+            hex = (uint64_t)(int64_t)value;
 
     }
 
@@ -2995,7 +2994,7 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
                 gcodeResult(gpx, "(line %u) Error: parameter out of range for eeprom setting %s\n", gpx->lineNumber, pem->id);
                 return ERROR;
             }
-            unsigned short us = (unsigned short)hex;
+            uint16_t us = (uint16_t)hex;
             CALL( write_eeprom_16(gpx, gpx->sio, pem->address, us) );
             gcodeResult(gpx, "EEPROM wrote 16-bits, %u to address 0x%x\n", us, pem->address);
             break;
@@ -3015,7 +3014,7 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
                 gcodeResult(gpx, "(line %u) Error: parameter out of range for eeprom setting %s\n", gpx->lineNumber, pem->id);
                 return ERROR;
             }
-            unsigned long ul = (unsigned long)hex;
+            uint32_t ul = (uint32_t)hex;
             CALL( write_eeprom_32(gpx, gpx->sio, pem->address, ul) );
             gcodeResult(gpx, "EEPROM wrote 32-bits, %lu to address 0x%x\n", ul, pem->address);
             break;
@@ -3023,7 +3022,7 @@ static int write_eeprom_name(Gpx *gpx, char *name, char *string_value, unsigned 
         case et_long_long:
         case et_ulong_long:
             CALL( write_eeprom_64(gpx, gpx->sio, pem->address, hex) );
-            gcodeResult(gpx, "EEPROM wrote 64-bits, %lu to address 0x%x\n", hex, pem->address);
+            gcodeResult(gpx, "EEPROM wrote 64-bits, %llu to address 0x%x\n", hex, pem->address);
             break;
 
         case et_float:

@@ -36,6 +36,7 @@ extern "C" {
 #include <stdarg.h>
 #include <time.h>
 #include "vector.h"
+#include <stdint.h>
 #include "config.h"
 
 #if defined(SERIAL_SUPPORT)
@@ -655,14 +656,14 @@ typedef long speed_t;
     int write_eeprom(Gpx *gpx, unsigned address, char *data, unsigned length);
     int write_eeprom_8(Gpx *gpx, Sio *sio, unsigned address, unsigned char value);
     int read_eeprom_8(Gpx *gpx, Sio *sio, unsigned address, unsigned char *value);
-    int write_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short value);
-    int read_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, unsigned short *value);
+    int write_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, uint16_t value);
+    int read_eeprom_16(Gpx *gpx, Sio *sio, unsigned address, uint16_t *value);
     int write_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float value);
     int read_eeprom_fixed_16(Gpx *gpx, Sio *sio, unsigned address, float *value);
-    int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long value);
-    int read_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, unsigned long *value);
-    int write_eeprom_64(Gpx *gpx, Sio *sio, unsigned address, unsigned long long value);
-    int read_eeprom_64(Gpx *gpx, Sio *sio, unsigned address, unsigned long long *value);
+    int write_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, uint32_t value);
+    int read_eeprom_32(Gpx *gpx, Sio *sio, unsigned address, uint32_t *value);
+    int write_eeprom_64(Gpx *gpx, Sio *sio, unsigned address, uint64_t value);
+    int read_eeprom_64(Gpx *gpx, Sio *sio, unsigned address, uint64_t *value);
     int write_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float value);
     int read_eeprom_float(Gpx *gpx, Sio *sio, unsigned address, float *value);
 

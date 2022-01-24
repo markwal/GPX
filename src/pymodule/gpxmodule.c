@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <unistd.h>
@@ -702,10 +703,11 @@ static PyObject *py_read_eeprom(PyObject *self, PyObject *args)
     }
 
     unsigned char b;
-    unsigned short us;
-    unsigned long ul;
-    unsigned long long ull;
+    uint16_t us;
+    uint32_t ul;
+    uint64_t ull;
     float n;
+
     switch (pem->et) {
         case et_boolean:
             if (read_eeprom_8(&gpx, gpx.sio, pem->address, &b) == SUCCESS)
@@ -800,9 +802,9 @@ static PyObject *py_write_eeprom(PyObject *self, PyObject *args)
     int rval = SUCCESS;
     int len = 0;
     unsigned char b = 0;
-    unsigned short us = 0;
-    unsigned long ul = 0;
-    unsigned long ull = 0;
+    uint16_t us = 0;
+    uint32_t ul = 0;
+    uint64_t ull = 0;
     float n = 0.0;
     char *s = NULL;
     int f = 0;
