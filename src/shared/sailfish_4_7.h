@@ -27,9 +27,9 @@ EepromMapping eeprom_map_sailfish_4_7[] = {
   "", 1.0 },*/
 { "EXTRUDER_DEPRIME_ON_TRAVEL", "Extruder deprime on travel", "", 0x1EE, et_boolean, 0, 0, 1,
   "When set, the firmware will deprime the extruder on detected travel moves as well as on pauses, planned or otherwise.  When not set, the firmware will only deprime the extruder on pauses, planned or otherwise.  Unplanned pauses occur when the acceleration planner falls behind and the printer waits briefly for another segment to print.", 1.0 },
-/*{ "ALEVEL_MAX_ZPROBE_HITS", "Alevel max zprobe hits", "", 0xf64, et_byte, 0, 0, 200,
+{ "ALEVEL_MAX_ZPROBE_HITS", "Alevel max zprobe hits", "", 0x1F0, et_byte, 0, 0, 200,
   "Trigger a pause if the auto-leveling probe registers too many hits during a print. Set to the value 0 to allow an unlimited number of hits without pausing; otherwise, set to a value in the range 1 to 200.", 1.0 },
-{ "T0_COOLING_SETPOINT_C", "T0 cooling setpoint c", "C", 0x11b, et_byte, 0, 0, 300,
+/*{ "T0_COOLING_SETPOINT_C", "T0 cooling setpoint c", "C", 0x11b, et_byte, 0, 0, 300,
   "", 1.0 },
 { "T0_COOLING_ENABLE", "T0 cooling enable", "", 0x11a, et_boolean, 0, 0, 1,
   "", 1.0 },
@@ -65,8 +65,8 @@ EepromMapping eeprom_map_sailfish_4_7[] = {
   "Set a blower strength (duty cycle) to use for the print cooling fan when it is activated by the print commands.  Select a value between 0% (off) and 100% (on full).  For example, if your fan is too strong, you may want to set this value to 50 so that the fan operates at 50% strength.  If set this value to 0, then the cooling fan will not activate at all when the print commands request it to.", 1.0 },*/
 { "MACHINE_NAME", "Machine name", "", 0x20, et_string, 16, 0, 0,
   "", 1.0 },
-/*{ "ALEVEL_MAX_ZDELTA", "Alevel max zdelta", "steps", 0xf66, et_long, 0, 0, 0,
-  "The maximum vertical difference between any two probed leveling points may not exceed this value.  Default value is 50 steps (0.5 mm).", 1.0 },*/
+{ "ALEVEL_MAX_ZDELTA", "Alevel max zdelta", "steps", 0x1F2, et_long, 0, 0, 0,
+  "The maximum vertical difference between any two probed leveling points may not exceed this value.  Default value is 50 steps (0.5 mm).", 1.0 },
 { "PSTOP_ENABLE", "Pstop enable", "", 0x1EC, et_boolean, 0, 0, 1,
   "Check or set to 1 to enable the optional Pause Stop hardware.  Set to zero or uncheck to disable.  The bot should be power cycled after changing this field.", 1.0 },
 { "DITTO_PRINT_ENABLED", "Ditto print enabled", "", 0x1DC, et_boolean, 0, 0, 1,
@@ -152,4 +152,13 @@ EepromMapping eeprom_map_sailfish_4_7[] = {
 };
 
 // Offsets from https://www.thingiverse.com/thing:32084/files 'sailfish_makerware_eeprom_maps'
+// or https://github.com/jetty840/Sailfish-G3Firmware/blob/master/firmware/src/Motherboard/EepromMap.hh
+
+// Everything tool/extruder related can't be easily mapped here:
+// The extruder controller is a separate board with its own eeprom.
+// Its eeprom map is here: https://github.com/jetty840/Sailfish-G3Firmware/blob/master/firmware/src/Extruder/EepromMap.hh
+// One needs to use the HOST_CMD_TOOL_QUERY command to read from it, see:
+// https://github.com/jetty840/ReplicatorG/blob/master/src/replicatorg/drivers/gen3/Sanguino3GDriver.java#L2075
+// https://github.com/jetty840/Sailfish-G3Firmware/blob/master/firmware/src/Motherboard/Host.cc#L446
+
 // Not used: EEPROM_SIZE, VERSION_LOW, VERSION_HIGH, ESTOP_CONFIGURATION, EXTRUDE_DURATION, EXTRUDE_MMS, MOOD_LIGHT_SCRIPT, MOOD_LIGHT_CUSTOM_RED, MOOD_LIGHT_CUSTOM_GREEN, MOOD_LIGHT_CUSTOM_BLUE, JOG_MODE_SETTINGS, BUZZER_REPEATS, FILAMENT_LIFETIME_A, FILAMENT_TRIP_A, ABP_COPIES, UNUSED1, PROFILE_BASE, ACCEL_MAX_EXTRUDER_RETRACT, UNUSED2, UNUSED3, UNUSED4, UNUSED5, UNUSED6, UNUSED7, LCD_TYPE, ENDSTOPS_USED, HOMING_FEED_RATE_X, HOMING_FEED_RATE_Y, HOMING_FEED_RATE_Z, UNUSED8, UNUSED9, UNUSED10, UNUSED11, AXIS_LENGTHS, FILAMENT_LIFETIME_B, FILAMENT_TRIP_B, VID_PID_INFO, ENDSTOP_Z_MIN
