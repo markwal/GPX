@@ -1,4 +1,4 @@
-(@loadmap)
+(@load_eeprom_map)
 (@eread LED_CUSTOM_COLOR_R)
 (@eread LED_CUSTOM_COLOR_G)
 (@eread LED_CUSTOM_COLOR_B)
